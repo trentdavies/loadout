@@ -32,7 +32,7 @@
 ## 5. Test Suites
 
 - [x] 5.1 Create `tests/harness/suite/00_cli_framework.sh` — tests: --help, -h, help at top level and subcommands, unknown command error, install with no flags errors, global flags (--json, -n, -q, -v)
-- [ ] 5.2 Create `tests/harness/suite/01_config.sh` — tests: init creates config, init idempotent, config show, config show --json, cache show, cache clean empty
+- [x] 5.2 Create `tests/harness/suite/01_config.sh` — tests: init creates config, init idempotent, config show, config show --json, cache show, cache clean empty
 - [ ] 5.3 Create `tests/harness/suite/02_source_management.sh` — tests: add local source, add git source (@network), remove source, list (empty + populated), show, update, duplicate name error
 - [ ] 5.4 Create `tests/harness/suite/03_source_detection.sh` — tests: single file, flat dir, plugin dir, full source, unrecognizable dir error, invalid skill warnings
 - [ ] 5.5 Create `tests/harness/suite/04_plugin_system.sh` — tests: plugin list, plugin list --source, plugin show, implicit plugin naming
