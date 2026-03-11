@@ -53,11 +53,11 @@
 
 ## 8. Target Adapters
 
-- [ ] 8.1 Define adapter trait: `install_skill`, `uninstall_skill`, `installed_skills` methods
-- [ ] 8.2 Implement `claude` built-in adapter: copy skill dir to `{target}/skills/{name}/` (SKILL.md + scripts/ + references/ + assets/)
-- [ ] 8.3 Implement `codex` built-in adapter: same layout as claude
-- [ ] 8.4 Implement TOML-driven custom adapter: read `skill_dir`, `skill_file`, `format`, `copy_dirs` from config, validate format is "agentskills"
-- [ ] 8.5 Implement adapter resolution: match target's agent type to built-in or custom adapter, error on unknown with available list
+- [x] 8.1 Define adapter trait: `install_skill`, `uninstall_skill`, `installed_skills` methods
+- [x] 8.2 Implement `claude` built-in adapter: copy skill dir to `{target}/skills/{name}/` (SKILL.md + scripts/ + references/ + assets/)
+- [x] 8.3 Implement `codex` built-in adapter: same layout as claude
+- [x] 8.4 Implement TOML-driven custom adapter: read `skill_dir`, `skill_file`, `format`, `copy_dirs` from config, validate format is "agentskills"
+- [x] 8.5 Implement adapter resolution: match target's agent type to built-in or custom adapter, error on unknown with available list
 
 ## 9. Install Engine
 
