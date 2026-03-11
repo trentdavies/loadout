@@ -1,10 +1,10 @@
 ## 1. Test Fixtures
 
-- [ ] 1.1 Create `tests/fixtures/single-skill/SKILL.md` with valid frontmatter (name: single-skill, description)
-- [ ] 1.2 Create `tests/fixtures/flat-skills/` with `explore/SKILL.md` and `apply/SKILL.md` (valid frontmatter, no toml)
-- [ ] 1.3 Create `tests/fixtures/plugin-source/plugin.toml` (name: test-plugin, version: 0.1.0) with `skills/explore/`, `skills/apply/` (including `scripts/run.sh`), and `skills/verify/` — each with valid SKILL.md
-- [ ] 1.4 Create `tests/fixtures/full-source/source.toml` (name: test-source, version: 1.0.0) with `test-plugin-a/` (plugin.toml + skill-one, skill-two) and `test-plugin-b/` (plugin.toml + skill-three)
-- [ ] 1.5 Create `tests/fixtures/invalid/` with `no-frontmatter/SKILL.md` (no YAML), `bad-name/SKILL.md` (name doesn't match dir), and `empty-dir/`
+- [x] 1.1 Create `tests/fixtures/single-skill/SKILL.md` with valid frontmatter (name: single-skill, description)
+- [x] 1.2 Create `tests/fixtures/flat-skills/` with `explore/SKILL.md` and `apply/SKILL.md` (valid frontmatter, no toml)
+- [x] 1.3 Create `tests/fixtures/plugin-source/plugin.toml` (name: test-plugin, version: 0.1.0) with `skills/explore/`, `skills/apply/` (including `scripts/run.sh`), and `skills/verify/` — each with valid SKILL.md
+- [x] 1.4 Create `tests/fixtures/full-source/source.toml` (name: test-source, version: 1.0.0) with `test-plugin-a/` (plugin.toml + skill-one, skill-two) and `test-plugin-b/` (plugin.toml + skill-three)
+- [x] 1.5 Create `tests/fixtures/invalid/` with `no-frontmatter/SKILL.md` (no YAML), `bad-name/SKILL.md` (name doesn't match dir), and `empty-dir/`
 
 ## 2. Assertion Library
 

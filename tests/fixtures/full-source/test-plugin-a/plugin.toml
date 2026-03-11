@@ -1,0 +1,14 @@
+[plugin]
+name = "test-plugin-a"
+version = "1.0.0"
+description = "First plugin in the full-source fixture."
+
+[[asset]]
+name = "skill-one"
+type = "skill"
+version = "1.0.0"
+
+[[asset]]
+name = "skill-two"
+type = "skill"
+version = "1.0.0"
