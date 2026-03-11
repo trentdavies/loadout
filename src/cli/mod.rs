@@ -828,9 +828,96 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
             }
         }
-        Command::Skill { command: _ } => {
-            eprintln!("skittle: skill not yet implemented");
-            std::process::exit(1);
+        Command::Skill { command: skill_cmd } => {
+            let data_dir = crate::config::data_dir();
+            let registry = crate::registry::load_registry(&data_dir)?;
+
+            match skill_cmd {
+                SkillCommand::List { source, plugin } => {
+                    let mut rows: Vec<Vec<String>> = Vec::new();
+                    let mut json_entries: Vec<serde_json::Value> = Vec::new();
+
+                    for src in &registry.sources {
+                        if let Some(ref filter) = source {
+                            if &src.name != filter {
+                                continue;
+                            }
+                        }
+                        for p in &src.plugins {
+                            if let Some(ref filter) = plugin {
+                                if &p.name != filter {
+                                    continue;
+                                }
+                            }
+                            for skill in &p.skills {
+                                rows.push(vec![
+                                    skill.name.clone(),
+                                    p.name.clone(),
+                                    src.name.clone(),
+                                    skill.description.clone().unwrap_or_default(),
+                                ]);
+                                json_entries.push(serde_json::json!({
+                                    "name": skill.name,
+                                    "plugin": p.name,
+                                    "source": src.name,
+                                    "description": skill.description,
+                                }));
+                            }
+                        }
+                    }
+
+                    if cli.json {
+                        println!("{}", serde_json::to_string_pretty(&json_entries)?);
+                        return Ok(());
+                    }
+
+                    if rows.is_empty() {
+                        if !cli.quiet {
+                            println!("No skills found. Use `skittle source add` to add a source.");
+                        }
+                        return Ok(());
+                    }
+
+                    let out = crate::output::Output::from_flags(
+                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                    );
+                    out.table(
+                        &["SKILL", "PLUGIN", "SOURCE", "DESCRIPTION"],
+                        &rows,
+                    );
+                    Ok(())
+                }
+                SkillCommand::Show { identity } => {
+                    let (source_name, plugin_name, skill) = registry.find_skill(&identity)?;
+
+                    if cli.json {
+                        let json = serde_json::json!({
+                            "name": skill.name,
+                            "plugin": plugin_name,
+                            "source": source_name,
+                            "description": skill.description,
+                            "path": skill.path,
+                        });
+                        println!("{}", serde_json::to_string_pretty(&json)?);
+                        return Ok(());
+                    }
+
+                    let out = crate::output::Output::from_flags(
+                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                    );
+                    out.status("Skill", &skill.name);
+                    out.status("Plugin", plugin_name);
+                    out.status("Source", source_name);
+                    if let Some(d) = &skill.description {
+                        out.status("Description", d);
+                    }
+                    if cli.verbose {
+                        out.status("Path", &skill.path.display().to_string());
+                    }
+
+                    Ok(())
+                }
+            }
         }
         Command::Bundle { command: _ } => {
             eprintln!("skittle: bundle not yet implemented");
