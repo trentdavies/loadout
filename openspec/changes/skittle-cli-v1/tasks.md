@@ -25,7 +25,7 @@
 - [x] 4.4 Implement source normalization: wrap detected structure into canonical Source > Plugin > Skill hierarchy with implicit naming
 - [x] 4.5 Implement `skittle source add <url> [--name]` — resolve, fetch, detect, normalize, cache, register in config
 - [x] 4.6 Implement `skittle source remove <name>` with --force for sources with installed skills
-- [ ] 4.7 Implement `skittle source list` (table: name, URL, plugin count, last updated)
+- [x] 4.7 Implement `skittle source list` (table: name, URL, plugin count, last updated)
 - [ ] 4.8 Implement `skittle source show <name>` (details + plugin/skill tree)
 - [ ] 4.9 Implement `skittle source update [name]` — re-fetch and update cache
 

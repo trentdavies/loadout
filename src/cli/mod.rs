@@ -479,6 +479,55 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     let _ = force; // acknowledged for future installed-skill check
                     Ok(())
                 }
+                SourceCommand::List => {
+                    let registry = crate::registry::load_registry(&data_dir)?;
+
+                    if cli.json {
+                        let entries: Vec<serde_json::Value> = config.source.iter().map(|s| {
+                            let plugin_count = registry.sources.iter()
+                                .find(|r| r.name == s.name)
+                                .map(|r| r.plugins.len())
+                                .unwrap_or(0);
+                            serde_json::json!({
+                                "name": s.name,
+                                "url": s.url,
+                                "type": s.source_type,
+                                "plugins": plugin_count,
+                            })
+                        }).collect();
+                        println!("{}", serde_json::to_string_pretty(&entries)?);
+                        return Ok(());
+                    }
+
+                    if config.source.is_empty() {
+                        if !cli.quiet {
+                            println!("No sources registered. Use `skittle source add` to add one.");
+                        }
+                        return Ok(());
+                    }
+
+                    let rows: Vec<Vec<String>> = config.source.iter().map(|s| {
+                        let plugin_count = registry.sources.iter()
+                            .find(|r| r.name == s.name)
+                            .map(|r| r.plugins.len())
+                            .unwrap_or(0);
+                        vec![
+                            s.name.clone(),
+                            s.url.clone(),
+                            s.source_type.clone(),
+                            plugin_count.to_string(),
+                        ]
+                    }).collect();
+
+                    let out = crate::output::Output::from_flags(
+                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                    );
+                    out.table(
+                        &["NAME", "URL", "TYPE", "PLUGINS"],
+                        &rows,
+                    );
+                    Ok(())
+                }
                 _ => {
                     eprintln!("skittle: source subcommand not yet implemented");
                     std::process::exit(1);

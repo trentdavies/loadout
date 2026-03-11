@@ -5,14 +5,35 @@ use anyhow::{Context, Result};
 use super::detect::{self, SourceStructure};
 use crate::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource};
 
-/// Source manifest (source.toml).
+/// Wrapper for source.toml which may use [source] section.
 #[derive(Debug, serde::Deserialize)]
 #[allow(dead_code)]
-struct SourceManifest {
+struct SourceManifestFile {
+    source: Option<SourceManifestInner>,
+    // Allow top-level fields for flat format
+    name: Option<String>,
+    version: Option<String>,
+    description: Option<String>,
+    plugins: Option<Vec<String>>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[allow(dead_code)]
+struct SourceManifestInner {
     name: String,
     version: Option<String>,
     description: Option<String>,
     plugins: Option<Vec<String>>,
+}
+
+impl SourceManifestFile {
+    fn plugins(&self) -> Option<Vec<String>> {
+        if let Some(s) = &self.source {
+            s.plugins.clone()
+        } else {
+            self.plugins.clone()
+        }
+    }
 }
 
 /// Plugin manifest (plugin.toml).
@@ -108,10 +129,10 @@ fn scan_full_source(path: &Path) -> Result<Vec<RegisteredPlugin>> {
     let manifest_path = path.join("source.toml");
     let content = fs::read_to_string(&manifest_path)
         .with_context(|| format!("failed to read {}", manifest_path.display()))?;
-    let manifest: SourceManifest = toml::from_str(&content)
+    let manifest: SourceManifestFile = toml::from_str(&content)
         .with_context(|| format!("failed to parse {}", manifest_path.display()))?;
 
-    let plugin_dirs: Vec<String> = if let Some(explicit) = manifest.plugins {
+    let plugin_dirs: Vec<String> = if let Some(explicit) = manifest.plugins() {
         explicit
     } else {
         // Auto-discover: scan subdirs for plugin.toml
