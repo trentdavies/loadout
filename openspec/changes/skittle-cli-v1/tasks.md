@@ -21,7 +21,7 @@
 
 - [x] 4.1 Implement URL resolution: parse local paths (file://, ~/, ./), git URLs (https://, git://), GitHub shorthand into a unified `SourceUrl` enum
 - [x] 4.2 Implement source fetching: `std::fs::copy` for local, `git2::Repository::clone` for git, `reqwest` for HTTP URLs
-- [ ] 4.3 Implement progressive source detection: single file → source.toml → plugin.toml → flat skill dirs → single SKILL.md → error
+- [x] 4.3 Implement progressive source detection: single file → source.toml → plugin.toml → flat skill dirs → single SKILL.md → error
 - [ ] 4.4 Implement source normalization: wrap detected structure into canonical Source > Plugin > Skill hierarchy with implicit naming
 - [ ] 4.5 Implement `skittle source add <url> [--name]` — resolve, fetch, detect, normalize, cache, register in config
 - [ ] 4.6 Implement `skittle source remove <name>` with --force for sources with installed skills
