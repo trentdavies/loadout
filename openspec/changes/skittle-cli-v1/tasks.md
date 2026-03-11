@@ -19,7 +19,7 @@
 
 ## 4. Source Management
 
-- [ ] 4.1 Implement URL resolution: parse local paths (file://, ~/, ./), git URLs (https://, git://), GitHub shorthand into a unified `SourceUrl` enum
+- [x] 4.1 Implement URL resolution: parse local paths (file://, ~/, ./), git URLs (https://, git://), GitHub shorthand into a unified `SourceUrl` enum
 - [ ] 4.2 Implement source fetching: `std::fs::copy` for local, `git2::Repository::clone` for git, `reqwest` for HTTP URLs
 - [ ] 4.3 Implement progressive source detection: single file → source.toml → plugin.toml → flat skill dirs → single SKILL.md → error
 - [ ] 4.4 Implement source normalization: wrap detected structure into canonical Source > Plugin > Skill hierarchy with implicit naming
