@@ -15,7 +15,7 @@
 ## 3. Output Formatting
 
 - [x] 3.1 Create output module supporting text (colored) and JSON modes, respecting --color, --quiet, --verbose, and NO_COLOR env var
-- [ ] 3.2 Define output helpers: table formatter, tree formatter, status/success/error/warning message helpers
+- [x] 3.2 Define output helpers: table formatter, tree formatter, status/success/error/warning message helpers
 
 ## 4. Source Management
 

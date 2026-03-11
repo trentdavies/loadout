@@ -75,4 +75,71 @@ impl Output {
             println!("{}", json);
         }
     }
+
+    /// Print a table with headers and rows.
+    pub fn table(&self, headers: &[&str], rows: &[Vec<String>]) {
+        if self.quiet { return; }
+
+        // Calculate column widths
+        let mut widths: Vec<usize> = headers.iter().map(|h| h.len()).collect();
+        for row in rows {
+            for (i, cell) in row.iter().enumerate() {
+                if i < widths.len() {
+                    widths[i] = widths[i].max(cell.len());
+                }
+            }
+        }
+
+        // Print header
+        let header_line: Vec<String> = headers.iter().enumerate()
+            .map(|(i, h)| format!("{:<width$}", h, width = widths[i]))
+            .collect();
+        println!("{}", header_line.join("  ").bold());
+
+        // Print separator
+        let sep: Vec<String> = widths.iter().map(|w| "─".repeat(*w)).collect();
+        println!("{}", sep.join("  ").dimmed());
+
+        // Print rows
+        for row in rows {
+            let line: Vec<String> = row.iter().enumerate()
+                .map(|(i, cell)| {
+                    let w = widths.get(i).copied().unwrap_or(cell.len());
+                    format!("{:<width$}", cell, width = w)
+                })
+                .collect();
+            println!("{}", line.join("  "));
+        }
+    }
+
+    /// Print a tree structure. Each entry is (depth, label).
+    pub fn tree(&self, entries: &[(usize, String)]) {
+        if self.quiet { return; }
+
+        for (i, (depth, label)) in entries.iter().enumerate() {
+            let is_last = entries.get(i + 1)
+                .map(|(d, _)| *d <= *depth)
+                .unwrap_or(true);
+
+            let mut prefix = String::new();
+            for d in 0..*depth {
+                if d == depth - 1 {
+                    prefix.push_str(if is_last { "└── " } else { "├── " });
+                } else {
+                    // Check if any later sibling exists at this ancestor depth
+                    let has_sibling = entries[i + 1..].iter()
+                        .any(|(fd, _)| *fd <= d);
+                    prefix.push_str(if has_sibling { "│   " } else { "    " });
+                }
+            }
+            println!("{}{}", prefix.dimmed(), label);
+        }
+    }
+
+    /// Print a section header.
+    pub fn header(&self, title: &str) {
+        if self.quiet { return; }
+        println!();
+        println!("{}", title.bold().underline());
+    }
 }
