@@ -528,6 +528,70 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     );
                     Ok(())
                 }
+                SourceCommand::Show { name } => {
+                    let source_cfg = config.source.iter()
+                        .find(|s| s.name == name)
+                        .ok_or_else(|| anyhow::anyhow!("source '{}' not found", name))?;
+
+                    let registry = crate::registry::load_registry(&data_dir)?;
+                    let registered = registry.sources.iter().find(|s| s.name == name);
+
+                    if cli.json {
+                        let json = serde_json::json!({
+                            "name": source_cfg.name,
+                            "url": source_cfg.url,
+                            "type": source_cfg.source_type,
+                            "plugins": registered.map(|r| {
+                                r.plugins.iter().map(|p| {
+                                    serde_json::json!({
+                                        "name": p.name,
+                                        "version": p.version,
+                                        "description": p.description,
+                                        "skills": p.skills.iter().map(|s| {
+                                            serde_json::json!({
+                                                "name": s.name,
+                                                "description": s.description,
+                                            })
+                                        }).collect::<Vec<_>>(),
+                                    })
+                                }).collect::<Vec<_>>()
+                            }).unwrap_or_default(),
+                        });
+                        println!("{}", serde_json::to_string_pretty(&json)?);
+                        return Ok(());
+                    }
+
+                    let out = crate::output::Output::from_flags(
+                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                    );
+                    out.status("Name", &source_cfg.name);
+                    out.status("URL", &source_cfg.url);
+                    out.status("Type", &source_cfg.source_type);
+
+                    if let Some(reg) = registered {
+                        out.info("");
+                        let mut tree_entries = Vec::new();
+                        for plugin in &reg.plugins {
+                            let plugin_label = if let Some(v) = &plugin.version {
+                                format!("{} (v{})", plugin.name, v)
+                            } else {
+                                plugin.name.clone()
+                            };
+                            tree_entries.push((0, plugin_label));
+                            for skill in &plugin.skills {
+                                let skill_label = if let Some(d) = &skill.description {
+                                    format!("{} — {}", skill.name, d)
+                                } else {
+                                    skill.name.clone()
+                                };
+                                tree_entries.push((1, skill_label));
+                            }
+                        }
+                        out.tree(&tree_entries);
+                    }
+
+                    Ok(())
+                }
                 _ => {
                     eprintln!("skittle: source subcommand not yet implemented");
                     std::process::exit(1);
