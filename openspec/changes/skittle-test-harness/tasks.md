@@ -46,11 +46,11 @@
 
 ## 6. Dockerfile
 
-- [ ] 6.1 Create `tests/Dockerfile` with `rust:latest` base, install jq, copy Cargo.toml + Cargo.lock first for layer caching
-- [ ] 6.2 Add cargo build step with graceful failure handling (wrapper script checks if binary exists before running tests)
-- [ ] 6.3 Set XDG env vars: `XDG_CONFIG_HOME=/tmp/test-config`, `XDG_DATA_HOME=/tmp/test-data`
-- [ ] 6.4 Copy fixtures and harness into container, create mock target dirs
-- [ ] 6.5 Set CMD to run `tests/harness/runner.sh`
+- [x] 6.1 Create `tests/Dockerfile` with `rust:latest` base, install jq, copy Cargo.toml + Cargo.lock first for layer caching
+- [x] 6.2 Add cargo build step with graceful failure handling (wrapper script checks if binary exists before running tests)
+- [x] 6.3 Set XDG env vars: `XDG_CONFIG_HOME=/tmp/test-config`, `XDG_DATA_HOME=/tmp/test-data`
+- [x] 6.4 Copy fixtures and harness into container, create mock target dirs
+- [x] 6.5 Set CMD to run `tests/harness/runner.sh`
 
 ## 7. Verify Harness
 
