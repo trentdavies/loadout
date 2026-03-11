@@ -40,7 +40,7 @@
 
 - [x] 6.1 Implement registry index (`registry.json`): source/plugin/skill entries mapped to cached filesystem paths
 - [x] 6.2 Implement cache storage at `~/.local/share/skittle/sources/<name>/` with XDG override support
-- [ ] 6.3 Implement skill identity resolution: `plugin/skill` short form, `source:plugin/skill` full form, ambiguity detection with helpful error messages
+- [x] 6.3 Implement skill identity resolution: `plugin/skill` short form, `source:plugin/skill` full form, ambiguity detection with helpful error messages
 - [ ] 6.4 Implement `skittle skill list [--source] [--plugin]` and `skittle skill show <plugin/skill>` reading SKILL.md frontmatter for display
 
 ## 7. Target Management
