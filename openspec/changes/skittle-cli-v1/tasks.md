@@ -10,7 +10,7 @@
 - [x] 2.1 Define config types in `src/config/types.rs`: `Config`, `SourceConfig`, `TargetConfig`, `AdapterConfig`, `BundleConfig` with serde derives
 - [x] 2.2 Implement config loading from XDG path (`~/.config/skittle/config.toml`) with `--config` override, auto-create directories on first use
 - [x] 2.3 Implement `skittle init` — create default config with commented examples
-- [ ] 2.4 Implement `skittle config show` (text + --json) and `skittle config edit` ($EDITOR/$VISUAL/vi fallback)
+- [x] 2.4 Implement `skittle config show` (text + --json) and `skittle config edit` ($EDITOR/$VISUAL/vi fallback)
 
 ## 3. Output Formatting
 

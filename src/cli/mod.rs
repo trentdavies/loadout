@@ -419,9 +419,52 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             eprintln!("skittle: target not yet implemented");
             std::process::exit(1);
         }
-        Command::Config { command: _ } => {
-            eprintln!("skittle: config not yet implemented");
-            std::process::exit(1);
+        Command::Config { command: config_cmd } => {
+            let config = crate::config::load(cli.config.as_deref())?;
+            match config_cmd {
+                ConfigCommand::Show => {
+                    if cli.json {
+                        println!("{}", serde_json::to_string_pretty(&config)?);
+                    } else {
+                        let path = crate::config::config_path(cli.config.as_deref());
+                        println!("Config: {}", path.display());
+                        println!();
+                        println!("Sources: {}", config.source.len());
+                        for s in &config.source {
+                            println!("  {} ({})", s.name, s.url);
+                        }
+                        println!("Targets: {}", config.target.len());
+                        for t in &config.target {
+                            println!("  {} ({} @ {})", t.name, t.agent, t.path.display());
+                        }
+                        println!("Adapters: {}", config.adapter.len());
+                        for (name, _) in &config.adapter {
+                            println!("  {}", name);
+                        }
+                        println!("Bundles: {}", config.bundle.len());
+                        for (name, b) in &config.bundle {
+                            println!("  {} ({} skills)", name, b.skills.len());
+                        }
+                    }
+                    Ok(())
+                }
+                ConfigCommand::Edit => {
+                    let path = crate::config::config_path(cli.config.as_deref());
+                    if !path.exists() {
+                        anyhow::bail!("No config found. Run `skittle init` first.");
+                    }
+                    let editor = std::env::var("EDITOR")
+                        .or_else(|_| std::env::var("VISUAL"))
+                        .unwrap_or_else(|_| "vi".to_string());
+                    let status = std::process::Command::new(&editor)
+                        .arg(&path)
+                        .status()?;
+                    if !status.success() {
+                        anyhow::bail!("editor exited with {}", status);
+                    }
+                    Ok(())
+                }
+            }
         }
         Command::Cache { command: _ } => {
             eprintln!("skittle: cache not yet implemented");
