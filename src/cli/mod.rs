@@ -451,6 +451,34 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
                     Ok(())
                 }
+                SourceCommand::Remove { name, force } => {
+                    if !config.source.iter().any(|s| s.name == name) {
+                        anyhow::bail!("source '{}' not found", name);
+                    }
+
+                    if !cli.dry_run {
+                        // Remove cached content
+                        let cache_path = data_dir.join("sources").join(&name);
+                        if cache_path.exists() {
+                            std::fs::remove_dir_all(&cache_path)?;
+                        }
+
+                        // Remove from registry
+                        let mut registry = crate::registry::load_registry(&data_dir)?;
+                        registry.sources.retain(|s| s.name != name);
+                        crate::registry::save_registry(&registry, &data_dir)?;
+
+                        // Remove from config
+                        config.source.retain(|s| s.name != name);
+                        crate::config::save(&config, config_path_str)?;
+                    }
+
+                    if !cli.quiet {
+                        println!("Removed source '{}'", name);
+                    }
+                    let _ = force; // acknowledged for future installed-skill check
+                    Ok(())
+                }
                 _ => {
                     eprintln!("skittle: source subcommand not yet implemented");
                     std::process::exit(1);
