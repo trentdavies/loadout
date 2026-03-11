@@ -102,15 +102,31 @@ test_uninstall_skill() {
   setup_source_and_targets
   "$SKITTLE" install --skill test-plugin/explore --target test-claude >/dev/null 2>&1
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
-  assert_exit_code 0 "$SKITTLE" uninstall --skill test-plugin/explore --target test-claude
+  assert_exit_code 0 "$SKITTLE" uninstall --skill test-plugin/explore --target test-claude --force
   assert_file_not_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
+}
+
+test_uninstall_preview_default() {
+  setup_source_and_targets
+  "$SKITTLE" install --skill test-plugin/explore --target test-claude >/dev/null 2>&1
+  assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
+  # Without --force, uninstall should preview only
+  local output
+  output=$("$SKITTLE" uninstall --skill test-plugin/explore --target test-claude 2>&1)
+  if echo "$output" | grep -qiE "would|force"; then
+    _pass "uninstall defaults to preview mode"
+  else
+    _fail "uninstall did not show preview" "would/force message" "$output"
+  fi
+  # File should still exist
+  assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
 }
 
 test_uninstall_skill_from_specific_target() {
   setup_source_and_targets
   "$SKITTLE" install --skill test-plugin/explore --target test-claude >/dev/null 2>&1
   "$SKITTLE" install --skill test-plugin/explore --target test-codex >/dev/null 2>&1
-  "$SKITTLE" uninstall --skill test-plugin/explore --target test-claude >/dev/null 2>&1
+  "$SKITTLE" uninstall --skill test-plugin/explore --target test-claude --force >/dev/null 2>&1
   # Removed from claude, still on codex
   assert_file_not_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_exists "$TARGET_CODEX/skills/explore/SKILL.md"
@@ -122,7 +138,7 @@ test_uninstall_bundle() {
   "$SKITTLE" bundle add test-b test-plugin/explore test-plugin/apply >/dev/null 2>&1
   "$SKITTLE" install --bundle test-b --target test-claude >/dev/null 2>&1
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
-  assert_exit_code 0 "$SKITTLE" uninstall --bundle test-b --target test-claude
+  assert_exit_code 0 "$SKITTLE" uninstall --bundle test-b --target test-claude --force
   assert_file_not_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_not_exists "$TARGET_CLAUDE/skills/apply/SKILL.md"
 }
@@ -162,7 +178,7 @@ test_idempotent_install() {
 test_install_target_override() {
   setup_source_and_targets
   # Even if target is explicit sync, --target should force it
-  "$SKITTLE" target remove test-claude >/dev/null 2>&1
+  "$SKITTLE" target remove test-claude --force >/dev/null 2>&1
   "$SKITTLE" target add claude "$TARGET_CLAUDE" --name test-claude --scope repo --sync explicit >/dev/null 2>&1
   assert_exit_code 0 "$SKITTLE" install --skill test-plugin/explore --target test-claude
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"

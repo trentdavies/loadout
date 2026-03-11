@@ -84,7 +84,7 @@ test_skill_identity_ambiguous_error() {
 test_registry_cleared_on_source_remove() {
   "$SKITTLE" init >/dev/null 2>&1
   "$SKITTLE" source add "$FIXTURES_DIR/plugin-source" --name tp >/dev/null 2>&1
-  "$SKITTLE" source remove tp >/dev/null 2>&1
+  "$SKITTLE" source remove tp --force >/dev/null 2>&1
   # Registry should no longer contain this source's entries
   if [ -f "$XDG_DATA_HOME/skittle/registry.json" ]; then
     local content

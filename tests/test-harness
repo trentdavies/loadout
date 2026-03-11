@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -e
+
+IMAGE="skittle-test"
+
+# Build the Docker image
+echo "Building $IMAGE..."
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+docker build -f "$SCRIPT_DIR/Dockerfile" -t "$IMAGE" "$PROJECT_DIR" || exit 1
+
+# Run tests — pass any args through (e.g., --suite 02)
+if [ $# -eq 0 ]; then
+    echo "Running all harness suites..."
+    docker run --rm "$IMAGE"
+else
+    echo "Running: runner.sh $*"
+    docker run --rm "$IMAGE" /tests/harness/runner.sh "$@"
+fi

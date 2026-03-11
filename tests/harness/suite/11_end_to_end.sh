@@ -36,24 +36,24 @@ test_full_lifecycle() {
     _fail "status command failed" "exit 0" "exit $exit_code"
   fi
 
-  # 8. Create second bundle and swap
+  # 8. Create second bundle and swap (--force required)
   "$SKITTLE" bundle create lifecycle-bundle-b >/dev/null 2>&1
   "$SKITTLE" bundle add lifecycle-bundle-b test-plugin/verify >/dev/null 2>&1
-  assert_exit_code 0 "$SKITTLE" bundle swap lifecycle-bundle lifecycle-bundle-b --target lifecycle-target
+  assert_exit_code 0 "$SKITTLE" bundle swap lifecycle-bundle lifecycle-bundle-b --target lifecycle-target --force
   # Old skills removed, new skill installed
   assert_file_not_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_not_exists "$TARGET_CLAUDE/skills/apply/SKILL.md"
   assert_file_exists "$TARGET_CLAUDE/skills/verify/SKILL.md"
 
-  # 9. Uninstall --bundle
-  assert_exit_code 0 "$SKITTLE" uninstall --bundle lifecycle-bundle-b --target lifecycle-target
+  # 9. Uninstall --bundle (--force required)
+  assert_exit_code 0 "$SKITTLE" uninstall --bundle lifecycle-bundle-b --target lifecycle-target --force
   assert_file_not_exists "$TARGET_CLAUDE/skills/verify/SKILL.md"
 
-  # 10. Source remove
-  assert_exit_code 0 "$SKITTLE" source remove lifecycle-src
+  # 10. Source remove (--force required)
+  assert_exit_code 0 "$SKITTLE" source remove lifecycle-src --force
 
-  # 11. Cache clean
-  assert_exit_code 0 "$SKITTLE" cache clean
+  # 11. Cache clean (--force required)
+  assert_exit_code 0 "$SKITTLE" cache clean --force
 
   _pass "full lifecycle completed successfully"
 }
@@ -77,8 +77,8 @@ test_multi_source_lifecycle() {
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_exists "$TARGET_CLAUDE/skills/skill-one/SKILL.md"
 
-  # Uninstall one
-  "$SKITTLE" uninstall --skill test-plugin/explore --target tgt >/dev/null 2>&1
+  # Uninstall one (--force required)
+  "$SKITTLE" uninstall --skill test-plugin/explore --target tgt --force >/dev/null 2>&1
   assert_file_not_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_exists "$TARGET_CLAUDE/skills/skill-one/SKILL.md"
 
@@ -99,8 +99,8 @@ test_multi_target_lifecycle() {
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_exists "$TARGET_CODEX/skills/explore/SKILL.md"
 
-  # Uninstall from one, verify other is untouched
-  "$SKITTLE" uninstall --skill test-plugin/explore --target tgt-claude >/dev/null 2>&1
+  # Uninstall from one (--force required), verify other is untouched
+  "$SKITTLE" uninstall --skill test-plugin/explore --target tgt-claude --force >/dev/null 2>&1
   assert_file_not_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_exists "$TARGET_CODEX/skills/explore/SKILL.md"
 
@@ -126,14 +126,14 @@ test_bundle_swap_lifecycle() {
   assert_file_exists "$TARGET_CLAUDE/skills/apply/SKILL.md"
   assert_file_not_exists "$TARGET_CLAUDE/skills/verify/SKILL.md"
 
-  # Swap to prod
-  "$SKITTLE" bundle swap dev-bundle prod-bundle --target tgt >/dev/null 2>&1
+  # Swap to prod (--force required)
+  "$SKITTLE" bundle swap dev-bundle prod-bundle --target tgt --force >/dev/null 2>&1
   assert_file_not_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_not_exists "$TARGET_CLAUDE/skills/apply/SKILL.md"
   assert_file_exists "$TARGET_CLAUDE/skills/verify/SKILL.md"
 
-  # Swap back to dev
-  "$SKITTLE" bundle swap prod-bundle dev-bundle --target tgt >/dev/null 2>&1
+  # Swap back to dev (--force required)
+  "$SKITTLE" bundle swap prod-bundle dev-bundle --target tgt --force >/dev/null 2>&1
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_exists "$TARGET_CLAUDE/skills/apply/SKILL.md"
   assert_file_not_exists "$TARGET_CLAUDE/skills/verify/SKILL.md"
@@ -156,10 +156,10 @@ test_idempotent_operations_lifecycle() {
   assert_exit_code 0 "$SKITTLE" install --skill test-plugin/explore --target tgt
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
 
-  # Uninstall twice — second should not error
-  "$SKITTLE" uninstall --skill test-plugin/explore --target tgt >/dev/null 2>&1
+  # Uninstall twice — second should not error (preview mode)
+  "$SKITTLE" uninstall --skill test-plugin/explore --target tgt --force >/dev/null 2>&1
   local output
-  output=$("$SKITTLE" uninstall --skill test-plugin/explore --target tgt 2>&1)
+  output=$("$SKITTLE" uninstall --skill test-plugin/explore --target tgt --force 2>&1)
   local exit_code=$?
   if [ "$exit_code" -eq 0 ]; then
     _pass "idempotent uninstall succeeds"
@@ -188,8 +188,12 @@ test_dry_run_lifecycle() {
   "$SKITTLE" install --bundle dry-b --target tgt >/dev/null 2>&1
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
 
-  # Dry run uninstall — files should remain
-  assert_exit_code 0 "$SKITTLE" uninstall --bundle dry-b --target tgt -n
+  # Uninstall without --force defaults to preview — files should remain
+  assert_exit_code 0 "$SKITTLE" uninstall --bundle dry-b --target tgt
+  assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
+
+  # --dry-run + --force — dry-run wins, files should remain
+  assert_exit_code 0 "$SKITTLE" uninstall --bundle dry-b --target tgt --force -n
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
 
   _pass "dry run lifecycle completed"
@@ -206,18 +210,18 @@ test_cleanup_lifecycle() {
   "$SKITTLE" install --skill test-plugin/explore --target tgt >/dev/null 2>&1
   "$SKITTLE" install --skill test-plugin/apply --target tgt >/dev/null 2>&1
 
-  # Uninstall everything
-  "$SKITTLE" uninstall --skill test-plugin/explore --target tgt >/dev/null 2>&1
-  "$SKITTLE" uninstall --skill test-plugin/apply --target tgt >/dev/null 2>&1
+  # Uninstall everything (--force required)
+  "$SKITTLE" uninstall --skill test-plugin/explore --target tgt --force >/dev/null 2>&1
+  "$SKITTLE" uninstall --skill test-plugin/apply --target tgt --force >/dev/null 2>&1
 
-  # Remove target
-  "$SKITTLE" target remove tgt >/dev/null 2>&1
+  # Remove target (--force required)
+  "$SKITTLE" target remove tgt --force >/dev/null 2>&1
 
-  # Remove source
-  "$SKITTLE" source remove src >/dev/null 2>&1
+  # Remove source (--force required)
+  "$SKITTLE" source remove src --force >/dev/null 2>&1
 
-  # Clean cache
-  assert_exit_code 0 "$SKITTLE" cache clean
+  # Clean cache (--force required)
+  assert_exit_code 0 "$SKITTLE" cache clean --force
 
   # Verify sources and targets are empty
   local source_output

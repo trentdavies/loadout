@@ -54,11 +54,7 @@ pub enum Command {
     },
 
     /// List skills (shorthand for `skill list`)
-    List {
-        /// What to list (default: skills)
-        #[arg(default_value = "skills")]
-        what: String,
-    },
+    List,
 
     /// Install skills to targets
     Install {
@@ -483,66 +479,36 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
             Ok(())
         }
-        Command::List { what } => {
-            // Delegate to skill list or plugin list
+        Command::List => {
             let data_dir = crate::config::data_dir();
             let registry = crate::registry::load_registry(&data_dir)?;
 
-            if what == "plugins" {
-                // List plugins
-                if cli.json {
-                    let entries: Vec<serde_json::Value> = registry.sources.iter()
-                        .flat_map(|s| s.plugins.iter().map(move |p| {
+            if cli.json {
+                let entries: Vec<serde_json::Value> = registry.sources.iter()
+                    .flat_map(|s| s.plugins.iter().flat_map(move |p| {
+                        p.skills.iter().map(move |sk| {
                             serde_json::json!({
-                                "name": p.name,
+                                "name": sk.name,
+                                "plugin": p.name,
                                 "source": s.name,
-                                "skills": p.skills.len(),
                             })
-                        }))
-                        .collect();
-                    println!("{}", serde_json::to_string_pretty(&entries)?);
-                } else {
-                    let output = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
-                    let rows: Vec<Vec<String>> = registry.sources.iter()
-                        .flat_map(|s| s.plugins.iter().map(move |p| {
-                            vec![p.name.clone(), s.name.clone(), p.skills.len().to_string()]
-                        }))
-                        .collect();
-                    if rows.is_empty() {
-                        output.info("No plugins found. Add a source with `skittle add`");
-                    } else {
-                        output.table(&["Plugin", "Source", "Skills"], &rows);
-                    }
-                }
+                        })
+                    }))
+                    .collect();
+                println!("{}", serde_json::to_string_pretty(&entries)?);
             } else {
-                // List skills (default)
-                if cli.json {
-                    let entries: Vec<serde_json::Value> = registry.sources.iter()
-                        .flat_map(|s| s.plugins.iter().flat_map(move |p| {
-                            p.skills.iter().map(move |sk| {
-                                serde_json::json!({
-                                    "name": sk.name,
-                                    "plugin": p.name,
-                                    "source": s.name,
-                                })
-                            })
-                        }))
-                        .collect();
-                    println!("{}", serde_json::to_string_pretty(&entries)?);
+                let output = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
+                let rows: Vec<Vec<String>> = registry.sources.iter()
+                    .flat_map(|s| s.plugins.iter().flat_map(move |p| {
+                        p.skills.iter().map(move |sk| {
+                            vec![sk.name.clone(), p.name.clone(), s.name.clone()]
+                        })
+                    }))
+                    .collect();
+                if rows.is_empty() {
+                    output.info("No skills found. Add a source with `skittle add`");
                 } else {
-                    let output = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
-                    let rows: Vec<Vec<String>> = registry.sources.iter()
-                        .flat_map(|s| s.plugins.iter().flat_map(move |p| {
-                            p.skills.iter().map(move |sk| {
-                                vec![sk.name.clone(), p.name.clone(), s.name.clone()]
-                            })
-                        }))
-                        .collect();
-                    if rows.is_empty() {
-                        output.info("No skills found. Add a source with `skittle add`");
-                    } else {
-                        output.table(&["Skill", "Plugin", "Source"], &rows);
-                    }
+                    output.table(&["Skill", "Plugin", "Source"], &rows);
                 }
             }
             Ok(())

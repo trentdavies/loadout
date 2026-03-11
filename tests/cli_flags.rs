@@ -111,23 +111,7 @@ fn parse_add_shorthand() {
 #[test]
 fn parse_list_shorthand() {
     let cli = Cli::try_parse_from(["skittle", "list"]).unwrap();
-    match cli.command {
-        skittle::cli::Command::List { what } => {
-            assert_eq!(what, "skills");
-        }
-        _ => panic!("expected List"),
-    }
-}
-
-#[test]
-fn parse_list_plugins() {
-    let cli = Cli::try_parse_from(["skittle", "list", "plugins"]).unwrap();
-    match cli.command {
-        skittle::cli::Command::List { what } => {
-            assert_eq!(what, "plugins");
-        }
-        _ => panic!("expected List"),
-    }
+    assert!(matches!(cli.command, skittle::cli::Command::List));
 }
 
 #[test]

@@ -24,7 +24,7 @@ test_source_add_git() {
 test_source_remove() {
   "$SKITTLE" init >/dev/null 2>&1
   "$SKITTLE" source add "$FIXTURES_DIR/plugin-source" --name test-plugin >/dev/null 2>&1
-  assert_exit_code 0 "$SKITTLE" source remove test-plugin
+  assert_exit_code 0 "$SKITTLE" source remove test-plugin --force
   # Should no longer appear in list
   local output
   output=$("$SKITTLE" source list 2>/dev/null)
@@ -33,6 +33,21 @@ test_source_remove() {
   else
     _pass "source removed from list"
   fi
+}
+
+test_source_remove_preview_default() {
+  "$SKITTLE" init >/dev/null 2>&1
+  "$SKITTLE" source add "$FIXTURES_DIR/plugin-source" --name test-plugin >/dev/null 2>&1
+  # Without --force, should preview
+  local output
+  output=$("$SKITTLE" source remove test-plugin 2>&1)
+  if echo "$output" | grep -qiE "would|force"; then
+    _pass "source remove defaults to preview mode"
+  else
+    _fail "source remove did not show preview" "would/force message" "$output"
+  fi
+  # Source should still be listed
+  assert_stdout_contains "test-plugin" "$SKITTLE" source list
 }
 
 test_source_list_empty() {
@@ -100,13 +115,14 @@ test_source_duplicate_name_error() {
 test_source_remove_with_installed_skills_warns() {
   setup_source_and_targets
   "$SKITTLE" install --skill test-plugin/explore --target test-claude >/dev/null 2>&1
-  # Removing a source with installed skills should warn or require --force
+  # Without --force, should preview and warn about installed skills
   local output
   output=$("$SKITTLE" source remove test-plugin 2>&1)
-  local exit_code=$?
-  if [ "$exit_code" -ne 0 ] || echo "$output" | grep -qiE "warn|force|installed"; then
+  if echo "$output" | grep -qiE "warn|force|installed|would"; then
     _pass "source remove warns about installed skills"
   else
-    _fail "source remove did not warn about installed skills" "warning or error" "$output"
+    _fail "source remove did not warn about installed skills" "warning or preview" "$output"
   fi
+  # Source should still exist (no --force)
+  assert_stdout_contains "test-plugin" "$SKITTLE" source list
 }

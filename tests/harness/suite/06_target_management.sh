@@ -30,7 +30,7 @@ test_target_add_repo_scope_defaults_explicit() {
 test_target_remove() {
   "$SKITTLE" init >/dev/null 2>&1
   "$SKITTLE" target add claude "$TARGET_CLAUDE" --name test-claude >/dev/null 2>&1
-  assert_exit_code 0 "$SKITTLE" target remove test-claude
+  assert_exit_code 0 "$SKITTLE" target remove test-claude --force
   # Should not appear in list
   local output
   output=$("$SKITTLE" target list 2>/dev/null)
@@ -41,10 +41,25 @@ test_target_remove() {
   fi
 }
 
+test_target_remove_preview_default() {
+  "$SKITTLE" init >/dev/null 2>&1
+  "$SKITTLE" target add claude "$TARGET_CLAUDE" --name test-claude >/dev/null 2>&1
+  # Without --force, should preview
+  local output
+  output=$("$SKITTLE" target remove test-claude 2>&1)
+  if echo "$output" | grep -qiE "would|force"; then
+    _pass "target remove defaults to preview mode"
+  else
+    _fail "target remove did not show preview" "would/force message" "$output"
+  fi
+  # Target should still be listed
+  assert_stdout_contains "test-claude" "$SKITTLE" target list
+}
+
 test_target_remove_preserves_directory() {
   "$SKITTLE" init >/dev/null 2>&1
   "$SKITTLE" target add claude "$TARGET_CLAUDE" --name test-claude >/dev/null 2>&1
-  "$SKITTLE" target remove test-claude >/dev/null 2>&1
+  "$SKITTLE" target remove test-claude --force >/dev/null 2>&1
   # The actual directory should still exist
   assert_dir_exists "$TARGET_CLAUDE"
 }

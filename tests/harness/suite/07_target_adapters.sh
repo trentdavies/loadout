@@ -42,7 +42,7 @@ test_claude_adapter_uninstalls_cleanly() {
   setup_source_and_targets
   "$SKITTLE" install --skill test-plugin/explore --target test-claude >/dev/null 2>&1
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
-  "$SKITTLE" uninstall --skill test-plugin/explore --target test-claude >/dev/null 2>&1
+  "$SKITTLE" uninstall --skill test-plugin/explore --target test-claude --force >/dev/null 2>&1
   assert_file_not_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   # The skill directory itself should be removed
   assert_file_not_exists "$TARGET_CLAUDE/skills/explore"

@@ -24,7 +24,7 @@ test_bundle_create_duplicate_errors() {
 test_bundle_delete() {
   "$SKITTLE" init >/dev/null 2>&1
   "$SKITTLE" bundle create to-delete >/dev/null 2>&1
-  assert_exit_code 0 "$SKITTLE" bundle delete to-delete
+  assert_exit_code 0 "$SKITTLE" bundle delete to-delete --force
   local output
   output=$("$SKITTLE" bundle list 2>/dev/null)
   if echo "$output" | grep -qF "to-delete"; then
@@ -34,9 +34,24 @@ test_bundle_delete() {
   fi
 }
 
+test_bundle_delete_preview_default() {
+  "$SKITTLE" init >/dev/null 2>&1
+  "$SKITTLE" bundle create preview-b >/dev/null 2>&1
+  # Without --force, should preview
+  local output
+  output=$("$SKITTLE" bundle delete preview-b 2>&1)
+  if echo "$output" | grep -qiE "would|force"; then
+    _pass "bundle delete defaults to preview mode"
+  else
+    _fail "bundle delete did not show preview" "would/force message" "$output"
+  fi
+  # Bundle should still exist
+  assert_stdout_contains "preview-b" "$SKITTLE" bundle list
+}
+
 test_bundle_delete_nonexistent() {
   "$SKITTLE" init >/dev/null 2>&1
-  assert_exit_code 1 "$SKITTLE" bundle delete nonexistent
+  assert_exit_code 1 "$SKITTLE" bundle delete nonexistent --force
 }
 
 test_bundle_list() {
@@ -133,13 +148,34 @@ test_bundle_swap() {
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_exists "$TARGET_CLAUDE/skills/apply/SKILL.md"
 
-  # Swap to bundle-b
-  assert_exit_code 0 "$SKITTLE" bundle swap bundle-a bundle-b --target test-claude
+  # Swap to bundle-b (requires --force)
+  assert_exit_code 0 "$SKITTLE" bundle swap bundle-a bundle-b --target test-claude --force
   # bundle-a skills should be gone
   assert_file_not_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_not_exists "$TARGET_CLAUDE/skills/apply/SKILL.md"
   # bundle-b skills should be installed
   assert_file_exists "$TARGET_CLAUDE/skills/verify/SKILL.md"
+}
+
+test_bundle_swap_preview_default() {
+  setup_source_and_targets
+  "$SKITTLE" bundle create ba >/dev/null 2>&1
+  "$SKITTLE" bundle add ba test-plugin/explore >/dev/null 2>&1
+  "$SKITTLE" bundle create bb >/dev/null 2>&1
+  "$SKITTLE" bundle add bb test-plugin/verify >/dev/null 2>&1
+
+  "$SKITTLE" install --bundle ba --target test-claude >/dev/null 2>&1
+  # Without --force, swap should preview only
+  local output
+  output=$("$SKITTLE" bundle swap ba bb --target test-claude 2>&1)
+  if echo "$output" | grep -qiE "would|force"; then
+    _pass "bundle swap defaults to preview mode"
+  else
+    _fail "bundle swap did not show preview" "would/force message" "$output"
+  fi
+  # explore should still be there (no swap happened)
+  assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
+  assert_file_not_exists "$TARGET_CLAUDE/skills/verify/SKILL.md"
 }
 
 test_bundle_swap_updates_active() {
@@ -150,7 +186,7 @@ test_bundle_swap_updates_active() {
   "$SKITTLE" bundle add bb test-plugin/verify >/dev/null 2>&1
 
   "$SKITTLE" install --bundle ba --target test-claude >/dev/null 2>&1
-  "$SKITTLE" bundle swap ba bb --target test-claude >/dev/null 2>&1
+  "$SKITTLE" bundle swap ba bb --target test-claude --force >/dev/null 2>&1
 
   # Active bundle should now be bb
   local output
@@ -162,7 +198,7 @@ test_bundle_swap_updates_active() {
   fi
 }
 
-test_bundle_swap_dry_run() {
+test_bundle_swap_dry_run_with_force() {
   setup_source_and_targets
   "$SKITTLE" bundle create ba >/dev/null 2>&1
   "$SKITTLE" bundle add ba test-plugin/explore >/dev/null 2>&1
@@ -170,7 +206,8 @@ test_bundle_swap_dry_run() {
   "$SKITTLE" bundle add bb test-plugin/verify >/dev/null 2>&1
 
   "$SKITTLE" install --bundle ba --target test-claude >/dev/null 2>&1
-  assert_exit_code 0 "$SKITTLE" bundle swap ba bb --target test-claude -n
+  # --dry-run wins over --force
+  assert_exit_code 0 "$SKITTLE" bundle swap ba bb --target test-claude --force -n
   # Dry run: explore should still be there, verify should not
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_not_exists "$TARGET_CLAUDE/skills/verify/SKILL.md"
@@ -182,13 +219,14 @@ test_bundle_delete_active_requires_force() {
   "$SKITTLE" bundle add active-b test-plugin/explore >/dev/null 2>&1
   "$SKITTLE" install --bundle active-b --target test-claude >/dev/null 2>&1
 
-  # Deleting an active bundle should warn or require --force
+  # Without --force, should preview and warn about active status
   local output
   output=$("$SKITTLE" bundle delete active-b 2>&1)
-  local exit_code=$?
-  if [ "$exit_code" -ne 0 ] || echo "$output" | grep -qiE "warn|force|active"; then
+  if echo "$output" | grep -qiE "warn|force|active|would"; then
     _pass "deleting active bundle warns or requires force"
   else
-    _pass "bundle deleted (may not require force in this implementation)"
+    _fail "deleting active bundle did not warn" "warning or preview" "$output"
   fi
+  # Bundle should still exist
+  assert_stdout_contains "active-b" "$SKITTLE" bundle list
 }

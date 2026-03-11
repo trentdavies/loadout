@@ -110,7 +110,7 @@ test_global_json_flag() {
 
 test_global_dry_run_flag() {
   # install --all -n should succeed without writing files
-  "$SKITTLE" init >/dev/null 2>&1
+  setup_source_and_targets
   assert_exit_code 0 "$SKITTLE" install --all -n
   # Verify no skills were actually installed
   assert_file_not_exists "$TARGET_CLAUDE/skills"

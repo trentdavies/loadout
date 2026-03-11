@@ -141,15 +141,10 @@ fn add_shorthand_parses_correctly() {
 // ─── Test: skittle list delegates to skill list ─────────────────────────────
 
 #[test]
-fn list_shorthand_defaults_to_skills() {
+fn list_shorthand_parses() {
     use clap::Parser;
     let cli = skittle::cli::Cli::try_parse_from(["skittle", "list"]).unwrap();
-    match cli.command {
-        skittle::cli::Command::List { what } => {
-            assert_eq!(what, "skills");
-        }
-        _ => panic!("expected List command"),
-    }
+    assert!(matches!(cli.command, skittle::cli::Command::List));
 }
 
 // ─── Test: skittle init with URL ────────────────────────────────────────────
