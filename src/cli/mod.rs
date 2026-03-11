@@ -592,9 +592,120 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                     Ok(())
                 }
-                _ => {
-                    eprintln!("skittle: source subcommand not yet implemented");
-                    std::process::exit(1);
+                SourceCommand::Update { name } => {
+                    let registry = crate::registry::load_registry(&data_dir)?;
+
+                    // Determine which sources to update
+                    let sources_to_update: Vec<&crate::config::SourceConfig> = if let Some(ref n) = name {
+                        let src = config.source.iter()
+                            .find(|s| s.name == *n)
+                            .ok_or_else(|| anyhow::anyhow!("source '{}' not found", n))?;
+                        vec![src]
+                    } else {
+                        if config.source.is_empty() {
+                            if !cli.quiet {
+                                println!("No sources to update.");
+                            }
+                            return Ok(());
+                        }
+                        config.source.iter().collect()
+                    };
+
+                    let mut updated_registry = registry;
+                    let mut updated_count = 0;
+                    let mut errors = Vec::new();
+
+                    for src in &sources_to_update {
+                        if !cli.quiet {
+                            println!("Updating '{}'...", src.name);
+                        }
+
+                        if cli.dry_run {
+                            if !cli.quiet {
+                                println!("  (dry run) would re-fetch from {}", src.url);
+                            }
+                            updated_count += 1;
+                            continue;
+                        }
+
+                        let cache_path = data_dir.join("sources").join(&src.name);
+
+                        // Re-fetch based on source type
+                        let source_url = match crate::source::SourceUrl::parse(&src.url) {
+                            Ok(u) => u,
+                            Err(e) => {
+                                errors.push(format!("{}: {}", src.name, e));
+                                continue;
+                            }
+                        };
+
+                        // For local sources, remove cache and re-copy
+                        // For git sources, update_git handles fetch + reset
+                        match &source_url {
+                            crate::source::SourceUrl::Local(path) => {
+                                if cache_path.exists() {
+                                    std::fs::remove_dir_all(&cache_path)?;
+                                }
+                                if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path) {
+                                    errors.push(format!("{}: {}", src.name, e));
+                                    continue;
+                                }
+                                let _ = path; // used via source_url
+                            }
+                            crate::source::SourceUrl::Git(_) => {
+                                if cache_path.exists() {
+                                    if let Err(e) = crate::source::fetch::update_git(&cache_path) {
+                                        errors.push(format!("{}: {}", src.name, e));
+                                        continue;
+                                    }
+                                } else {
+                                    if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path) {
+                                        errors.push(format!("{}: {}", src.name, e));
+                                        continue;
+                                    }
+                                }
+                            }
+                        }
+
+                        // Re-detect and re-normalize
+                        let structure = match crate::source::detect::detect(&cache_path) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                errors.push(format!("{}: detection failed: {}", src.name, e));
+                                continue;
+                            }
+                        };
+
+                        match crate::source::normalize::normalize(&src.name, &cache_path, &structure) {
+                            Ok(registered) => {
+                                updated_registry.sources.retain(|s| s.name != src.name);
+                                updated_registry.sources.push(registered);
+                                updated_count += 1;
+                            }
+                            Err(e) => {
+                                errors.push(format!("{}: normalization failed: {}", src.name, e));
+                            }
+                        }
+                    }
+
+                    if !cli.dry_run {
+                        crate::registry::save_registry(&updated_registry, &data_dir)?;
+                    }
+
+                    if !cli.quiet {
+                        if updated_count > 0 {
+                            println!("Updated {} source(s)", updated_count);
+                        }
+                        for err in &errors {
+                            eprintln!("warning: {}", err);
+                        }
+                    }
+
+                    if !errors.is_empty() && updated_count == 0 {
+                        anyhow::bail!("all updates failed");
+                    }
+
+                    Ok(())
                 }
             }
         }
