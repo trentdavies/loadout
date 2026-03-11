@@ -6,8 +6,7 @@ RUN apt-get update && apt-get install -y jq && rm -rf /var/lib/apt/lists/*
 WORKDIR /build
 
 # Copy Cargo manifests first for layer caching
-COPY Cargo.toml ./
-COPY Cargo.lock* ./
+COPY Cargo.toml Cargo.loc[k] ./
 
 # Copy source code
 COPY src/ ./src/

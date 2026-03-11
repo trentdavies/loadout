@@ -6,7 +6,7 @@
 #   runner.sh              # Run all suites
 #   runner.sh --suite 02   # Run only suite 02_*
 
-set -euo pipefail
+set -uo pipefail
 
 HARNESS_DIR="$(cd "$(dirname "$0")" && pwd)"
 SUITE_DIR="$HARNESS_DIR/suite"

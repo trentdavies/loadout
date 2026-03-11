@@ -1,0 +1,9 @@
+[package]
+name = "skittle"
+version = "0.1.0"
+edition = "2021"
+description = "Agent skill manager — source, cache, and install skills across coding agents"
+
+[[bin]]
+name = "skittle"
+path = "src/main.rs"

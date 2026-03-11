@@ -54,8 +54,8 @@
 
 ## 7. Verify Harness
 
-- [ ] 7.1 Run `docker build -t skittle-test -f tests/Dockerfile .` — verify build fails gracefully (no Rust source yet) and reports "BUILD FAILED"
-- [ ] 7.2 Create minimal `Cargo.toml` + `src/main.rs` (just exits 1) so the binary compiles, rebuild — verify all tests run and all fail
-- [ ] 7.3 Verify `--suite` flag runs only the specified suite
-- [ ] 7.4 Verify `SKIP_NETWORK=1` skips network tests
-- [ ] 7.5 Verify summary counts are accurate (total = passed + failed + skipped)
+- [x] 7.1 Run `docker build -t skittle-test -f tests/Dockerfile .` — verify build fails gracefully (no Rust source yet) and reports "BUILD FAILED"
+- [x] 7.2 Create minimal `Cargo.toml` + `src/main.rs` (just exits 1) so the binary compiles, rebuild — verify all tests run and all fail
+- [x] 7.3 Verify `--suite` flag runs only the specified suite
+- [x] 7.4 Verify `SKIP_NETWORK=1` skips network tests
+- [x] 7.5 Verify summary counts are accurate (total = passed + failed + skipped)
