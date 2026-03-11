@@ -129,3 +129,96 @@ fn resolve_path(input: &str) -> Result<PathBuf> {
         Ok(cwd.join(expanded))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_absolute_path() {
+        match SourceUrl::parse("/tmp/skills").unwrap() {
+            SourceUrl::Local(p) => assert!(p.is_absolute()),
+            _ => panic!("expected Local"),
+        }
+    }
+
+    #[test]
+    fn parse_file_protocol() {
+        match SourceUrl::parse("file:///tmp/skills").unwrap() {
+            SourceUrl::Local(p) => assert_eq!(p, PathBuf::from("/tmp/skills")),
+            _ => panic!("expected Local"),
+        }
+    }
+
+    #[test]
+    fn parse_https_github() {
+        match SourceUrl::parse("https://github.com/org/repo.git").unwrap() {
+            SourceUrl::Git(url) => assert!(url.contains("github.com")),
+            _ => panic!("expected Git"),
+        }
+    }
+
+    #[test]
+    fn parse_git_protocol() {
+        match SourceUrl::parse("git://example.com/repo.git").unwrap() {
+            SourceUrl::Git(url) => assert!(url.starts_with("git://")),
+            _ => panic!("expected Git"),
+        }
+    }
+
+    #[test]
+    fn parse_ssh_protocol() {
+        match SourceUrl::parse("ssh://git@example.com/repo.git").unwrap() {
+            SourceUrl::Git(url) => assert!(url.starts_with("ssh://")),
+            _ => panic!("expected Git"),
+        }
+    }
+
+    #[test]
+    fn parse_git_at_shorthand() {
+        match SourceUrl::parse("git@github.com:org/repo.git").unwrap() {
+            SourceUrl::Git(url) => assert!(url.starts_with("git@")),
+            _ => panic!("expected Git"),
+        }
+    }
+
+    #[test]
+    fn parse_github_shorthand() {
+        match SourceUrl::parse("github.com/org/repo").unwrap() {
+            SourceUrl::Git(url) => {
+                assert!(url.starts_with("https://"));
+                assert!(url.ends_with(".git"));
+            }
+            _ => panic!("expected Git"),
+        }
+    }
+
+    #[test]
+    fn parse_org_repo_shorthand() {
+        match SourceUrl::parse("myorg/myrepo").unwrap() {
+            SourceUrl::Git(url) => {
+                assert!(url.contains("github.com"));
+                assert!(url.contains("myorg/myrepo"));
+            }
+            _ => panic!("expected Git"),
+        }
+    }
+
+    #[test]
+    fn default_name_local() {
+        let url = SourceUrl::Local(PathBuf::from("/home/user/my-skills"));
+        assert_eq!(url.default_name(), "my-skills");
+    }
+
+    #[test]
+    fn default_name_git() {
+        let url = SourceUrl::Git("https://github.com/org/cool-skills.git".to_string());
+        assert_eq!(url.default_name(), "cool-skills");
+    }
+
+    #[test]
+    fn source_type_values() {
+        assert_eq!(SourceUrl::Local(PathBuf::from("/tmp")).source_type(), "local");
+        assert_eq!(SourceUrl::Git("https://x.com".to_string()).source_type(), "git");
+    }
+}

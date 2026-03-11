@@ -77,3 +77,81 @@ pub struct BundleConfig {
     #[serde(default)]
     pub skills: Vec<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn config_deserialize_empty() {
+        let config: Config = toml::from_str("").unwrap();
+        assert!(config.source.is_empty());
+        assert!(config.target.is_empty());
+        assert!(config.adapter.is_empty());
+        assert!(config.bundle.is_empty());
+    }
+
+    #[test]
+    fn config_deserialize_source() {
+        let toml = r#"
+[[source]]
+name = "my-src"
+url = "/tmp/skills"
+type = "local"
+"#;
+        let config: Config = toml::from_str(toml).unwrap();
+        assert_eq!(config.source.len(), 1);
+        assert_eq!(config.source[0].name, "my-src");
+        assert_eq!(config.source[0].source_type, "local");
+    }
+
+    #[test]
+    fn config_deserialize_target_defaults() {
+        let toml = r#"
+[[target]]
+name = "test"
+agent = "claude"
+path = "/tmp/claude"
+"#;
+        let config: Config = toml::from_str(toml).unwrap();
+        assert_eq!(config.target[0].scope, "machine");
+        assert_eq!(config.target[0].sync, "auto");
+    }
+
+    #[test]
+    fn config_deserialize_adapter() {
+        let toml = r#"
+[adapter.myagent]
+skill_dir = "prompts/{name}"
+skill_file = "SKILL.md"
+format = "agentskills"
+copy_dirs = ["scripts"]
+"#;
+        let config: Config = toml::from_str(toml).unwrap();
+        assert!(config.adapter.contains_key("myagent"));
+        assert_eq!(config.adapter["myagent"].skill_dir, "prompts/{name}");
+    }
+
+    #[test]
+    fn config_deserialize_bundle() {
+        let toml = r#"
+[bundle.dev]
+skills = ["plugin/skill-a", "plugin/skill-b"]
+"#;
+        let config: Config = toml::from_str(toml).unwrap();
+        assert_eq!(config.bundle["dev"].skills.len(), 2);
+    }
+
+    #[test]
+    fn config_serialize_roundtrip() {
+        let mut config = Config::default();
+        config.source.push(SourceConfig {
+            name: "s".to_string(),
+            url: "/tmp".to_string(),
+            source_type: "local".to_string(),
+        });
+        let serialized = toml::to_string_pretty(&config).unwrap();
+        let deserialized: Config = toml::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.source[0].name, "s");
+    }
+}

@@ -135,3 +135,79 @@ fn parse_skill_identity(identity: &str) -> Result<(Option<String>, String, Strin
         identity
     );
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_identity_short_form() {
+        let (src, plugin, skill) = parse_skill_identity("myplugin/myskill").unwrap();
+        assert!(src.is_none());
+        assert_eq!(plugin, "myplugin");
+        assert_eq!(skill, "myskill");
+    }
+
+    #[test]
+    fn parse_identity_full_form() {
+        let (src, plugin, skill) = parse_skill_identity("src:plug/sk").unwrap();
+        assert_eq!(src, Some("src".to_string()));
+        assert_eq!(plugin, "plug");
+        assert_eq!(skill, "sk");
+    }
+
+    #[test]
+    fn parse_identity_no_slash_fails() {
+        assert!(parse_skill_identity("justaskill").is_err());
+    }
+
+    #[test]
+    fn parse_identity_colon_no_slash_fails() {
+        assert!(parse_skill_identity("src:noslash").is_err());
+    }
+
+    #[test]
+    fn find_skill_ambiguous() {
+        let mut registry = Registry::default();
+        let skill = RegisteredSkill {
+            name: "dup".to_string(),
+            description: None,
+            path: std::path::PathBuf::from("/tmp"),
+        };
+        for src_name in &["a", "b"] {
+            registry.sources.push(RegisteredSource {
+                name: src_name.to_string(),
+                plugins: vec![RegisteredPlugin {
+                    name: "shared".to_string(),
+                    version: None,
+                    description: None,
+                    skills: vec![skill.clone()],
+                    path: std::path::PathBuf::from("/tmp"),
+                }],
+                cache_path: std::path::PathBuf::from("/tmp"),
+            });
+        }
+        let err = registry.find_skill("shared/dup").unwrap_err();
+        assert!(err.to_string().contains("ambiguous"));
+    }
+
+    #[test]
+    fn all_skills_iterates_everything() {
+        let mut registry = Registry::default();
+        registry.sources.push(RegisteredSource {
+            name: "s".to_string(),
+            plugins: vec![RegisteredPlugin {
+                name: "p".to_string(),
+                version: None,
+                description: None,
+                skills: vec![
+                    RegisteredSkill { name: "a".to_string(), description: None, path: std::path::PathBuf::from("/tmp") },
+                    RegisteredSkill { name: "b".to_string(), description: None, path: std::path::PathBuf::from("/tmp") },
+                ],
+                path: std::path::PathBuf::from("/tmp"),
+            }],
+            cache_path: std::path::PathBuf::from("/tmp"),
+        });
+        assert_eq!(registry.all_skills().len(), 2);
+    }
+}
