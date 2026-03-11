@@ -31,7 +31,7 @@
 
 ## 5. Plugin System
 
-- [ ] 5.1 Define plugin.toml and source.toml serde types with validation (required name, optional version/description/assets)
+- [x] 5.1 Define plugin.toml and source.toml serde types with validation (required name, optional version/description/assets)
 - [ ] 5.2 Implement plugin discovery: scan for plugin.toml in source subdirs, infer implicit plugins when no manifest
 - [ ] 5.3 Implement asset discovery within plugins: scan for SKILL.md files, validate frontmatter (name, description required, name matches dir)
 - [ ] 5.4 Implement `skittle plugin list [--source]` and `skittle plugin show <name>`

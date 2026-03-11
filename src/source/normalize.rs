@@ -3,66 +3,8 @@ use std::path::Path;
 use anyhow::{Context, Result};
 
 use super::detect::{self, SourceStructure};
+use super::manifest;
 use crate::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource};
-
-/// Wrapper for source.toml which may use [source] section.
-#[derive(Debug, serde::Deserialize)]
-#[allow(dead_code)]
-struct SourceManifestFile {
-    source: Option<SourceManifestInner>,
-    // Allow top-level fields for flat format
-    name: Option<String>,
-    version: Option<String>,
-    description: Option<String>,
-    plugins: Option<Vec<String>>,
-}
-
-#[derive(Debug, serde::Deserialize)]
-#[allow(dead_code)]
-struct SourceManifestInner {
-    name: String,
-    version: Option<String>,
-    description: Option<String>,
-    plugins: Option<Vec<String>>,
-}
-
-impl SourceManifestFile {
-    fn plugins(&self) -> Option<Vec<String>> {
-        if let Some(s) = &self.source {
-            s.plugins.clone()
-        } else {
-            self.plugins.clone()
-        }
-    }
-}
-
-/// Plugin manifest (plugin.toml).
-/// Wrapper for plugin.toml which may use [plugin] section.
-#[derive(Debug, serde::Deserialize)]
-struct PluginManifestFile {
-    plugin: Option<PluginManifest>,
-    // Allow top-level fields for flat format
-    name: Option<String>,
-    version: Option<String>,
-    description: Option<String>,
-}
-
-#[derive(Debug, serde::Deserialize)]
-struct PluginManifest {
-    name: String,
-    version: Option<String>,
-    description: Option<String>,
-}
-
-impl PluginManifestFile {
-    fn into_fields(self) -> (String, Option<String>, Option<String>) {
-        if let Some(p) = self.plugin {
-            (p.name, p.version, p.description)
-        } else {
-            (self.name.unwrap_or_default(), self.version, self.description)
-        }
-    }
-}
 
 /// Normalize a detected source into the canonical Source > Plugin > Skill hierarchy.
 pub fn normalize(
@@ -127,12 +69,9 @@ pub fn normalize(
 /// Scan a full source (has source.toml).
 fn scan_full_source(path: &Path) -> Result<Vec<RegisteredPlugin>> {
     let manifest_path = path.join("source.toml");
-    let content = fs::read_to_string(&manifest_path)
-        .with_context(|| format!("failed to read {}", manifest_path.display()))?;
-    let manifest: SourceManifestFile = toml::from_str(&content)
-        .with_context(|| format!("failed to parse {}", manifest_path.display()))?;
+    let source_manifest = manifest::load_source_manifest(&manifest_path)?;
 
-    let plugin_dirs: Vec<String> = if let Some(explicit) = manifest.plugins() {
+    let plugin_dirs: Vec<String> = if let Some(explicit) = source_manifest.plugins {
         explicit
     } else {
         // Auto-discover: scan subdirs for plugin.toml
@@ -170,10 +109,8 @@ fn scan_full_source(path: &Path) -> Result<Vec<RegisteredPlugin>> {
 fn scan_plugin_dir(path: &Path) -> Result<RegisteredPlugin> {
     let manifest_path = path.join("plugin.toml");
     let (name, version, description) = if manifest_path.exists() {
-        let content = fs::read_to_string(&manifest_path)?;
-        let manifest: PluginManifestFile = toml::from_str(&content)
-            .with_context(|| format!("failed to parse {}", manifest_path.display()))?;
-        manifest.into_fields()
+        let m = manifest::load_plugin_manifest(&manifest_path)?;
+        (m.name, m.version, m.description)
     } else {
         let name = path.file_name()
             .and_then(|n| n.to_str())
