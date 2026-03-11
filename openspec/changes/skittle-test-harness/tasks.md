@@ -38,7 +38,7 @@
 - [x] 5.5 Create `tests/harness/suite/04_plugin_system.sh` — tests: plugin list, plugin list --source, plugin show, implicit plugin naming
 - [x] 5.6 Create `tests/harness/suite/05_local_registry.sh` — tests: registry.json exists after add, cache dir mirrors source, short-form skill identity, ambiguous identity error
 - [x] 5.7 Create `tests/harness/suite/06_target_management.sh` — tests: add claude/codex targets, remove target (preserves dir), list targets, show target, unknown agent type error
-- [ ] 5.8 Create `tests/harness/suite/07_target_adapters.sh` — tests: claude adapter SKILL.md + scripts copy, codex adapter, custom TOML adapter paths
+- [x] 5.8 Create `tests/harness/suite/07_target_adapters.sh` — tests: claude adapter SKILL.md + scripts copy, codex adapter, custom TOML adapter paths
 - [ ] 5.9 Create `tests/harness/suite/08_skill_operations.sh` — tests: skill list, skill list --plugin, skill list --source, skill show, invalid skill skipped with warning
 - [ ] 5.10 Create `tests/harness/suite/09_install_engine.sh` — tests: install --all, --skill, --plugin, --bundle, --target, uninstall --skill/--bundle, dry run (-n), idempotent install
 - [ ] 5.11 Create `tests/harness/suite/10_bundle_management.sh` — tests: create, delete, list, show, add skills, drop skills, install bundle, swap bundles, active bundle tracking
