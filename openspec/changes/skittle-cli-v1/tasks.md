@@ -93,5 +93,5 @@
 - [ ] 12.2 Add integration tests: install/uninstall (--all, --skill, --plugin, --bundle), dry run, idempotency
 - [ ] 12.3 Add integration tests: bundle create/delete/add/drop/swap, active bundle tracking
 - [x] 12.4 Add unit tests: URL parsing, source detection, config parsing, skill identity resolution, adapter logic
-- [ ] 12.5 Verify all commands support --help, -h, help, --json, -n, -v, -q, --color
+- [x] 12.5 Verify all commands support --help, -h, help, --json, -n, -v, -q, --color
 - [ ] 12.6 End-to-end smoke test: init → source add (local dir with skills) → target add → install --all → status → uninstall → cache clean
