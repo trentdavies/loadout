@@ -31,4 +31,8 @@ pub struct RegisteredSkill {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Registry {
     pub sources: Vec<RegisteredSource>,
+
+    /// Active bundle per target: target_name → bundle_name.
+    #[serde(default)]
+    pub active_bundles: std::collections::BTreeMap<String, String>,
 }

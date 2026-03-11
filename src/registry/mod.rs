@@ -98,6 +98,21 @@ impl Registry {
         }
         result
     }
+
+    /// Set the active bundle for a target.
+    pub fn set_active_bundle(&mut self, target_name: &str, bundle_name: &str) {
+        self.active_bundles.insert(target_name.to_string(), bundle_name.to_string());
+    }
+
+    /// Get the active bundle for a target.
+    pub fn active_bundle(&self, target_name: &str) -> Option<&str> {
+        self.active_bundles.get(target_name).map(|s| s.as_str())
+    }
+
+    /// Clear the active bundle for a target.
+    pub fn clear_active_bundle(&mut self, target_name: &str) {
+        self.active_bundles.remove(target_name);
+    }
 }
 
 /// Parse a skill identity string into (optional_source, plugin, skill).

@@ -61,15 +61,15 @@
 
 ## 9. Install Engine
 
-- [ ] 9.1 Implement `skittle install` requiring explicit flags (no flags → show help + exit non-zero)
-- [ ] 9.2 Implement `skittle install --all [--target]` — install all configured skills to auto-sync targets (or specific target)
-- [ ] 9.3 Implement `skittle install --skill <plugin/skill> [--target]` — install specific skill
-- [ ] 9.4 Implement `skittle install --plugin <name> [--target]` — install all skills from plugin
-- [ ] 9.5 Implement `skittle install --bundle <name> [--target]` — install bundle, track as active bundle on target
-- [ ] 9.6 Implement idempotent install: skip if same version, update if newer
-- [ ] 9.7 Implement dry run (`-n`): display planned operations without writing files
-- [ ] 9.8 Implement `skittle uninstall` with --skill, --plugin, --bundle, --target flags
-- [ ] 9.9 Implement active bundle tracking in registry (updated on install --bundle and bundle swap)
+- [x] 9.1 Implement `skittle install` requiring explicit flags (no flags → show help + exit non-zero)
+- [x] 9.2 Implement `skittle install --all [--target]` — install all configured skills to auto-sync targets (or specific target)
+- [x] 9.3 Implement `skittle install --skill <plugin/skill> [--target]` — install specific skill
+- [x] 9.4 Implement `skittle install --plugin <name> [--target]` — install all skills from plugin
+- [x] 9.5 Implement `skittle install --bundle <name> [--target]` — install bundle, track as active bundle on target
+- [x] 9.6 Implement idempotent install: skip if same version, update if newer
+- [x] 9.7 Implement dry run (`-n`): display planned operations without writing files
+- [x] 9.8 Implement `skittle uninstall` with --skill, --plugin, --bundle, --target flags
+- [x] 9.9 Implement active bundle tracking in registry (updated on install --bundle and bundle swap)
 
 ## 10. Bundle Management
 

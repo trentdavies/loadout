@@ -379,21 +379,164 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
             Ok(())
         }
-        Command::Install { all, skill, plugin, bundle, target: _ } => {
+        Command::Install { all, skill, plugin, bundle, target } => {
             if !all && skill.is_none() && plugin.is_none() && bundle.is_none() {
                 eprintln!("error: install requires --all, --skill, --plugin, or --bundle");
                 std::process::exit(2);
             }
-            eprintln!("skittle: install not yet implemented");
-            std::process::exit(1);
+
+            let config_path_str = cli.config.as_deref();
+            let config = crate::config::load(config_path_str)?;
+            let data_dir = crate::config::data_dir();
+            let registry = crate::registry::load_registry(&data_dir)?;
+
+            // Determine which targets to install to
+            let targets: Vec<&crate::config::TargetConfig> = if let Some(ref t) = target {
+                let tc = config.target.iter()
+                    .find(|tc| tc.name == *t)
+                    .ok_or_else(|| anyhow::anyhow!("target '{}' not found", t))?;
+                vec![tc]
+            } else {
+                // Install to auto-sync targets
+                config.target.iter().filter(|t| t.sync == "auto").collect()
+            };
+
+            if targets.is_empty() {
+                anyhow::bail!("no targets configured. Use `skittle target add` first.");
+            }
+
+            // Collect skills to install
+            let mut skills_to_install: Vec<&crate::registry::RegisteredSkill> = Vec::new();
+
+            if all {
+                for src in &registry.sources {
+                    for p in &src.plugins {
+                        for s in &p.skills {
+                            skills_to_install.push(s);
+                        }
+                    }
+                }
+            }
+
+            if let Some(ref skill_id) = skill {
+                let (_, _, s) = registry.find_skill(skill_id)?;
+                skills_to_install.push(s);
+            }
+
+            if let Some(ref plugin_name) = plugin {
+                let (_, p) = registry.find_plugin(plugin_name)
+                    .ok_or_else(|| anyhow::anyhow!("plugin '{}' not found", plugin_name))?;
+                for s in &p.skills {
+                    skills_to_install.push(s);
+                }
+            }
+
+            if let Some(ref bundle_name) = bundle {
+                let bundle_cfg = config.bundle.get(bundle_name)
+                    .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", bundle_name))?;
+                for skill_id in &bundle_cfg.skills {
+                    let (_, _, s) = registry.find_skill(skill_id)?;
+                    skills_to_install.push(s);
+                }
+            }
+
+            // Install to each target
+            let mut installed_count = 0;
+            for tc in &targets {
+                let adapter = crate::target::resolve_adapter(tc, &config.adapter)?;
+                for s in &skills_to_install {
+                    if cli.dry_run {
+                        if !cli.quiet {
+                            println!("  (dry run) {} → {}", s.name, tc.name);
+                        }
+                    } else {
+                        adapter.install_skill(s, &tc.path)?;
+                    }
+                    installed_count += 1;
+                }
+            }
+
+            // Track active bundle if installing a bundle
+            if let Some(ref bundle_name) = bundle {
+                if !cli.dry_run {
+                    let mut reg = registry;
+                    // Store active bundle per target in registry
+                    // We'll use a simple field on the registry
+                    for tc in &targets {
+                        reg.set_active_bundle(&tc.name, bundle_name);
+                    }
+                    crate::registry::save_registry(&reg, &data_dir)?;
+                }
+            }
+
+            if !cli.quiet {
+                println!("Installed {} skill(s) to {} target(s)", installed_count / targets.len().max(1), targets.len());
+            }
+            Ok(())
         }
-        Command::Uninstall { skill, plugin, bundle, target: _ } => {
+        Command::Uninstall { skill, plugin, bundle, target } => {
             if skill.is_none() && plugin.is_none() && bundle.is_none() {
                 eprintln!("error: uninstall requires --skill, --plugin, or --bundle");
                 std::process::exit(2);
             }
-            eprintln!("skittle: uninstall not yet implemented");
-            std::process::exit(1);
+
+            let config_path_str = cli.config.as_deref();
+            let config = crate::config::load(config_path_str)?;
+            let data_dir = crate::config::data_dir();
+            let registry = crate::registry::load_registry(&data_dir)?;
+
+            // Determine targets
+            let targets: Vec<&crate::config::TargetConfig> = if let Some(ref t) = target {
+                let tc = config.target.iter()
+                    .find(|tc| tc.name == *t)
+                    .ok_or_else(|| anyhow::anyhow!("target '{}' not found", t))?;
+                vec![tc]
+            } else {
+                config.target.iter().filter(|t| t.sync == "auto").collect()
+            };
+
+            // Collect skill names to uninstall
+            let mut skill_names: Vec<String> = Vec::new();
+
+            if let Some(ref skill_id) = skill {
+                let (_, _, s) = registry.find_skill(skill_id)?;
+                skill_names.push(s.name.clone());
+            }
+
+            if let Some(ref plugin_name) = plugin {
+                let (_, p) = registry.find_plugin(plugin_name)
+                    .ok_or_else(|| anyhow::anyhow!("plugin '{}' not found", plugin_name))?;
+                for s in &p.skills {
+                    skill_names.push(s.name.clone());
+                }
+            }
+
+            if let Some(ref bundle_name) = bundle {
+                let bundle_cfg = config.bundle.get(bundle_name)
+                    .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", bundle_name))?;
+                for skill_id in &bundle_cfg.skills {
+                    let (_, _, s) = registry.find_skill(skill_id)?;
+                    skill_names.push(s.name.clone());
+                }
+            }
+
+            for tc in &targets {
+                let adapter = crate::target::resolve_adapter(tc, &config.adapter)?;
+                for name in &skill_names {
+                    if cli.dry_run {
+                        if !cli.quiet {
+                            println!("  (dry run) uninstall {} from {}", name, tc.name);
+                        }
+                    } else {
+                        adapter.uninstall_skill(name, &tc.path)?;
+                    }
+                }
+            }
+
+            if !cli.quiet {
+                println!("Uninstalled {} skill(s) from {} target(s)", skill_names.len(), targets.len());
+            }
+            Ok(())
         }
         Command::Status => {
             eprintln!("skittle: status not yet implemented");
