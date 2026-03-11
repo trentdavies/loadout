@@ -154,4 +154,32 @@ skills = ["plugin/skill-a", "plugin/skill-b"]
         let deserialized: Config = toml::from_str(&serialized).unwrap();
         assert_eq!(deserialized.source[0].name, "s");
     }
+
+    #[test]
+    fn adapter_format_defaults_to_agentskills() {
+        let toml = r#"
+[adapter.custom]
+skill_dir = "skills/{name}"
+skill_file = "SKILL.md"
+"#;
+        let config: Config = toml::from_str(toml).unwrap();
+        assert_eq!(config.adapter["custom"].format, "agentskills");
+    }
+
+    #[test]
+    fn invalid_toml_deserialization_error() {
+        let result = toml::from_str::<Config>("[invalid toml");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn source_type_defaults_to_local() {
+        let toml = r#"
+[[source]]
+name = "s"
+url = "/tmp"
+"#;
+        let config: Config = toml::from_str(toml).unwrap();
+        assert_eq!(config.source[0].source_type, "local");
+    }
 }

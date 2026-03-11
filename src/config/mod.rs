@@ -82,3 +82,86 @@ pub fn save_to(config: &Config, path: &Path) -> Result<()> {
         .with_context(|| format!("failed to write config: {}", path.display()))?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn config_path_with_override() {
+        let p = config_path(Some("/custom/path.toml"));
+        assert_eq!(p, PathBuf::from("/custom/path.toml"));
+    }
+
+    #[test]
+    fn config_path_default() {
+        let p = config_path(None);
+        assert!(p.to_string_lossy().contains("skittle"));
+        assert!(p.to_string_lossy().ends_with("config.toml"));
+    }
+
+    #[test]
+    fn load_from_nonexistent_returns_default() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("nonexistent.toml");
+        let config = load_from(&path).unwrap();
+        assert!(config.source.is_empty());
+        assert!(config.target.is_empty());
+    }
+
+    #[test]
+    fn load_from_invalid_toml_errors() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("bad.toml");
+        fs::write(&path, "[invalid toml").unwrap();
+        assert!(load_from(&path).is_err());
+    }
+
+    #[test]
+    fn save_to_load_from_roundtrip() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("config.toml");
+
+        let mut config = Config::default();
+        config.source.push(SourceConfig {
+            name: "test-src".to_string(),
+            url: "/tmp/skills".to_string(),
+            source_type: "local".to_string(),
+        });
+        config.target.push(TargetConfig {
+            name: "test-tgt".to_string(),
+            agent: "claude".to_string(),
+            path: PathBuf::from("/tmp/claude"),
+            scope: "machine".to_string(),
+            sync: "auto".to_string(),
+        });
+
+        save_to(&config, &path).unwrap();
+        let loaded = load_from(&path).unwrap();
+        assert_eq!(loaded.source.len(), 1);
+        assert_eq!(loaded.source[0].name, "test-src");
+        assert_eq!(loaded.target.len(), 1);
+        assert_eq!(loaded.target[0].name, "test-tgt");
+    }
+
+    #[test]
+    fn save_to_creates_parent_dirs() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("deep").join("nested").join("config.toml");
+        let config = Config::default();
+        save_to(&config, &path).unwrap();
+        assert!(path.exists());
+    }
+
+    #[test]
+    fn load_via_override() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("custom.toml");
+        let config = Config::default();
+        save_to(&config, &path).unwrap();
+
+        let loaded = load(Some(path.to_str().unwrap())).unwrap();
+        assert!(loaded.source.is_empty());
+    }
+}

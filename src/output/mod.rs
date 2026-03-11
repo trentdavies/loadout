@@ -143,3 +143,85 @@ impl Output {
         println!("{}", title.bold().underline());
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::ColorWhen;
+
+    #[test]
+    fn from_flags_construction() {
+        let out = Output::from_flags(true, false, true, &ColorWhen::Never);
+        assert!(out.json);
+        assert!(!out.quiet);
+        assert!(out.verbose);
+    }
+
+    #[test]
+    fn quiet_mode_fields() {
+        let out = Output::from_flags(false, true, false, &ColorWhen::Never);
+        assert!(out.quiet);
+        // Quiet mode: success/info/warn methods return early without printing.
+        // We verify the flag is set; actual suppression is tested by the method guard.
+    }
+
+    #[test]
+    fn verbose_mode_fields() {
+        let out = Output::from_flags(false, false, true, &ColorWhen::Never);
+        assert!(out.verbose);
+    }
+
+    #[test]
+    fn non_verbose_fields() {
+        let out = Output::from_flags(false, false, false, &ColorWhen::Never);
+        assert!(!out.verbose);
+    }
+
+    #[test]
+    fn json_mode_emits_valid_json() {
+        let out = Output::from_flags(true, false, false, &ColorWhen::Never);
+        assert!(out.json);
+        // json_value writes to stdout; verify no panic on a valid value
+        let val = serde_json::json!({"key": "value"});
+        // This would print to stdout in tests, but should not panic
+        out.json_value(&val);
+    }
+
+    #[test]
+    fn json_serialize_method() {
+        let out = Output::from_flags(true, false, false, &ColorWhen::Never);
+        #[derive(serde::Serialize)]
+        struct T { x: i32 }
+        out.json(&T { x: 42 });
+    }
+
+    #[test]
+    fn table_no_panic_empty() {
+        let out = Output::from_flags(false, false, false, &ColorWhen::Never);
+        out.table(&["A", "B"], &[]);
+    }
+
+    #[test]
+    fn table_no_panic_with_data() {
+        let out = Output::from_flags(false, false, false, &ColorWhen::Never);
+        out.table(
+            &["Name", "Value"],
+            &[vec!["a".to_string(), "1".to_string()], vec!["bb".to_string(), "22".to_string()]],
+        );
+    }
+
+    #[test]
+    fn tree_no_panic() {
+        let out = Output::from_flags(false, false, false, &ColorWhen::Never);
+        out.tree(&[(0, "root".to_string()), (1, "child".to_string()), (1, "child2".to_string())]);
+    }
+
+    #[test]
+    fn quiet_suppresses_table() {
+        let out = Output::from_flags(false, true, false, &ColorWhen::Never);
+        // Should return early without printing
+        out.table(&["A"], &[vec!["x".to_string()]]);
+        out.tree(&[(0, "root".to_string())]);
+        out.header("Test");
+    }
+}

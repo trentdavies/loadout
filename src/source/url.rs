@@ -221,4 +221,65 @@ mod tests {
         assert_eq!(SourceUrl::Local(PathBuf::from("/tmp")).source_type(), "local");
         assert_eq!(SourceUrl::Git("https://x.com".to_string()).source_type(), "git");
     }
+
+    #[test]
+    fn parse_relative_dot_slash() {
+        // ./something resolves to CWD/something
+        match SourceUrl::parse("./some-local-path").unwrap() {
+            SourceUrl::Local(p) => assert!(p.is_absolute()),
+            _ => panic!("expected Local"),
+        }
+    }
+
+    #[test]
+    fn parse_relative_dot_dot() {
+        match SourceUrl::parse("../parent-path").unwrap() {
+            SourceUrl::Local(p) => assert!(p.is_absolute()),
+            _ => panic!("expected Local"),
+        }
+    }
+
+    #[test]
+    fn parse_home_expansion() {
+        match SourceUrl::parse("~/some/path").unwrap() {
+            SourceUrl::Local(p) => {
+                assert!(p.is_absolute());
+                assert!(!p.to_string_lossy().contains('~'));
+            }
+            _ => panic!("expected Local"),
+        }
+    }
+
+    #[test]
+    fn parse_http_url_as_git() {
+        match SourceUrl::parse("http://example.com/repo.git").unwrap() {
+            SourceUrl::Git(url) => assert!(url.starts_with("http://")),
+            _ => panic!("expected Git"),
+        }
+    }
+
+    #[test]
+    fn parse_invalid_input_errors() {
+        // Three-segment path that doesn't exist and isn't a recognized format
+        assert!(SourceUrl::parse("not/a/valid/multi/segment").is_err());
+    }
+
+    #[test]
+    fn parse_empty_string_errors() {
+        // Empty string should not be a valid source URL
+        let result = SourceUrl::parse("");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn url_string_local() {
+        let url = SourceUrl::Local(PathBuf::from("/tmp/skills"));
+        assert_eq!(url.url_string(), "/tmp/skills");
+    }
+
+    #[test]
+    fn url_string_git() {
+        let url = SourceUrl::Git("https://github.com/org/repo.git".to_string());
+        assert_eq!(url.url_string(), "https://github.com/org/repo.git");
+    }
 }

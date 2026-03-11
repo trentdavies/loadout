@@ -210,4 +210,128 @@ mod tests {
         });
         assert_eq!(registry.all_skills().len(), 2);
     }
+
+    #[test]
+    fn find_plugin_found() {
+        let mut registry = Registry::default();
+        registry.sources.push(RegisteredSource {
+            name: "src".to_string(),
+            plugins: vec![RegisteredPlugin {
+                name: "my-plugin".to_string(),
+                version: None,
+                description: Some("a plugin".to_string()),
+                skills: vec![],
+                path: std::path::PathBuf::from("/tmp"),
+            }],
+            cache_path: std::path::PathBuf::from("/tmp"),
+        });
+        let (src_name, plugin) = registry.find_plugin("my-plugin").unwrap();
+        assert_eq!(src_name, "src");
+        assert_eq!(plugin.name, "my-plugin");
+    }
+
+    #[test]
+    fn find_plugin_not_found() {
+        let registry = Registry::default();
+        assert!(registry.find_plugin("nonexistent").is_none());
+    }
+
+    #[test]
+    fn load_registry_corrupted_json() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("registry.json"), "{broken json").unwrap();
+        assert!(load_registry(tmp.path()).is_err());
+    }
+
+    #[test]
+    fn save_load_registry_roundtrip() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut registry = Registry::default();
+        registry.sources.push(RegisteredSource {
+            name: "s".to_string(),
+            plugins: vec![RegisteredPlugin {
+                name: "p".to_string(),
+                version: Some("1.0".to_string()),
+                description: None,
+                skills: vec![RegisteredSkill {
+                    name: "sk".to_string(),
+                    description: Some("desc".to_string()),
+                    path: std::path::PathBuf::from("/tmp/sk"),
+                }],
+                path: std::path::PathBuf::from("/tmp/p"),
+            }],
+            cache_path: std::path::PathBuf::from("/tmp"),
+        });
+        registry.set_active_bundle("tgt", "my-bundle");
+
+        save_registry(&registry, tmp.path()).unwrap();
+        let loaded = load_registry(tmp.path()).unwrap();
+        assert_eq!(loaded.sources.len(), 1);
+        assert_eq!(loaded.sources[0].plugins[0].skills[0].name, "sk");
+        assert_eq!(loaded.active_bundle("tgt"), Some("my-bundle"));
+    }
+
+    #[test]
+    fn load_registry_missing_file_returns_default() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let registry = load_registry(tmp.path()).unwrap();
+        assert!(registry.sources.is_empty());
+    }
+
+    #[test]
+    fn find_skill_not_found() {
+        let registry = Registry::default();
+        assert!(registry.find_skill("plugin/skill").is_err());
+    }
+
+    #[test]
+    fn parse_identity_leading_slash() {
+        // "/skill" splits to ("", "skill") — empty plugin name, valid parse but won't match anything
+        let result = parse_skill_identity("/skill");
+        match result {
+            Ok((_, plugin, skill)) => {
+                assert!(plugin.is_empty());
+                assert_eq!(skill, "skill");
+            }
+            Err(_) => {} // Also acceptable
+        }
+    }
+
+    #[test]
+    fn parse_identity_empty_skill_part() {
+        // "plugin/" — slash present but empty skill part
+        let result = parse_skill_identity("plugin/");
+        // This should parse but produce empty skill name
+        match result {
+            Ok((_, plugin, skill)) => {
+                assert_eq!(plugin, "plugin");
+                assert!(skill.is_empty());
+            }
+            Err(_) => {} // Also acceptable
+        }
+    }
+
+    #[test]
+    fn find_skill_success() {
+        let mut registry = Registry::default();
+        registry.sources.push(RegisteredSource {
+            name: "s".to_string(),
+            plugins: vec![RegisteredPlugin {
+                name: "p".to_string(),
+                version: None,
+                description: None,
+                skills: vec![RegisteredSkill {
+                    name: "sk".to_string(),
+                    description: None,
+                    path: std::path::PathBuf::from("/tmp"),
+                }],
+                path: std::path::PathBuf::from("/tmp"),
+            }],
+            cache_path: std::path::PathBuf::from("/tmp"),
+        });
+        let (src, plug, skill) = registry.find_skill("p/sk").unwrap();
+        assert_eq!(src, "s");
+        assert_eq!(plug, "p");
+        assert_eq!(skill.name, "sk");
+    }
 }

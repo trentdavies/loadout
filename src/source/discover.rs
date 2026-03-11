@@ -174,3 +174,134 @@ fn scan_skill_dirs(path: &Path) -> Result<Vec<DiscoveredSkill>> {
     skills.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(skills)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn make_skill_dir(parent: &Path, name: &str, frontmatter: &str) {
+        let dir = parent.join(name);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("SKILL.md"), frontmatter).unwrap();
+    }
+
+    // -- discover_plugins() tests --
+
+    #[test]
+    fn discover_plugins_multi_plugin() {
+        let tmp = TempDir::new().unwrap();
+        // Create two plugin dirs with skill subdirs
+        let p1 = tmp.path().join("alpha");
+        let p2 = tmp.path().join("beta");
+        fs::create_dir_all(&p1).unwrap();
+        fs::create_dir_all(&p2).unwrap();
+        // alpha has a plugin.toml
+        fs::write(p1.join("plugin.toml"), "name = \"alpha\"").unwrap();
+        // beta has a skill subdir (implicit plugin)
+        make_skill_dir(&p2, "my-skill", "---\nname: my-skill\ndescription: d\n---\n");
+
+        let plugins = discover_plugins(tmp.path()).unwrap();
+        assert_eq!(plugins.len(), 2);
+        assert_eq!(plugins[0].dir_name, "alpha");
+        assert!(plugins[0].has_manifest);
+        assert_eq!(plugins[1].dir_name, "beta");
+        assert!(!plugins[1].has_manifest);
+    }
+
+    #[test]
+    fn discover_plugins_skips_hidden() {
+        let tmp = TempDir::new().unwrap();
+        let hidden = tmp.path().join(".hidden");
+        fs::create_dir_all(&hidden).unwrap();
+        fs::write(hidden.join("plugin.toml"), "name = \"hidden\"").unwrap();
+
+        let plugins = discover_plugins(tmp.path()).unwrap();
+        assert!(plugins.is_empty());
+    }
+
+    #[test]
+    fn discover_plugins_empty_dir() {
+        let tmp = TempDir::new().unwrap();
+        let plugins = discover_plugins(tmp.path()).unwrap();
+        assert!(plugins.is_empty());
+    }
+
+    #[test]
+    fn discover_plugins_sorted_alphabetically() {
+        let tmp = TempDir::new().unwrap();
+        for name in &["zeta", "alpha", "mid"] {
+            let d = tmp.path().join(name);
+            fs::create_dir_all(&d).unwrap();
+            fs::write(d.join("plugin.toml"), format!("name = \"{}\"", name)).unwrap();
+        }
+        let plugins = discover_plugins(tmp.path()).unwrap();
+        let names: Vec<&str> = plugins.iter().map(|p| p.dir_name.as_str()).collect();
+        assert_eq!(names, vec!["alpha", "mid", "zeta"]);
+    }
+
+    // -- discover_skills() tests --
+
+    #[test]
+    fn discover_skills_happy_path() {
+        let tmp = TempDir::new().unwrap();
+        make_skill_dir(tmp.path(), "skill-a", "---\nname: skill-a\ndescription: A\n---\n");
+        make_skill_dir(tmp.path(), "skill-b", "---\nname: skill-b\ndescription: B\n---\n");
+
+        let skills = discover_skills(tmp.path()).unwrap();
+        assert_eq!(skills.len(), 2);
+        assert_eq!(skills[0].name, "skill-a");
+        assert_eq!(skills[1].name, "skill-b");
+    }
+
+    #[test]
+    fn discover_skills_missing_frontmatter_skipped() {
+        let tmp = TempDir::new().unwrap();
+        make_skill_dir(tmp.path(), "good", "---\nname: good\ndescription: ok\n---\n");
+        make_skill_dir(tmp.path(), "bad", "no frontmatter here");
+
+        let skills = discover_skills(tmp.path()).unwrap();
+        assert_eq!(skills.len(), 1);
+        assert_eq!(skills[0].name, "good");
+    }
+
+    #[test]
+    fn discover_skills_missing_description_skipped() {
+        let tmp = TempDir::new().unwrap();
+        make_skill_dir(tmp.path(), "no-desc", "---\nname: no-desc\n---\nbody");
+
+        let skills = discover_skills(tmp.path()).unwrap();
+        assert!(skills.is_empty());
+    }
+
+    #[test]
+    fn discover_skills_empty_plugin() {
+        let tmp = TempDir::new().unwrap();
+        let skills = discover_skills(tmp.path()).unwrap();
+        assert!(skills.is_empty());
+    }
+
+    #[test]
+    fn discover_skills_sorted() {
+        let tmp = TempDir::new().unwrap();
+        make_skill_dir(tmp.path(), "zebra", "---\nname: zebra\ndescription: z\n---\n");
+        make_skill_dir(tmp.path(), "apple", "---\nname: apple\ndescription: a\n---\n");
+
+        let skills = discover_skills(tmp.path()).unwrap();
+        assert_eq!(skills[0].name, "apple");
+        assert_eq!(skills[1].name, "zebra");
+    }
+
+    #[test]
+    fn discover_skills_uses_skills_subdir() {
+        let tmp = TempDir::new().unwrap();
+        let skills_dir = tmp.path().join("skills");
+        fs::create_dir_all(&skills_dir).unwrap();
+        make_skill_dir(&skills_dir, "inner", "---\nname: inner\ndescription: d\n---\n");
+
+        let skills = discover_skills(tmp.path()).unwrap();
+        assert_eq!(skills.len(), 1);
+        assert_eq!(skills[0].name, "inner");
+    }
+}

@@ -105,3 +105,76 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn fetch_local_directory() {
+        let src = TempDir::new().unwrap();
+        let cache = TempDir::new().unwrap();
+        fs::write(src.path().join("SKILL.md"), "---\nname: x\ndescription: d\n---\n").unwrap();
+        fs::write(src.path().join("extra.txt"), "data").unwrap();
+
+        let url = SourceUrl::Local(src.path().to_path_buf());
+        let cache_dest = cache.path().join("test-src");
+        let result = fetch(&url, &cache_dest).unwrap();
+        assert!(result.join("SKILL.md").exists());
+        assert!(result.join("extra.txt").exists());
+    }
+
+    #[test]
+    fn fetch_local_single_file() {
+        let src = TempDir::new().unwrap();
+        let cache = TempDir::new().unwrap();
+        let skill_file = src.path().join("SKILL.md");
+        fs::write(&skill_file, "---\nname: x\ndescription: d\n---\n").unwrap();
+
+        let url = SourceUrl::Local(skill_file);
+        let cache_dest = cache.path().join("test-src");
+        let result = fetch(&url, &cache_dest).unwrap();
+        assert!(result.join("SKILL.md").exists());
+    }
+
+    #[test]
+    fn fetch_local_nonexistent_errors() {
+        let cache = TempDir::new().unwrap();
+        let url = SourceUrl::Local(PathBuf::from("/nonexistent/path/xyz"));
+        let result = fetch(&url, &cache.path().join("out"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn copy_dir_recursive_skips_git() {
+        let src = TempDir::new().unwrap();
+        let dst = TempDir::new().unwrap();
+
+        fs::write(src.path().join("file.txt"), "content").unwrap();
+        let git_dir = src.path().join(".git");
+        fs::create_dir(&git_dir).unwrap();
+        fs::write(git_dir.join("HEAD"), "ref").unwrap();
+
+        let dest = dst.path().join("out");
+        copy_dir_recursive(src.path(), &dest).unwrap();
+
+        assert!(dest.join("file.txt").exists());
+        assert!(!dest.join(".git").exists());
+    }
+
+    #[test]
+    fn copy_dir_recursive_nested() {
+        let src = TempDir::new().unwrap();
+        let dst = TempDir::new().unwrap();
+
+        let sub = src.path().join("sub");
+        fs::create_dir(&sub).unwrap();
+        fs::write(sub.join("nested.txt"), "data").unwrap();
+
+        let dest = dst.path().join("out");
+        copy_dir_recursive(src.path(), &dest).unwrap();
+
+        assert!(dest.join("sub").join("nested.txt").exists());
+    }
+}

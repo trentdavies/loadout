@@ -190,3 +190,90 @@ fn scan_skill_dir(skill_name: &str, path: &Path) -> Result<RegisteredSkill> {
         path: path.to_path_buf(),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn make_skill_md(dir: &Path, name: &str) {
+        fs::write(
+            dir.join("SKILL.md"),
+            format!("---\nname: {}\ndescription: A skill\n---\nbody", name),
+        ).unwrap();
+    }
+
+    #[test]
+    fn normalize_single_file() {
+        let tmp = TempDir::new().unwrap();
+        let cache = tmp.path().join("cache");
+        fs::create_dir_all(&cache).unwrap();
+        fs::write(cache.join("test.md"), "---\nname: test\ndescription: desc\n---\n").unwrap();
+
+        let structure = SourceStructure::SingleFile { skill_name: "test".to_string() };
+        let result = normalize("my-src", &cache, &structure).unwrap();
+        assert_eq!(result.name, "my-src");
+        assert_eq!(result.plugins.len(), 1);
+        assert_eq!(result.plugins[0].skills.len(), 1);
+    }
+
+    #[test]
+    fn normalize_flat_skills() {
+        let tmp = TempDir::new().unwrap();
+        let s1 = tmp.path().join("skill-a");
+        let s2 = tmp.path().join("skill-b");
+        fs::create_dir_all(&s1).unwrap();
+        fs::create_dir_all(&s2).unwrap();
+        make_skill_md(&s1, "skill-a");
+        make_skill_md(&s2, "skill-b");
+
+        let structure = SourceStructure::FlatSkills;
+        let result = normalize("src", tmp.path(), &structure).unwrap();
+        assert_eq!(result.plugins.len(), 1);
+        assert_eq!(result.plugins[0].skills.len(), 2);
+    }
+
+    #[test]
+    fn normalize_single_plugin() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("plugin.toml"), "name = \"plug\"").unwrap();
+        let s1 = tmp.path().join("skill-x");
+        fs::create_dir_all(&s1).unwrap();
+        make_skill_md(&s1, "skill-x");
+
+        let structure = SourceStructure::SinglePlugin;
+        let result = normalize("src", tmp.path(), &structure).unwrap();
+        assert_eq!(result.plugins.len(), 1);
+        assert_eq!(result.plugins[0].name, "plug");
+        assert_eq!(result.plugins[0].skills.len(), 1);
+    }
+
+    #[test]
+    fn normalize_full_source() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("source.toml"), "name = \"full\"\nplugins = [\"p1\"]").unwrap();
+        let p1 = tmp.path().join("p1");
+        fs::create_dir_all(&p1).unwrap();
+        fs::write(p1.join("plugin.toml"), "name = \"p1\"").unwrap();
+        let s1 = p1.join("my-skill");
+        fs::create_dir_all(&s1).unwrap();
+        make_skill_md(&s1, "my-skill");
+
+        let structure = SourceStructure::FullSource;
+        let result = normalize("src", tmp.path(), &structure).unwrap();
+        assert_eq!(result.plugins.len(), 1);
+        assert_eq!(result.plugins[0].name, "p1");
+    }
+
+    #[test]
+    fn normalize_single_skill_dir() {
+        let tmp = TempDir::new().unwrap();
+        make_skill_md(tmp.path(), "dir-skill");
+
+        let structure = SourceStructure::SingleSkillDir { skill_name: "dir-skill".to_string() };
+        let result = normalize("src", tmp.path(), &structure).unwrap();
+        assert_eq!(result.plugins.len(), 1);
+        assert_eq!(result.plugins[0].skills[0].name, "dir-skill");
+    }
+}

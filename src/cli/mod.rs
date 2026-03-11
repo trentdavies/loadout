@@ -1758,3 +1758,63 @@ fn format_size(bytes: u64) -> String {
         format!("{:.1} GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+    use tempfile::TempDir;
+
+    #[test]
+    fn dir_size_with_files() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("a.txt"), "hello").unwrap(); // 5 bytes
+        std::fs::write(tmp.path().join("b.txt"), "world!").unwrap(); // 6 bytes
+        let size = dir_size(tmp.path());
+        assert_eq!(size, 11);
+    }
+
+    #[test]
+    fn dir_size_empty() {
+        let tmp = TempDir::new().unwrap();
+        assert_eq!(dir_size(tmp.path()), 0);
+    }
+
+    #[test]
+    fn dir_size_nonexistent() {
+        assert_eq!(dir_size(Path::new("/nonexistent/xyz")), 0);
+    }
+
+    #[test]
+    fn dir_size_nested() {
+        let tmp = TempDir::new().unwrap();
+        let sub = tmp.path().join("sub");
+        std::fs::create_dir(&sub).unwrap();
+        std::fs::write(sub.join("file.txt"), "1234567890").unwrap(); // 10 bytes
+        assert_eq!(dir_size(tmp.path()), 10);
+    }
+
+    #[test]
+    fn format_size_bytes() {
+        assert_eq!(format_size(0), "0 B");
+        assert_eq!(format_size(512), "512 B");
+        assert_eq!(format_size(1023), "1023 B");
+    }
+
+    #[test]
+    fn format_size_kilobytes() {
+        assert_eq!(format_size(1024), "1.0 KB");
+        assert_eq!(format_size(1536), "1.5 KB");
+    }
+
+    #[test]
+    fn format_size_megabytes() {
+        assert_eq!(format_size(1024 * 1024), "1.0 MB");
+        assert_eq!(format_size(2 * 1024 * 1024 + 512 * 1024), "2.5 MB");
+    }
+
+    #[test]
+    fn format_size_gigabytes() {
+        assert_eq!(format_size(1024 * 1024 * 1024), "1.0 GB");
+    }
+}
