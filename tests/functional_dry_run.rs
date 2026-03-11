@@ -54,7 +54,7 @@ fn setup_env() -> (TempDir, TempDir, TempDir, PathBuf, PathBuf) {
 }
 
 #[test]
-fn dry_run_install_writes_nothing() {
+fn not_calling_install_writes_nothing() {
     let (_env, _source, target_dir, config_path, data_dir) = setup_env();
 
     let config = skittle::config::load_from(&config_path).unwrap();
@@ -62,23 +62,22 @@ fn dry_run_install_writes_nothing() {
     let target = &config.target[0];
     let adapter = skittle::target::resolve_adapter(target, &config.adapter).unwrap();
 
-    // In dry-run mode, the CLI prints but doesn't call install_skill.
+    // Without --force, destructive commands skip adapter calls.
     // Verify that NOT calling install_skill means nothing is written.
-    // (This tests the invariant the dry-run flag relies on.)
     let all_skills = registry.all_skills();
     assert!(!all_skills.is_empty(), "should have skills to install");
 
-    // Don't call install — simulating dry-run skip
+    // Don't call install — simulating no --force
     let installed = adapter.installed_skills(&target.path).unwrap();
-    assert!(installed.is_empty(), "dry-run should not have installed anything");
+    assert!(installed.is_empty(), "should not have installed anything");
 
     // Verify no skill directories exist
     let skills_dir = target_dir.path().join("skills");
-    assert!(!skills_dir.exists(), "skills directory should not exist in dry-run");
+    assert!(!skills_dir.exists(), "skills directory should not exist");
 }
 
 #[test]
-fn dry_run_uninstall_removes_nothing() {
+fn not_calling_uninstall_removes_nothing() {
     let (_env, _source, target_dir, config_path, data_dir) = setup_env();
 
     let config = skittle::config::load_from(&config_path).unwrap();
@@ -93,40 +92,15 @@ fn dry_run_uninstall_removes_nothing() {
     let installed_before = adapter.installed_skills(&target.path).unwrap();
     assert_eq!(installed_before.len(), 2);
 
-    // Simulate dry-run uninstall: don't call uninstall_skill
-    // Verify files still exist
+    // Without --force, uninstall skips adapter calls — verify files remain
     let installed_after = adapter.installed_skills(&target.path).unwrap();
-    assert_eq!(installed_after.len(), 2, "dry-run uninstall should leave files intact");
+    assert_eq!(installed_after.len(), 2, "uninstall without --force should leave files intact");
     assert!(target_dir.path().join("skills/skill-a/SKILL.md").exists());
     assert!(target_dir.path().join("skills/skill-b/SKILL.md").exists());
 }
 
 #[test]
-fn dry_run_source_add_modifies_nothing() {
-    let (env_dir, _source, _target, config_path, data_dir) = setup_env();
-
-    // Record state before
-    let config_before = fs::read_to_string(&config_path).unwrap();
-    let registry_before = fs::read_to_string(data_dir.join("registry.json")).unwrap();
-
-    // Simulate dry-run source add: parse URL but don't fetch, detect, or save
-    let new_source_dir = TempDir::new().unwrap();
-    make_skill_fixture(new_source_dir.path(), "new-skill");
-    let _url = skittle::source::SourceUrl::parse(
-        new_source_dir.path().to_str().unwrap()
-    ).unwrap();
-
-    // Don't proceed with fetch/detect/normalize/save — that's what dry-run skips
-
-    // Verify nothing changed
-    let config_after = fs::read_to_string(&config_path).unwrap();
-    let registry_after = fs::read_to_string(data_dir.join("registry.json")).unwrap();
-    assert_eq!(config_before, config_after, "config should not change in dry-run");
-    assert_eq!(registry_before, registry_after, "registry should not change in dry-run");
-}
-
-#[test]
-fn dry_run_cache_clean_removes_nothing() {
+fn not_calling_cache_clean_removes_nothing() {
     let (env_dir, _source, _target, _config_path, _data_dir) = setup_env();
 
     // Create a fake cache directory with content
@@ -134,6 +108,6 @@ fn dry_run_cache_clean_removes_nothing() {
     fs::create_dir_all(&cache_dir).unwrap();
     fs::write(cache_dir.join("cached-file.txt"), "cached data").unwrap();
 
-    // Simulate dry-run cache clean: don't delete anything
-    assert!(cache_dir.join("cached-file.txt").exists(), "cache should still have files in dry-run");
+    // Without --force, cache clean skips deletion
+    assert!(cache_dir.join("cached-file.txt").exists(), "cache should still have files without --force");
 }

@@ -14,10 +14,6 @@ pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
 
-    /// Dry run — show what would change without making modifications
-    #[arg(short = 'n', long = "dry-run", global = true)]
-    pub dry_run: bool,
-
     /// Verbose output
     #[arg(short, long, global = true)]
     pub verbose: bool,
@@ -80,6 +76,10 @@ pub enum Command {
         /// Target to uninstall from
         #[arg(long, value_name = "TARGET")]
         target: Option<String>,
+
+        /// Actually perform the uninstall (default is dry run)
+        #[arg(long)]
+        force: bool,
     },
 
     /// Show current status
@@ -255,6 +255,10 @@ pub enum BundleCommand {
         /// Target for the swap
         #[arg(long)]
         target: Option<String>,
+
+        /// Actually perform the swap (default is dry run)
+        #[arg(long)]
+        force: bool,
     },
 }
 
@@ -284,6 +288,10 @@ pub enum TargetCommand {
     Remove {
         /// Target name
         name: String,
+
+        /// Actually perform the removal (default is dry run)
+        #[arg(long)]
+        force: bool,
     },
     /// List all targets
     List,
@@ -309,7 +317,11 @@ pub enum CacheCommand {
     /// Show cache information
     Show,
     /// Clean cached data
-    Clean,
+    Clean {
+        /// Actually clean the cache (default is dry run)
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 pub fn run(cli: Cli) -> anyhow::Result<()> {
@@ -392,12 +404,6 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             };
 
             if targets.is_empty() {
-                if cli.dry_run {
-                    if !cli.quiet {
-                        println!("No targets configured. Nothing to install.");
-                    }
-                    return Ok(());
-                }
                 anyhow::bail!("no targets configured. Use `skittle target add` first.");
             }
 
@@ -441,28 +447,18 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             for tc in &targets {
                 let adapter = crate::target::resolve_adapter(tc, &config.adapter)?;
                 for s in &skills_to_install {
-                    if cli.dry_run {
-                        if !cli.quiet {
-                            println!("  (dry run) {} → {}", s.name, tc.name);
-                        }
-                    } else {
-                        adapter.install_skill(s, &tc.path)?;
-                    }
+                    adapter.install_skill(s, &tc.path)?;
                     installed_count += 1;
                 }
             }
 
             // Track active bundle if installing a bundle
             if let Some(ref bundle_name) = bundle {
-                if !cli.dry_run {
-                    let mut reg = registry;
-                    // Store active bundle per target in registry
-                    // We'll use a simple field on the registry
-                    for tc in &targets {
-                        reg.set_active_bundle(&tc.name, bundle_name);
-                    }
-                    crate::registry::save_registry(&reg, &data_dir)?;
+                let mut reg = registry;
+                for tc in &targets {
+                    reg.set_active_bundle(&tc.name, bundle_name);
                 }
+                crate::registry::save_registry(&reg, &data_dir)?;
             }
 
             if !cli.quiet {
@@ -470,7 +466,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
             Ok(())
         }
-        Command::Uninstall { skill, plugin, bundle, target } => {
+        Command::Uninstall { skill, plugin, bundle, target, force } => {
             if skill.is_none() && plugin.is_none() && bundle.is_none() {
                 eprintln!("error: uninstall requires --skill, --plugin, or --bundle");
                 std::process::exit(2);
@@ -519,17 +515,17 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             for tc in &targets {
                 let adapter = crate::target::resolve_adapter(tc, &config.adapter)?;
                 for name in &skill_names {
-                    if cli.dry_run {
-                        if !cli.quiet {
-                            println!("  (dry run) uninstall {} from {}", name, tc.name);
-                        }
-                    } else {
+                    if force {
                         adapter.uninstall_skill(name, &tc.path)?;
+                    } else if !cli.quiet {
+                        println!("  would uninstall {} from {}", name, tc.name);
                     }
                 }
             }
 
-            if !cli.quiet {
+            if !force && !cli.quiet {
+                println!("Use --force to uninstall");
+            } else if !cli.quiet {
                 println!("Uninstalled {} skill(s) from {} target(s)", skill_names.len(), targets.len());
             }
             Ok(())
@@ -609,32 +605,30 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                     let cache_path = crate::config::cache_dir().join(&source_name);
 
-                    if !cli.dry_run {
-                        // Fetch source content into cache
-                        crate::source::fetch::fetch(&source_url, &cache_path)?;
+                    // Fetch source content into cache
+                    crate::source::fetch::fetch(&source_url, &cache_path)?;
 
-                        // Detect structure
-                        let structure = crate::source::detect::detect(&cache_path)?;
+                    // Detect structure
+                    let structure = crate::source::detect::detect(&cache_path)?;
 
-                        // Normalize into registry model
-                        let registered = crate::source::normalize::normalize(
-                            &source_name, &cache_path, &structure,
-                        )?;
+                    // Normalize into registry model
+                    let registered = crate::source::normalize::normalize(
+                        &source_name, &cache_path, &structure,
+                    )?;
 
-                        // Update registry
-                        let mut registry = crate::registry::load_registry(&data_dir)?;
-                        registry.sources.retain(|s| s.name != source_name);
-                        registry.sources.push(registered);
-                        crate::registry::save_registry(&registry, &data_dir)?;
+                    // Update registry
+                    let mut registry = crate::registry::load_registry(&data_dir)?;
+                    registry.sources.retain(|s| s.name != source_name);
+                    registry.sources.push(registered);
+                    crate::registry::save_registry(&registry, &data_dir)?;
 
-                        // Update config
-                        config.source.push(crate::config::SourceConfig {
-                            name: source_name.clone(),
-                            url: source_url.url_string(),
-                            source_type: source_url.source_type().to_string(),
-                        });
-                        crate::config::save(&config, config_path_str)?;
-                    }
+                    // Update config
+                    config.source.push(crate::config::SourceConfig {
+                        name: source_name.clone(),
+                        url: source_url.url_string(),
+                        source_type: source_url.source_type().to_string(),
+                    });
+                    crate::config::save(&config, config_path_str)?;
 
                     if !cli.quiet {
                         println!("Added source '{}'", source_name);
@@ -668,19 +662,11 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         }
                     }
 
-                    if !installed_on.is_empty() && !force {
-                        anyhow::bail!(
-                            "source '{}' has skills installed on targets: {}. Use --force to remove anyway.",
-                            name,
-                            installed_on.join(", ")
-                        );
-                    }
-
                     if !installed_on.is_empty() && !cli.quiet {
                         eprintln!("warning: source '{}' has installed skills on: {}", name, installed_on.join(", "));
                     }
 
-                    if !cli.dry_run {
+                    if force {
                         // Remove cached content
                         let cache_path = crate::config::cache_dir().join(&name);
                         if cache_path.exists() {
@@ -698,7 +684,12 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
 
                     if !cli.quiet {
-                        println!("Removed source '{}'", name);
+                        if force {
+                            println!("Removed source '{}'", name);
+                        } else {
+                            println!("Would remove source '{}'", name);
+                            println!("Use --force to remove");
+                        }
                     }
                     Ok(())
                 }
@@ -843,14 +834,6 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                             println!("Updating '{}'...", src.name);
                         }
 
-                        if cli.dry_run {
-                            if !cli.quiet {
-                                println!("  (dry run) would re-fetch from {}", src.url);
-                            }
-                            updated_count += 1;
-                            continue;
-                        }
-
                         let cache_path = crate::config::cache_dir().join(&src.name);
 
                         // Re-fetch based on source type
@@ -911,9 +894,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         }
                     }
 
-                    if !cli.dry_run {
-                        crate::registry::save_registry(&updated_registry, &data_dir)?;
-                    }
+                    crate::registry::save_registry(&updated_registry, &data_dir)?;
 
                     if !cli.quiet {
                         if updated_count > 0 {
@@ -1165,25 +1146,29 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     // Check if active
                     let registry = crate::registry::load_registry(&data_dir)?;
                     let is_active = registry.active_bundles.values().any(|b| b == &name);
-                    if is_active && !force {
-                        anyhow::bail!(
-                            "bundle '{}' is active on a target. Use --force to delete.",
-                            name
-                        );
+                    if is_active && !cli.quiet {
+                        eprintln!("warning: bundle '{}' is active on a target", name);
                     }
 
-                    config.bundle.remove(&name);
-                    crate::config::save(&config, config_path_str)?;
+                    if force {
+                        config.bundle.remove(&name);
+                        crate::config::save(&config, config_path_str)?;
 
-                    // Clear from active bundles
-                    if is_active {
-                        let mut reg = registry;
-                        reg.active_bundles.retain(|_, v| v != &name);
-                        crate::registry::save_registry(&reg, &data_dir)?;
+                        // Clear from active bundles
+                        if is_active {
+                            let mut reg = registry;
+                            reg.active_bundles.retain(|_, v| v != &name);
+                            crate::registry::save_registry(&reg, &data_dir)?;
+                        }
                     }
 
                     if !cli.quiet {
-                        println!("Deleted bundle '{}'", name);
+                        if force {
+                            println!("Deleted bundle '{}'", name);
+                        } else {
+                            println!("Would delete bundle '{}'", name);
+                            println!("Use --force to delete");
+                        }
                     }
                     Ok(())
                 }
@@ -1295,7 +1280,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
                     Ok(())
                 }
-                BundleCommand::Swap { from, to, target } => {
+                BundleCommand::Swap { from, to, target, force } => {
                     let config_for_install = config.clone();
                     let mut registry = crate::registry::load_registry(&data_dir)?;
 
@@ -1320,7 +1305,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     for tc in &targets {
                         let adapter = crate::target::resolve_adapter(tc, &config_for_install.adapter)?;
 
-                        if !cli.dry_run {
+                        if force {
                             // Uninstall 'from' skills
                             for skill_id in &from_bundle.skills {
                                 if let Ok((_, _, s)) = registry.find_skill(skill_id) {
@@ -1335,16 +1320,20 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                             // Update active bundle
                             registry.set_active_bundle(&tc.name, &to);
                         } else if !cli.quiet {
-                            println!("  (dry run) swap {} → {} on {}", from, to, tc.name);
+                            println!("  would swap {} → {} on {}", from, to, tc.name);
                         }
                     }
 
-                    if !cli.dry_run {
+                    if force {
                         crate::registry::save_registry(&registry, &data_dir)?;
                     }
 
                     if !cli.quiet {
-                        println!("Swapped bundle '{}' → '{}' on {} target(s)", from, to, targets.len());
+                        if force {
+                            println!("Swapped bundle '{}' → '{}' on {} target(s)", from, to, targets.len());
+                        } else {
+                            println!("Use --force to swap");
+                        }
                     }
                     Ok(())
                 }
@@ -1402,34 +1391,37 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         sync
                     };
 
-                    if !cli.dry_run {
-                        config.target.push(crate::config::TargetConfig {
-                            name: target_name.clone(),
-                            agent: agent.clone(),
-                            path: target_path,
-                            scope,
-                            sync: actual_sync,
-                        });
-                        crate::config::save(&config, config_path_str)?;
-                    }
+                    config.target.push(crate::config::TargetConfig {
+                        name: target_name.clone(),
+                        agent: agent.clone(),
+                        path: target_path,
+                        scope,
+                        sync: actual_sync,
+                    });
+                    crate::config::save(&config, config_path_str)?;
 
                     if !cli.quiet {
                         println!("Added target '{}'", target_name);
                     }
                     Ok(())
                 }
-                TargetCommand::Remove { name } => {
+                TargetCommand::Remove { name, force } => {
                     if !config.target.iter().any(|t| t.name == name) {
                         anyhow::bail!("target '{}' not found", name);
                     }
 
-                    if !cli.dry_run {
+                    if force {
                         config.target.retain(|t| t.name != name);
                         crate::config::save(&config, config_path_str)?;
                     }
 
                     if !cli.quiet {
-                        println!("Removed target '{}' (installed skills preserved)", name);
+                        if force {
+                            println!("Removed target '{}' (installed skills preserved)", name);
+                        } else {
+                            println!("Would remove target '{}'", name);
+                            println!("Use --force to remove");
+                        }
                     }
                     Ok(())
                 }
@@ -1691,13 +1683,14 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
                     Ok(())
                 }
-                CacheCommand::Clean => {
-                    if cli.dry_run {
+                CacheCommand::Clean { force } => {
+                    if !force {
                         output.info("Would clean cache and registry");
                         if cache_dir.is_dir() {
                             let size = dir_size(&cache_dir);
                             output.info(&format!("Would free {}", format_size(size)));
                         }
+                        output.info("Use --force to clean");
                         return Ok(());
                     }
 

@@ -11,7 +11,6 @@ fn parse_help_flag() {
     assert!(!cli.json);
     assert!(!cli.quiet);
     assert!(!cli.verbose);
-    assert!(!cli.dry_run);
 }
 
 #[test]
@@ -30,12 +29,6 @@ fn parse_quiet_flag() {
 fn parse_verbose_flag() {
     let cli = Cli::try_parse_from(["skittle", "-v", "status"]).unwrap();
     assert!(cli.verbose);
-}
-
-#[test]
-fn parse_dry_run_flag() {
-    let cli = Cli::try_parse_from(["skittle", "-n", "install", "--all"]).unwrap();
-    assert!(cli.dry_run);
 }
 
 #[test]
