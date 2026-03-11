@@ -1,7 +1,5 @@
 use colored::Colorize;
 
-use crate::cli::ColorWhen;
-
 /// Output context carrying global flags for all formatting decisions.
 #[derive(Debug, Clone)]
 pub struct Output {
@@ -11,20 +9,14 @@ pub struct Output {
 }
 
 impl Output {
-    /// Create from CLI flags. Also configures the `colored` crate globally.
-    pub fn from_flags(json: bool, quiet: bool, verbose: bool, color: &ColorWhen) -> Self {
-        // Configure colored crate based on --color flag and NO_COLOR env
+    /// Create from CLI flags. Configures color automatically:
+    /// disabled when `NO_COLOR` is set, output is JSON, or stdout is not a TTY.
+    pub fn from_flags(json: bool, quiet: bool, verbose: bool) -> Self {
         let no_color = std::env::var("NO_COLOR").is_ok();
-        match color {
-            ColorWhen::Never => colored::control::set_override(false),
-            ColorWhen::Always => colored::control::set_override(true),
-            ColorWhen::Auto => {
-                if no_color || json {
-                    colored::control::set_override(false);
-                }
-                // Otherwise let colored auto-detect TTY
-            }
+        if no_color || json {
+            colored::control::set_override(false);
         }
+        // Otherwise the `colored` crate auto-detects TTY
 
         Self { json, quiet, verbose }
     }
@@ -147,11 +139,10 @@ impl Output {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cli::ColorWhen;
 
     #[test]
     fn from_flags_construction() {
-        let out = Output::from_flags(true, false, true, &ColorWhen::Never);
+        let out = Output::from_flags(true, false, true);
         assert!(out.json);
         assert!(!out.quiet);
         assert!(out.verbose);
@@ -159,7 +150,7 @@ mod tests {
 
     #[test]
     fn quiet_mode_fields() {
-        let out = Output::from_flags(false, true, false, &ColorWhen::Never);
+        let out = Output::from_flags(false, true, false);
         assert!(out.quiet);
         // Quiet mode: success/info/warn methods return early without printing.
         // We verify the flag is set; actual suppression is tested by the method guard.
@@ -167,19 +158,19 @@ mod tests {
 
     #[test]
     fn verbose_mode_fields() {
-        let out = Output::from_flags(false, false, true, &ColorWhen::Never);
+        let out = Output::from_flags(false, false, true);
         assert!(out.verbose);
     }
 
     #[test]
     fn non_verbose_fields() {
-        let out = Output::from_flags(false, false, false, &ColorWhen::Never);
+        let out = Output::from_flags(false, false, false);
         assert!(!out.verbose);
     }
 
     #[test]
     fn json_mode_emits_valid_json() {
-        let out = Output::from_flags(true, false, false, &ColorWhen::Never);
+        let out = Output::from_flags(true, false, false);
         assert!(out.json);
         // json_value writes to stdout; verify no panic on a valid value
         let val = serde_json::json!({"key": "value"});
@@ -189,7 +180,7 @@ mod tests {
 
     #[test]
     fn json_serialize_method() {
-        let out = Output::from_flags(true, false, false, &ColorWhen::Never);
+        let out = Output::from_flags(true, false, false);
         #[derive(serde::Serialize)]
         struct T { x: i32 }
         out.json(&T { x: 42 });
@@ -197,13 +188,13 @@ mod tests {
 
     #[test]
     fn table_no_panic_empty() {
-        let out = Output::from_flags(false, false, false, &ColorWhen::Never);
+        let out = Output::from_flags(false, false, false);
         out.table(&["A", "B"], &[]);
     }
 
     #[test]
     fn table_no_panic_with_data() {
-        let out = Output::from_flags(false, false, false, &ColorWhen::Never);
+        let out = Output::from_flags(false, false, false);
         out.table(
             &["Name", "Value"],
             &[vec!["a".to_string(), "1".to_string()], vec!["bb".to_string(), "22".to_string()]],
@@ -212,13 +203,13 @@ mod tests {
 
     #[test]
     fn tree_no_panic() {
-        let out = Output::from_flags(false, false, false, &ColorWhen::Never);
+        let out = Output::from_flags(false, false, false);
         out.tree(&[(0, "root".to_string()), (1, "child".to_string()), (1, "child2".to_string())]);
     }
 
     #[test]
     fn quiet_suppresses_table() {
-        let out = Output::from_flags(false, true, false, &ColorWhen::Never);
+        let out = Output::from_flags(false, true, false);
         // Should return early without printing
         out.table(&["A"], &[vec!["x".to_string()]]);
         out.tree(&[(0, "root".to_string())]);

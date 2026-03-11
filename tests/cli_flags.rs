@@ -1,5 +1,5 @@
 use clap::Parser;
-use skittle::cli::{Cli, ColorWhen};
+use skittle::cli::Cli;
 
 /// Verify clap parsing of global flags at the Rust level.
 /// Full functional coverage is in Docker suite 00.
@@ -36,18 +36,6 @@ fn parse_verbose_flag() {
 fn parse_dry_run_flag() {
     let cli = Cli::try_parse_from(["skittle", "-n", "install", "--all"]).unwrap();
     assert!(cli.dry_run);
-}
-
-#[test]
-fn parse_color_flag_always() {
-    let cli = Cli::try_parse_from(["skittle", "--color", "always", "status"]).unwrap();
-    assert!(matches!(cli.color, ColorWhen::Always));
-}
-
-#[test]
-fn parse_color_flag_never() {
-    let cli = Cli::try_parse_from(["skittle", "--color", "never", "status"]).unwrap();
-    assert!(matches!(cli.color, ColorWhen::Never));
 }
 
 #[test]

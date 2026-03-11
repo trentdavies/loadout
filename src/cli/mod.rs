@@ -1,5 +1,5 @@
 use anyhow::Context;
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(
@@ -30,20 +30,9 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub json: bool,
 
-    /// Color output control
-    #[arg(long, global = true, value_name = "WHEN", default_value = "auto")]
-    pub color: ColorWhen,
-
     /// Path to config file
     #[arg(long, global = true, value_name = "PATH")]
     pub config: Option<String>,
-}
-
-#[derive(Clone, ValueEnum)]
-pub enum ColorWhen {
-    Auto,
-    Always,
-    Never,
 }
 
 #[derive(Subcommand)]
@@ -581,7 +570,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
 
             let out = crate::output::Output::from_flags(
-                cli.json, cli.quiet, cli.verbose, &cli.color,
+                cli.json, cli.quiet, cli.verbose,
             );
             out.status("Sources", &config.source.len().to_string());
             out.status("Targets", &config.target.len().to_string());
@@ -754,7 +743,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }).collect();
 
                     let out = crate::output::Output::from_flags(
-                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                        cli.json, cli.quiet, cli.verbose,
                     );
                     out.table(
                         &["NAME", "URL", "TYPE", "PLUGINS"],
@@ -796,7 +785,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
 
                     let out = crate::output::Output::from_flags(
-                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                        cli.json, cli.quiet, cli.verbose,
                     );
                     out.status("Name", &source_cfg.name);
                     out.status("URL", &source_cfg.url);
@@ -989,7 +978,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
 
                     let out = crate::output::Output::from_flags(
-                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                        cli.json, cli.quiet, cli.verbose,
                     );
                     out.table(
                         &["PLUGIN", "SOURCE", "VERSION", "SKILLS"],
@@ -1033,7 +1022,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
 
                     let out = crate::output::Output::from_flags(
-                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                        cli.json, cli.quiet, cli.verbose,
                     );
                     out.status("Plugin", &plugin.name);
                     out.status("Source", found_source);
@@ -1113,7 +1102,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
 
                     let out = crate::output::Output::from_flags(
-                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                        cli.json, cli.quiet, cli.verbose,
                     );
                     out.table(
                         &["SKILL", "PLUGIN", "SOURCE", "DESCRIPTION"],
@@ -1137,7 +1126,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
 
                     let out = crate::output::Output::from_flags(
-                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                        cli.json, cli.quiet, cli.verbose,
                     );
                     out.status("Skill", &skill.name);
                     out.status("Plugin", plugin_name);
@@ -1237,7 +1226,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }).collect();
 
                     let out = crate::output::Output::from_flags(
-                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                        cli.json, cli.quiet, cli.verbose,
                     );
                     out.table(&["BUNDLE", "SKILLS", "ACTIVE ON"], &rows);
                     Ok(())
@@ -1256,7 +1245,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
 
                     let out = crate::output::Output::from_flags(
-                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                        cli.json, cli.quiet, cli.verbose,
                     );
                     out.status("Bundle", &name);
                     out.status("Skills", &bundle.skills.len().to_string());
@@ -1477,7 +1466,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }).collect();
 
                     let out = crate::output::Output::from_flags(
-                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                        cli.json, cli.quiet, cli.verbose,
                     );
                     out.table(
                         &["NAME", "AGENT", "PATH", "SCOPE", "SYNC"],
@@ -1503,7 +1492,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
 
                     let out = crate::output::Output::from_flags(
-                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                        cli.json, cli.quiet, cli.verbose,
                     );
                     out.status("Name", &target.name);
                     out.status("Agent", &target.agent);
@@ -1584,7 +1573,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
 
                     let out = crate::output::Output::from_flags(
-                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                        cli.json, cli.quiet, cli.verbose,
                     );
                     for (agent, path, registered) in &found {
                         let status = if *registered { " (registered)" } else { "" };
@@ -1650,7 +1639,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Cache { command } => {
             let data_dir = crate::config::data_dir();
             let cache_dir = crate::config::cache_dir();
-            let output = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose, &cli.color);
+            let output = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
 
             match command {
                 CacheCommand::Show => {
