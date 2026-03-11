@@ -34,7 +34,7 @@
 - [x] 5.1 Create `tests/harness/suite/00_cli_framework.sh` — tests: --help, -h, help at top level and subcommands, unknown command error, install with no flags errors, global flags (--json, -n, -q, -v)
 - [x] 5.2 Create `tests/harness/suite/01_config.sh` — tests: init creates config, init idempotent, config show, config show --json, cache show, cache clean empty
 - [x] 5.3 Create `tests/harness/suite/02_source_management.sh` — tests: add local source, add git source (@network), remove source, list (empty + populated), show, update, duplicate name error
-- [ ] 5.4 Create `tests/harness/suite/03_source_detection.sh` — tests: single file, flat dir, plugin dir, full source, unrecognizable dir error, invalid skill warnings
+- [x] 5.4 Create `tests/harness/suite/03_source_detection.sh` — tests: single file, flat dir, plugin dir, full source, unrecognizable dir error, invalid skill warnings
 - [ ] 5.5 Create `tests/harness/suite/04_plugin_system.sh` — tests: plugin list, plugin list --source, plugin show, implicit plugin naming
 - [ ] 5.6 Create `tests/harness/suite/05_local_registry.sh` — tests: registry.json exists after add, cache dir mirrors source, short-form skill identity, ambiguous identity error
 - [ ] 5.7 Create `tests/harness/suite/06_target_management.sh` — tests: add claude/codex targets, remove target (preserves dir), list targets, show target, unknown agent type error
