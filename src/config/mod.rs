@@ -37,6 +37,14 @@ pub fn data_dir() -> PathBuf {
         .join("skittle")
 }
 
+/// The skittle source cache directory: `$XDG_DATA_HOME/skittle/sources/`.
+/// Creates the directory if it doesn't exist.
+pub fn cache_dir() -> PathBuf {
+    let dir = data_dir().join("sources");
+    let _ = std::fs::create_dir_all(&dir);
+    dir
+}
+
 /// Load config from the resolved path.
 /// Returns default Config if the file doesn't exist.
 pub fn load(override_path: Option<&str>) -> Result<Config> {

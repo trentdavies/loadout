@@ -417,7 +417,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         );
                     }
 
-                    let cache_path = data_dir.join("sources").join(&source_name);
+                    let cache_path = crate::config::cache_dir().join(&source_name);
 
                     if !cli.dry_run {
                         // Fetch source content into cache
@@ -458,7 +458,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                     if !cli.dry_run {
                         // Remove cached content
-                        let cache_path = data_dir.join("sources").join(&name);
+                        let cache_path = crate::config::cache_dir().join(&name);
                         if cache_path.exists() {
                             std::fs::remove_dir_all(&cache_path)?;
                         }
@@ -628,7 +628,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                             continue;
                         }
 
-                        let cache_path = data_dir.join("sources").join(&src.name);
+                        let cache_path = crate::config::cache_dir().join(&src.name);
 
                         // Re-fetch based on source type
                         let source_url = match crate::source::SourceUrl::parse(&src.url) {
