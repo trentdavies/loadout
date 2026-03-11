@@ -16,11 +16,31 @@ struct SourceManifest {
 }
 
 /// Plugin manifest (plugin.toml).
+/// Wrapper for plugin.toml which may use [plugin] section.
+#[derive(Debug, serde::Deserialize)]
+struct PluginManifestFile {
+    plugin: Option<PluginManifest>,
+    // Allow top-level fields for flat format
+    name: Option<String>,
+    version: Option<String>,
+    description: Option<String>,
+}
+
 #[derive(Debug, serde::Deserialize)]
 struct PluginManifest {
     name: String,
     version: Option<String>,
     description: Option<String>,
+}
+
+impl PluginManifestFile {
+    fn into_fields(self) -> (String, Option<String>, Option<String>) {
+        if let Some(p) = self.plugin {
+            (p.name, p.version, p.description)
+        } else {
+            (self.name.unwrap_or_default(), self.version, self.description)
+        }
+    }
 }
 
 /// Normalize a detected source into the canonical Source > Plugin > Skill hierarchy.
@@ -130,9 +150,9 @@ fn scan_plugin_dir(path: &Path) -> Result<RegisteredPlugin> {
     let manifest_path = path.join("plugin.toml");
     let (name, version, description) = if manifest_path.exists() {
         let content = fs::read_to_string(&manifest_path)?;
-        let manifest: PluginManifest = toml::from_str(&content)
+        let manifest: PluginManifestFile = toml::from_str(&content)
             .with_context(|| format!("failed to parse {}", manifest_path.display()))?;
-        (manifest.name, manifest.version, manifest.description)
+        manifest.into_fields()
     } else {
         let name = path.file_name()
             .and_then(|n| n.to_str())

@@ -23,7 +23,7 @@
 - [x] 4.2 Implement source fetching: `std::fs::copy` for local, `git2::Repository::clone` for git, `reqwest` for HTTP URLs
 - [x] 4.3 Implement progressive source detection: single file → source.toml → plugin.toml → flat skill dirs → single SKILL.md → error
 - [x] 4.4 Implement source normalization: wrap detected structure into canonical Source > Plugin > Skill hierarchy with implicit naming
-- [ ] 4.5 Implement `skittle source add <url> [--name]` — resolve, fetch, detect, normalize, cache, register in config
+- [x] 4.5 Implement `skittle source add <url> [--name]` — resolve, fetch, detect, normalize, cache, register in config
 - [ ] 4.6 Implement `skittle source remove <name>` with --force for sources with installed skills
 - [ ] 4.7 Implement `skittle source list` (table: name, URL, plugin count, last updated)
 - [ ] 4.8 Implement `skittle source show <name>` (details + plugin/skill tree)

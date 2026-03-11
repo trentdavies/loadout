@@ -399,9 +399,63 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             eprintln!("skittle: status not yet implemented");
             std::process::exit(1);
         }
-        Command::Source { command: _ } => {
-            eprintln!("skittle: source not yet implemented");
-            std::process::exit(1);
+        Command::Source { command: source_cmd } => {
+            let config_path_str = cli.config.as_deref();
+            let mut config = crate::config::load(config_path_str)?;
+            let data_dir = crate::config::data_dir();
+
+            match source_cmd {
+                SourceCommand::Add { url, name } => {
+                    let source_url = crate::source::SourceUrl::parse(&url)?;
+                    let source_name = name.unwrap_or_else(|| source_url.default_name());
+
+                    // Check for duplicate name
+                    if config.source.iter().any(|s| s.name == source_name) {
+                        anyhow::bail!(
+                            "source '{}' already exists. Use --name to choose a different alias.",
+                            source_name
+                        );
+                    }
+
+                    let cache_path = data_dir.join("sources").join(&source_name);
+
+                    if !cli.dry_run {
+                        // Fetch source content into cache
+                        crate::source::fetch::fetch(&source_url, &cache_path)?;
+
+                        // Detect structure
+                        let structure = crate::source::detect::detect(&cache_path)?;
+
+                        // Normalize into registry model
+                        let registered = crate::source::normalize::normalize(
+                            &source_name, &cache_path, &structure,
+                        )?;
+
+                        // Update registry
+                        let mut registry = crate::registry::load_registry(&data_dir)?;
+                        registry.sources.retain(|s| s.name != source_name);
+                        registry.sources.push(registered);
+                        crate::registry::save_registry(&registry, &data_dir)?;
+
+                        // Update config
+                        config.source.push(crate::config::SourceConfig {
+                            name: source_name.clone(),
+                            url: source_url.url_string(),
+                            source_type: source_url.source_type().to_string(),
+                        });
+                        crate::config::save(&config, config_path_str)?;
+                    }
+
+                    if !cli.quiet {
+                        println!("Added source '{}'", source_name);
+                    }
+                    Ok(())
+                }
+                _ => {
+                    eprintln!("skittle: source subcommand not yet implemented");
+                    std::process::exit(1);
+                }
+            }
         }
         Command::Plugin { command: _ } => {
             eprintln!("skittle: plugin not yet implemented");
