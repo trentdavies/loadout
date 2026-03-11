@@ -73,19 +73,19 @@
 
 ## 10. Bundle Management
 
-- [ ] 10.1 Implement `skittle bundle create <name>` — validate name, add empty bundle to config
-- [ ] 10.2 Implement `skittle bundle delete <name>` with --force for active bundles
-- [ ] 10.3 Implement `skittle bundle list` (table: name, skill count, active targets)
-- [ ] 10.4 Implement `skittle bundle show <name>` (skill list with plugin/source/version)
-- [ ] 10.5 Implement `skittle bundle add <bundle> <skill...>` with glob support (e.g., `openspec/*`), validate skills exist in registry
-- [ ] 10.6 Implement `skittle bundle drop <bundle> <skill...>`
-- [ ] 10.7 Implement `skittle bundle swap <from> <to> [--target]` — clean replace: uninstall from, install to, update active bundle
+- [x] 10.1 Implement `skittle bundle create <name>` — validate name, add empty bundle to config
+- [x] 10.2 Implement `skittle bundle delete <name>` with --force for active bundles
+- [x] 10.3 Implement `skittle bundle list` (table: name, skill count, active targets)
+- [x] 10.4 Implement `skittle bundle show <name>` (skill list with plugin/source/version)
+- [x] 10.5 Implement `skittle bundle add <bundle> <skill...>` with glob support (e.g., `openspec/*`), validate skills exist in registry
+- [x] 10.6 Implement `skittle bundle drop <bundle> <skill...>`
+- [x] 10.7 Implement `skittle bundle swap <from> <to> [--target]` — clean replace: uninstall from, install to, update active bundle
 
 ## 11. Status & Cache
 
-- [ ] 11.1 Implement `skittle status [--json]` — summary: source count, target count, installed skills, active bundles, outdated skills
-- [ ] 11.2 Implement `skittle cache show` — cache path, total size, breakdown by source
-- [ ] 11.3 Implement `skittle cache clean` — delete cached sources, clear registry, report space freed
+- [x] 11.1 Implement `skittle status [--json]` — summary: source count, target count, installed skills, active bundles, outdated skills
+- [x] 11.2 Implement `skittle cache show` — cache path, total size, breakdown by source
+- [x] 11.3 Implement `skittle cache clean` — delete cached sources, clear registry, report space freed
 
 ## 12. Testing & Polish
 

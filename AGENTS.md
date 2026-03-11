@@ -41,14 +41,13 @@ The Docker container provides:
 ## Implementation Workflow
 
 Red-green testing against `openspec/changes/skittle-cli-v1/tasks.md`:
-1. Pick the next unchecked task
-2. Implement the code changes
-3. Run `cargo check` to verify compilation
-4. Run Docker test harness: `docker build -t skittle-test -f tests/Dockerfile . && docker run --rm skittle-test`
-5. Verify pass count has NOT regressed (baseline: 168 passed as of task 5.2). New tests SHOULD turn green as features land.
-6. If tests regressed, fix before proceeding — do NOT commit broken code
-7. Mark the task `[x]` in tasks.md
-8. Commit with a descriptive message (include pass/fail count in commit body)
+1. Pick the next 2-3 unchecked tasks and implement them in sequence
+2. For each task: implement, run `cargo check`, mark `[x]`, commit
+3. After every 5 completed tasks, run Docker test harness:
+   `docker build -t skittle-test -f tests/Dockerfile . && docker run --rm skittle-test`
+4. Verify pass count has NOT regressed (baseline: 190 passed as of task 5.4). New tests SHOULD turn green as features land.
+5. If tests regressed, fix before proceeding — do NOT commit broken code
+6. Include pass/fail count in commit body when Docker tests are run
 
 ## Key Conventions
 

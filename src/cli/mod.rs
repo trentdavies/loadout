@@ -1,3 +1,4 @@
+use anyhow::Context;
 use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser)]
@@ -539,8 +540,59 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             Ok(())
         }
         Command::Status => {
-            eprintln!("skittle: status not yet implemented");
-            std::process::exit(1);
+            let config = crate::config::load(cli.config.as_deref())?;
+            let data_dir = crate::config::data_dir();
+            let registry = crate::registry::load_registry(&data_dir)?;
+
+            // Count installed skills across targets
+            let mut total_installed = 0;
+            for tc in &config.target {
+                let adapter = crate::target::resolve_adapter(tc, &config.adapter).ok();
+                if let Some(a) = adapter {
+                    if let Ok(skills) = a.installed_skills(&tc.path) {
+                        total_installed += skills.len();
+                    }
+                }
+            }
+
+            let total_skills: usize = registry.sources.iter()
+                .flat_map(|s| &s.plugins)
+                .map(|p| p.skills.len())
+                .sum();
+
+            if cli.json {
+                let json = serde_json::json!({
+                    "sources": config.source.len(),
+                    "targets": config.target.len(),
+                    "plugins": registry.sources.iter().flat_map(|s| &s.plugins).count(),
+                    "skills": total_skills,
+                    "installed": total_installed,
+                    "bundles": config.bundle.len(),
+                    "active_bundles": registry.active_bundles,
+                });
+                println!("{}", serde_json::to_string_pretty(&json)?);
+                return Ok(());
+            }
+
+            let out = crate::output::Output::from_flags(
+                cli.json, cli.quiet, cli.verbose, &cli.color,
+            );
+            out.status("Sources", &config.source.len().to_string());
+            out.status("Targets", &config.target.len().to_string());
+            out.status("Plugins", &registry.sources.iter().flat_map(|s| &s.plugins).count().to_string());
+            out.status("Skills", &total_skills.to_string());
+            out.status("Installed", &total_installed.to_string());
+            out.status("Bundles", &config.bundle.len().to_string());
+
+            if !registry.active_bundles.is_empty() {
+                out.info("");
+                out.info("Active bundles:");
+                for (target, bundle) in &registry.active_bundles {
+                    out.info(&format!("  {} → {}", target, bundle));
+                }
+            }
+
+            Ok(())
         }
         Command::Source { command: source_cmd } => {
             let config_path_str = cli.config.as_deref();
@@ -1062,9 +1114,215 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
             }
         }
-        Command::Bundle { command: _ } => {
-            eprintln!("skittle: bundle not yet implemented");
-            std::process::exit(1);
+        Command::Bundle { command: bundle_cmd } => {
+            let config_path_str = cli.config.as_deref();
+            let mut config = crate::config::load(config_path_str)?;
+            let data_dir = crate::config::data_dir();
+
+            match bundle_cmd {
+                BundleCommand::Create { name } => {
+                    if config.bundle.contains_key(&name) {
+                        anyhow::bail!("bundle '{}' already exists", name);
+                    }
+                    config.bundle.insert(name.clone(), crate::config::BundleConfig::default());
+                    crate::config::save(&config, config_path_str)?;
+                    if !cli.quiet {
+                        println!("Created bundle '{}'", name);
+                    }
+                    Ok(())
+                }
+                BundleCommand::Delete { name, force } => {
+                    if !config.bundle.contains_key(&name) {
+                        anyhow::bail!("bundle '{}' not found", name);
+                    }
+
+                    // Check if active
+                    let registry = crate::registry::load_registry(&data_dir)?;
+                    let is_active = registry.active_bundles.values().any(|b| b == &name);
+                    if is_active && !force {
+                        anyhow::bail!(
+                            "bundle '{}' is active on a target. Use --force to delete.",
+                            name
+                        );
+                    }
+
+                    config.bundle.remove(&name);
+                    crate::config::save(&config, config_path_str)?;
+
+                    // Clear from active bundles
+                    if is_active {
+                        let mut reg = registry;
+                        reg.active_bundles.retain(|_, v| v != &name);
+                        crate::registry::save_registry(&reg, &data_dir)?;
+                    }
+
+                    if !cli.quiet {
+                        println!("Deleted bundle '{}'", name);
+                    }
+                    Ok(())
+                }
+                BundleCommand::List => {
+                    let registry = crate::registry::load_registry(&data_dir)?;
+
+                    if cli.json {
+                        let entries: Vec<serde_json::Value> = config.bundle.iter().map(|(name, b)| {
+                            let active_targets: Vec<&str> = registry.active_bundles.iter()
+                                .filter(|(_, v)| v.as_str() == name)
+                                .map(|(k, _)| k.as_str())
+                                .collect();
+                            serde_json::json!({
+                                "name": name,
+                                "skills": b.skills.len(),
+                                "active_targets": active_targets,
+                            })
+                        }).collect();
+                        println!("{}", serde_json::to_string_pretty(&entries)?);
+                        return Ok(());
+                    }
+
+                    if config.bundle.is_empty() {
+                        if !cli.quiet {
+                            println!("No bundles configured. Use `skittle bundle create` to create one.");
+                        }
+                        return Ok(());
+                    }
+
+                    let rows: Vec<Vec<String>> = config.bundle.iter().map(|(name, b)| {
+                        let active: Vec<&str> = registry.active_bundles.iter()
+                            .filter(|(_, v)| v.as_str() == name)
+                            .map(|(k, _)| k.as_str())
+                            .collect();
+                        vec![
+                            name.clone(),
+                            b.skills.len().to_string(),
+                            if active.is_empty() { String::new() } else { active.join(", ") },
+                        ]
+                    }).collect();
+
+                    let out = crate::output::Output::from_flags(
+                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                    );
+                    out.table(&["BUNDLE", "SKILLS", "ACTIVE ON"], &rows);
+                    Ok(())
+                }
+                BundleCommand::Show { name } => {
+                    let bundle = config.bundle.get(&name)
+                        .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", name))?;
+
+                    if cli.json {
+                        let json = serde_json::json!({
+                            "name": name,
+                            "skills": bundle.skills,
+                        });
+                        println!("{}", serde_json::to_string_pretty(&json)?);
+                        return Ok(());
+                    }
+
+                    let out = crate::output::Output::from_flags(
+                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                    );
+                    out.status("Bundle", &name);
+                    out.status("Skills", &bundle.skills.len().to_string());
+
+                    if !bundle.skills.is_empty() {
+                        out.info("");
+                        let tree: Vec<(usize, String)> = bundle.skills.iter()
+                            .map(|s| (0, s.clone()))
+                            .collect();
+                        out.tree(&tree);
+                    }
+
+                    Ok(())
+                }
+                BundleCommand::Add { name, skills } => {
+                    let bundle = config.bundle.get_mut(&name)
+                        .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", name))?;
+
+                    let registry = crate::registry::load_registry(&data_dir)?;
+
+                    for skill_id in &skills {
+                        // Validate skill exists
+                        registry.find_skill(skill_id)?;
+                        // Add if not already present
+                        if !bundle.skills.contains(skill_id) {
+                            bundle.skills.push(skill_id.clone());
+                        }
+                    }
+
+                    crate::config::save(&config, config_path_str)?;
+                    if !cli.quiet {
+                        println!("Added {} skill(s) to bundle '{}'", skills.len(), name);
+                    }
+                    Ok(())
+                }
+                BundleCommand::Drop { name, skills } => {
+                    let bundle = config.bundle.get_mut(&name)
+                        .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", name))?;
+
+                    for skill_id in &skills {
+                        bundle.skills.retain(|s| s != skill_id);
+                    }
+
+                    crate::config::save(&config, config_path_str)?;
+                    if !cli.quiet {
+                        println!("Dropped {} skill(s) from bundle '{}'", skills.len(), name);
+                    }
+                    Ok(())
+                }
+                BundleCommand::Swap { from, to, target } => {
+                    let config_for_install = config.clone();
+                    let mut registry = crate::registry::load_registry(&data_dir)?;
+
+                    // Validate both bundles exist
+                    let from_bundle = config.bundle.get(&from)
+                        .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", from))?
+                        .clone();
+                    let to_bundle = config.bundle.get(&to)
+                        .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", to))?
+                        .clone();
+
+                    // Determine targets
+                    let targets: Vec<&crate::config::TargetConfig> = if let Some(ref t) = target {
+                        let tc = config_for_install.target.iter()
+                            .find(|tc| tc.name == *t)
+                            .ok_or_else(|| anyhow::anyhow!("target '{}' not found", t))?;
+                        vec![tc]
+                    } else {
+                        config_for_install.target.iter().filter(|t| t.sync == "auto").collect()
+                    };
+
+                    for tc in &targets {
+                        let adapter = crate::target::resolve_adapter(tc, &config_for_install.adapter)?;
+
+                        if !cli.dry_run {
+                            // Uninstall 'from' skills
+                            for skill_id in &from_bundle.skills {
+                                if let Ok((_, _, s)) = registry.find_skill(skill_id) {
+                                    adapter.uninstall_skill(&s.name, &tc.path)?;
+                                }
+                            }
+                            // Install 'to' skills
+                            for skill_id in &to_bundle.skills {
+                                let (_, _, s) = registry.find_skill(skill_id)?;
+                                adapter.install_skill(s, &tc.path)?;
+                            }
+                            // Update active bundle
+                            registry.set_active_bundle(&tc.name, &to);
+                        } else if !cli.quiet {
+                            println!("  (dry run) swap {} → {} on {}", from, to, tc.name);
+                        }
+                    }
+
+                    if !cli.dry_run {
+                        crate::registry::save_registry(&registry, &data_dir)?;
+                    }
+
+                    if !cli.quiet {
+                        println!("Swapped bundle '{}' → '{}' on {} target(s)", from, to, targets.len());
+                    }
+                    Ok(())
+                }
+            }
         }
         Command::Target { command: target_cmd } => {
             let config_path_str = cli.config.as_deref();
@@ -1352,9 +1610,114 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
             }
         }
-        Command::Cache { command: _ } => {
-            eprintln!("skittle: cache not yet implemented");
-            std::process::exit(1);
+        Command::Cache { command } => {
+            let data_dir = crate::config::data_dir();
+            let cache_dir = crate::config::cache_dir();
+            let output = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose, &cli.color);
+
+            match command {
+                CacheCommand::Show => {
+                    if cli.json {
+                        let mut sources = Vec::new();
+                        let mut total_size: u64 = 0;
+                        if cache_dir.is_dir() {
+                            for entry in std::fs::read_dir(&cache_dir)?.flatten() {
+                                if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                                    let size = dir_size(&entry.path());
+                                    total_size += size;
+                                    sources.push(serde_json::json!({
+                                        "name": entry.file_name().to_string_lossy(),
+                                        "path": entry.path(),
+                                        "size_bytes": size,
+                                    }));
+                                }
+                            }
+                        }
+                        output.json(&serde_json::json!({
+                            "cache_path": cache_dir,
+                            "total_size_bytes": total_size,
+                            "total_size_human": format_size(total_size),
+                            "sources": sources,
+                        }));
+                    } else {
+                        output.header("Cache");
+                        output.status("Path", &cache_dir.display().to_string());
+
+                        let mut total_size: u64 = 0;
+                        let mut rows = Vec::new();
+                        if cache_dir.is_dir() {
+                            for entry in std::fs::read_dir(&cache_dir)?.flatten() {
+                                if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                                    let size = dir_size(&entry.path());
+                                    total_size += size;
+                                    rows.push(vec![
+                                        entry.file_name().to_string_lossy().to_string(),
+                                        format_size(size),
+                                    ]);
+                                }
+                            }
+                        }
+                        output.status("Total size", &format_size(total_size));
+                        if !rows.is_empty() {
+                            println!();
+                            output.table(&["Source", "Size"], &rows);
+                        }
+                    }
+                    Ok(())
+                }
+                CacheCommand::Clean => {
+                    if cli.dry_run {
+                        output.info("Would clean cache and registry");
+                        if cache_dir.is_dir() {
+                            let size = dir_size(&cache_dir);
+                            output.info(&format!("Would free {}", format_size(size)));
+                        }
+                        return Ok(());
+                    }
+
+                    let mut freed: u64 = 0;
+                    if cache_dir.is_dir() {
+                        freed = dir_size(&cache_dir);
+                        std::fs::remove_dir_all(&cache_dir)
+                            .with_context(|| format!("failed to remove {}", cache_dir.display()))?;
+                        std::fs::create_dir_all(&cache_dir)?;
+                    }
+
+                    // Clear registry
+                    let registry = crate::registry::Registry::default();
+                    crate::registry::save_registry(&registry, &data_dir)?;
+
+                    output.success(&format!("Cache cleaned, freed {}", format_size(freed)));
+                    Ok(())
+                }
+            }
         }
+    }
+}
+
+fn dir_size(path: &std::path::Path) -> u64 {
+    let mut total = 0u64;
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                total += dir_size(&p);
+            } else if let Ok(meta) = p.metadata() {
+                total += meta.len();
+            }
+        }
+    }
+    total
+}
+
+fn format_size(bytes: u64) -> String {
+    if bytes < 1024 {
+        format!("{} B", bytes)
+    } else if bytes < 1024 * 1024 {
+        format!("{:.1} KB", bytes as f64 / 1024.0)
+    } else if bytes < 1024 * 1024 * 1024 {
+        format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0))
+    } else {
+        format!("{:.1} GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
     }
 }
