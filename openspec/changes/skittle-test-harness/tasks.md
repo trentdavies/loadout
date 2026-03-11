@@ -18,10 +18,10 @@
 
 ## 3. Test Runner
 
-- [ ] 3.1 Create `tests/harness/runner.sh` — discover `suite/*.sh` files, source each, execute all `test_` functions
-- [ ] 3.2 Add `--suite <number>` flag to run a specific suite file only
-- [ ] 3.3 Add summary output at end: "Results: X passed, Y failed, Z skipped, W total"
-- [ ] 3.4 Exit with code 0 if all pass, 1 if any fail
+- [x] 3.1 Create `tests/harness/runner.sh` — discover `suite/*.sh` files, source each, execute all `test_` functions
+- [x] 3.2 Add `--suite <number>` flag to run a specific suite file only
+- [x] 3.3 Add summary output at end: "Results: X passed, Y failed, Z skipped, W total"
+- [x] 3.4 Exit with code 0 if all pass, 1 if any fail
 
 ## 4. Environment Setup
 
