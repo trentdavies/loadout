@@ -85,7 +85,7 @@ pub fn detect(path: &Path) -> Result<SourceStructure> {
 }
 
 /// Check if a file has YAML frontmatter with `name:` and `description:` fields.
-fn has_skill_frontmatter(path: &Path) -> bool {
+pub fn has_skill_frontmatter(path: &Path) -> bool {
     let content = match fs::read_to_string(path) {
         Ok(c) => c,
         Err(_) => return false,

@@ -142,12 +142,18 @@ fn scan_skill_dirs(path: &Path) -> Result<Vec<DiscoveredSkill>> {
 
         let skill_name = parsed_name.unwrap();
 
-        // Validate: name must match directory name
+        // If name doesn't match directory, warn and use directory name with no description
+        // (to avoid leaking potentially wrong frontmatter data)
         if skill_name != dir_name {
             eprintln!(
-                "warning: skipping {}: frontmatter name '{}' does not match directory name",
-                dir_name, skill_name
+                "warning: {}: frontmatter name '{}' does not match directory name, using '{}'",
+                dir_name, skill_name, dir_name
             );
+            skills.push(DiscoveredSkill {
+                name: dir_name,
+                description: None,
+                path: entry.path(),
+            });
             continue;
         }
 

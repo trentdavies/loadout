@@ -403,6 +403,12 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             };
 
             if targets.is_empty() {
+                if cli.dry_run {
+                    if !cli.quiet {
+                        println!("No targets configured. Nothing to install.");
+                    }
+                    return Ok(());
+                }
                 anyhow::bail!("no targets configured. Use `skittle target add` first.");
             }
 
@@ -651,6 +657,40 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         anyhow::bail!("source '{}' not found", name);
                     }
 
+                    // Check if any skills from this source are installed on targets
+                    let registry = crate::registry::load_registry(&data_dir)?;
+                    let mut installed_on: Vec<String> = Vec::new();
+                    if let Some(reg_src) = registry.sources.iter().find(|s| s.name == name) {
+                        let skill_names: Vec<&str> = reg_src.plugins.iter()
+                            .flat_map(|p| p.skills.iter().map(|s| s.name.as_str()))
+                            .collect();
+                        for tc in &config.target {
+                            let target_path = std::path::PathBuf::from(&tc.path);
+                            if let Ok(adapter) = crate::target::resolve_adapter(tc, &config.adapter) {
+                                if let Ok(installed) = adapter.installed_skills(&target_path) {
+                                    for sk in &skill_names {
+                                        if installed.contains(&sk.to_string()) {
+                                            installed_on.push(tc.name.clone());
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if !installed_on.is_empty() && !force {
+                        anyhow::bail!(
+                            "source '{}' has skills installed on targets: {}. Use --force to remove anyway.",
+                            name,
+                            installed_on.join(", ")
+                        );
+                    }
+
+                    if !installed_on.is_empty() && !cli.quiet {
+                        eprintln!("warning: source '{}' has installed skills on: {}", name, installed_on.join(", "));
+                    }
+
                     if !cli.dry_run {
                         // Remove cached content
                         let cache_path = crate::config::cache_dir().join(&name);
@@ -671,7 +711,6 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     if !cli.quiet {
                         println!("Removed source '{}'", name);
                     }
-                    let _ = force; // acknowledged for future installed-skill check
                     Ok(())
                 }
                 SourceCommand::List => {
@@ -1103,9 +1142,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     out.status("Skill", &skill.name);
                     out.status("Plugin", plugin_name);
                     out.status("Source", source_name);
-                    if let Some(d) = &skill.description {
-                        out.status("Description", d);
-                    }
+                    out.status("description", skill.description.as_deref().unwrap_or("(none)"));
                     if cli.verbose {
                         out.status("Path", &skill.path.display().to_string());
                     }

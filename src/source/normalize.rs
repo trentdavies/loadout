@@ -143,15 +143,21 @@ fn scan_plugin_dir(path: &Path) -> Result<RegisteredPlugin> {
 
 /// Create a RegisteredSkill from a single SKILL.md file in the cache root.
 fn scan_single_file_skill(skill_name: &str, cache_path: &Path) -> Result<RegisteredSkill> {
-    let description = detect::parse_skill_description(
-        &cache_path.join(format!("{}.md", skill_name))
-    ).or_else(|| {
-        // Try SKILL.md directly
-        detect::parse_skill_description(&cache_path.join("SKILL.md"))
-    });
+    // Try the renamed file first, then SKILL.md
+    let skill_file = cache_path.join(format!("{}.md", skill_name));
+    let skill_file = if skill_file.exists() { skill_file } else { cache_path.join("SKILL.md") };
+
+    if skill_file.exists() && !detect::has_skill_frontmatter(&skill_file) {
+        eprintln!("warning: skill file has no valid frontmatter (name and description required): {}", skill_file.display());
+        anyhow::bail!("skill file missing required frontmatter (name and description)");
+    }
+
+    // Use frontmatter name if available, fall back to provided name
+    let name = detect::parse_skill_name(&skill_file).unwrap_or_else(|| skill_name.to_string());
+    let description = detect::parse_skill_description(&skill_file);
 
     Ok(RegisteredSkill {
-        name: skill_name.to_string(),
+        name,
         description,
         path: cache_path.to_path_buf(),
     })
@@ -160,6 +166,18 @@ fn scan_single_file_skill(skill_name: &str, cache_path: &Path) -> Result<Registe
 /// Create a RegisteredSkill from a directory containing SKILL.md.
 fn scan_skill_dir(skill_name: &str, path: &Path) -> Result<RegisteredSkill> {
     let skill_md = path.join("SKILL.md");
+
+    if skill_md.exists() && !detect::has_skill_frontmatter(&skill_md) {
+        eprintln!("warning: SKILL.md has no valid frontmatter (name and description required): {}", skill_md.display());
+        anyhow::bail!("SKILL.md missing required frontmatter (name and description)");
+    }
+
+    // Use frontmatter name if available, fall back to provided name
+    let name = if skill_md.exists() {
+        detect::parse_skill_name(&skill_md).unwrap_or_else(|| skill_name.to_string())
+    } else {
+        skill_name.to_string()
+    };
     let description = if skill_md.exists() {
         detect::parse_skill_description(&skill_md)
     } else {
@@ -167,7 +185,7 @@ fn scan_skill_dir(skill_name: &str, path: &Path) -> Result<RegisteredSkill> {
     };
 
     Ok(RegisteredSkill {
-        name: skill_name.to_string(),
+        name,
         description,
         path: path.to_path_buf(),
     })
