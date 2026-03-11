@@ -35,6 +35,8 @@ fn make_skill(name: &str, path: PathBuf) -> RegisteredSkill {
     RegisteredSkill {
         name: name.to_string(),
         description: Some(format!("Skill {}", name)),
+        author: None,
+        version: None,
         path,
     }
 }

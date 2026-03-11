@@ -23,9 +23,10 @@ pub enum SourceStructure {
 /// 1. Single file with YAML frontmatter → SingleFile
 /// 2. Directory with source.toml → FullSource
 /// 3. Directory with plugin.toml → SinglePlugin
-/// 4. Directory with subdirs containing SKILL.md → FlatSkills
-/// 5. Directory containing SKILL.md directly → SingleSkillDir
-/// 6. Error
+/// 4. Directory with .claude-plugin → SinglePlugin
+/// 5. Directory with subdirs containing SKILL.md → FlatSkills
+/// 6. Directory containing SKILL.md directly → SingleSkillDir
+/// 7. Error
 pub fn detect(path: &Path) -> Result<SourceStructure> {
     // 1. Single file
     if path.is_file() {
@@ -57,7 +58,12 @@ pub fn detect(path: &Path) -> Result<SourceStructure> {
         return Ok(SourceStructure::SinglePlugin);
     }
 
-    // 4. Subdirs with SKILL.md
+    // 4. .claude-plugin
+    if path.join(".claude-plugin").exists() {
+        return Ok(SourceStructure::SinglePlugin);
+    }
+
+    // 5. Subdirs with SKILL.md
     if has_skill_subdirs(path) {
         return Ok(SourceStructure::FlatSkills);
     }
@@ -138,6 +144,46 @@ pub fn parse_skill_name(path: &Path) -> Option<String> {
     for line in frontmatter.lines() {
         let trimmed = line.trim();
         if let Some(value) = trimmed.strip_prefix("name:") {
+            return Some(value.trim().trim_matches('"').trim_matches('\'').to_string());
+        }
+    }
+    None
+}
+
+/// Check if a name is valid kebab-case (lowercase, digits, hyphens only).
+pub fn is_kebab_case(name: &str) -> bool {
+    !name.is_empty()
+        && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        && !name.starts_with('-')
+        && !name.ends_with('-')
+}
+
+/// Parse `metadata.author` from SKILL.md YAML frontmatter.
+pub fn parse_skill_author(path: &Path) -> Option<String> {
+    parse_frontmatter_field(path, "metadata.author")
+        .or_else(|| parse_frontmatter_field(path, "author"))
+}
+
+/// Parse `metadata.version` from SKILL.md YAML frontmatter.
+pub fn parse_skill_version(path: &Path) -> Option<String> {
+    parse_frontmatter_field(path, "metadata.version")
+        .or_else(|| parse_frontmatter_field(path, "version"))
+}
+
+/// Parse an arbitrary field from YAML frontmatter.
+fn parse_frontmatter_field(path: &Path, field: &str) -> Option<String> {
+    let content = fs::read_to_string(path).ok()?;
+    if !content.starts_with("---") {
+        return None;
+    }
+    let rest = &content[3..];
+    let end = rest.find("\n---")?;
+    let frontmatter = &rest[..end];
+
+    let prefix = format!("{}:", field);
+    for line in frontmatter.lines() {
+        let trimmed = line.trim();
+        if let Some(value) = trimmed.strip_prefix(&prefix) {
             return Some(value.trim().trim_matches('"').trim_matches('\'').to_string());
         }
     }
@@ -379,5 +425,88 @@ mod tests {
         let f = write_skill(tmp.path(), "SKILL.md", "---\n---\nbody");
         assert!(!has_skill_frontmatter(&f)); // no name: or description:
         assert_eq!(parse_skill_name(&f), None);
+    }
+
+    // -- .claude-plugin detection --
+
+    #[test]
+    fn detect_claude_plugin_only() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join(".claude-plugin"), r#"{"name": "my-plugin"}"#).unwrap();
+        let skill_dir = tmp.path().join("my-skill");
+        fs::create_dir_all(&skill_dir).unwrap();
+        write_skill(&skill_dir, "SKILL.md", "---\nname: my-skill\ndescription: test\n---\n");
+        match detect(tmp.path()).unwrap() {
+            SourceStructure::SinglePlugin => {}
+            other => panic!("expected SinglePlugin, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn detect_plugin_toml_wins_over_claude_plugin() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("plugin.toml"), "name = \"from-toml\"").unwrap();
+        fs::write(tmp.path().join(".claude-plugin"), r#"{"name": "from-claude"}"#).unwrap();
+        let skill_dir = tmp.path().join("sk");
+        fs::create_dir_all(&skill_dir).unwrap();
+        write_skill(&skill_dir, "SKILL.md", "---\nname: sk\ndescription: d\n---\n");
+        // plugin.toml is checked before .claude-plugin in detection order
+        match detect(tmp.path()).unwrap() {
+            SourceStructure::SinglePlugin => {}
+            other => panic!("expected SinglePlugin, got {:?}", other),
+        }
+    }
+
+    // -- kebab-case validation --
+
+    #[test]
+    fn kebab_case_valid() {
+        assert!(is_kebab_case("my-skill"));
+        assert!(is_kebab_case("skill123"));
+        assert!(is_kebab_case("a"));
+    }
+
+    #[test]
+    fn kebab_case_invalid() {
+        assert!(!is_kebab_case("MySkill"));
+        assert!(!is_kebab_case("my_skill"));
+        assert!(!is_kebab_case("-leading"));
+        assert!(!is_kebab_case("trailing-"));
+        assert!(!is_kebab_case(""));
+    }
+
+    // -- metadata parsing --
+
+    #[test]
+    fn parse_author_from_frontmatter() {
+        let tmp = TempDir::new().unwrap();
+        let f = write_skill(tmp.path(), "SKILL.md",
+            "---\nname: test\ndescription: d\nauthor: trent\n---\n");
+        assert_eq!(parse_skill_author(&f), Some("trent".to_string()));
+    }
+
+    #[test]
+    fn parse_version_from_frontmatter() {
+        let tmp = TempDir::new().unwrap();
+        let f = write_skill(tmp.path(), "SKILL.md",
+            "---\nname: test\ndescription: d\nversion: 1.2.3\n---\n");
+        assert_eq!(parse_skill_version(&f), Some("1.2.3".to_string()));
+    }
+
+    #[test]
+    fn parse_metadata_author_nested() {
+        let tmp = TempDir::new().unwrap();
+        let f = write_skill(tmp.path(), "SKILL.md",
+            "---\nname: test\ndescription: d\nmetadata.author: nested-author\n---\n");
+        assert_eq!(parse_skill_author(&f), Some("nested-author".to_string()));
+    }
+
+    #[test]
+    fn parse_metadata_missing() {
+        let tmp = TempDir::new().unwrap();
+        let f = write_skill(tmp.path(), "SKILL.md",
+            "---\nname: test\ndescription: d\n---\n");
+        assert_eq!(parse_skill_author(&f), None);
+        assert_eq!(parse_skill_version(&f), None);
     }
 }

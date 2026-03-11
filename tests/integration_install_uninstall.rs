@@ -22,6 +22,8 @@ fn create_mock_skills(parent: &std::path::Path, names: &[&str]) -> Vec<skittle::
         skills.push(skittle::registry::RegisteredSkill {
             name: name.to_string(),
             description: Some(format!("Test skill {}", name)),
+            author: None,
+            version: None,
             path: skill_dir,
         });
     }

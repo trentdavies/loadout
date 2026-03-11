@@ -118,6 +118,40 @@ pub fn load_source_manifest(path: &Path) -> Result<SourceManifest> {
     file.into_manifest()
 }
 
+/// Metadata extracted from a .claude-plugin file.
+#[derive(Debug, Clone, Default)]
+pub struct ClaudePluginMetadata {
+    pub name: Option<String>,
+    pub version: Option<String>,
+    pub description: Option<String>,
+    pub author: Option<String>,
+}
+
+/// Load metadata from a .claude-plugin file (JSON, parsed defensively).
+/// Returns None if the file cannot be read or parsed — never fails fatally.
+pub fn load_claude_plugin_metadata(path: &Path) -> Option<ClaudePluginMetadata> {
+    let content = match fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("warning: failed to read {}: {}", path.display(), e);
+            return None;
+        }
+    };
+    let value: serde_json::Value = match serde_json::from_str(&content) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("warning: failed to parse {}: {}", path.display(), e);
+            return None;
+        }
+    };
+    Some(ClaudePluginMetadata {
+        name: value.get("name").and_then(|v| v.as_str()).map(String::from),
+        version: value.get("version").and_then(|v| v.as_str()).map(String::from),
+        description: value.get("description").and_then(|v| v.as_str()).map(String::from),
+        author: value.get("author").and_then(|v| v.as_str()).map(String::from),
+    })
+}
+
 /// Load and validate a plugin.toml file.
 pub fn load_plugin_manifest(path: &Path) -> Result<PluginManifest> {
     let content = fs::read_to_string(path)
@@ -245,5 +279,43 @@ mod tests {
         let result = load_plugin_manifest(&f);
         // If it errors, that's also valid behavior — just documenting
         let _ = result;
+    }
+
+    // -- load_claude_plugin_metadata() tests --
+
+    #[test]
+    fn claude_plugin_valid() {
+        let tmp = TempDir::new().unwrap();
+        let f = write_manifest(tmp.path(), ".claude-plugin",
+            r#"{"name": "my-plugin", "version": "1.0", "author": "trent", "description": "a plugin"}"#);
+        let meta = load_claude_plugin_metadata(&f).unwrap();
+        assert_eq!(meta.name.as_deref(), Some("my-plugin"));
+        assert_eq!(meta.version.as_deref(), Some("1.0"));
+        assert_eq!(meta.author.as_deref(), Some("trent"));
+        assert_eq!(meta.description.as_deref(), Some("a plugin"));
+    }
+
+    #[test]
+    fn claude_plugin_partial_fields() {
+        let tmp = TempDir::new().unwrap();
+        let f = write_manifest(tmp.path(), ".claude-plugin", r#"{"name": "partial"}"#);
+        let meta = load_claude_plugin_metadata(&f).unwrap();
+        assert_eq!(meta.name.as_deref(), Some("partial"));
+        assert!(meta.version.is_none());
+        assert!(meta.author.is_none());
+    }
+
+    #[test]
+    fn claude_plugin_malformed_json() {
+        let tmp = TempDir::new().unwrap();
+        let f = write_manifest(tmp.path(), ".claude-plugin", "not json at all");
+        let result = load_claude_plugin_metadata(&f);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn claude_plugin_not_found() {
+        let result = load_claude_plugin_metadata(Path::new("/nonexistent/.claude-plugin"));
+        assert!(result.is_none());
     }
 }

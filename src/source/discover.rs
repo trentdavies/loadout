@@ -22,6 +22,10 @@ pub struct DiscoveredSkill {
     pub name: String,
     /// Skill description from frontmatter.
     pub description: Option<String>,
+    /// Optional author from metadata.author frontmatter.
+    pub author: Option<String>,
+    /// Optional version from metadata.version frontmatter.
+    pub version: Option<String>,
     /// Path to the skill directory.
     pub path: PathBuf,
 }
@@ -142,8 +146,13 @@ fn scan_skill_dirs(path: &Path) -> Result<Vec<DiscoveredSkill>> {
 
         let skill_name = parsed_name.unwrap();
 
+        // Validate kebab-case
+        if !detect::is_kebab_case(&skill_name) {
+            eprintln!("warning: skipping {}: skill name '{}' is not kebab-case", dir_name, skill_name);
+            continue;
+        }
+
         // If name doesn't match directory, warn and use directory name with no description
-        // (to avoid leaking potentially wrong frontmatter data)
         if skill_name != dir_name {
             eprintln!(
                 "warning: {}: frontmatter name '{}' does not match directory name, using '{}'",
@@ -152,6 +161,8 @@ fn scan_skill_dirs(path: &Path) -> Result<Vec<DiscoveredSkill>> {
             skills.push(DiscoveredSkill {
                 name: dir_name,
                 description: None,
+                author: None,
+                version: None,
                 path: entry.path(),
             });
             continue;
@@ -164,9 +175,14 @@ fn scan_skill_dirs(path: &Path) -> Result<Vec<DiscoveredSkill>> {
             continue;
         }
 
+        let author = detect::parse_skill_author(&skill_md);
+        let version = detect::parse_skill_version(&skill_md);
+
         skills.push(DiscoveredSkill {
             name: skill_name,
             description,
+            author,
+            version,
             path: entry.path(),
         });
     }

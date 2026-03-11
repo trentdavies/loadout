@@ -1,13 +1,15 @@
 use std::path::PathBuf;
 use anyhow::{bail, Result};
 
-/// Resolved source URL — local path or git remote.
+/// Resolved source URL — local path, git remote, or archive file.
 #[derive(Debug, Clone)]
 pub enum SourceUrl {
     /// Local filesystem path (already resolved to absolute).
     Local(PathBuf),
     /// Git repository URL.
     Git(String),
+    /// Archive file (.zip or .skill).
+    Archive(PathBuf),
 }
 
 impl SourceUrl {
@@ -49,6 +51,12 @@ impl SourceUrl {
             return Ok(SourceUrl::Git(format!("https://{}.git", input)));
         }
 
+        // Archive files: .zip or .skill
+        if input.ends_with(".zip") || input.ends_with(".skill") {
+            let resolved = resolve_path(input)?;
+            return Ok(SourceUrl::Archive(resolved));
+        }
+
         // Local path: absolute, relative, or home-relative
         if input.starts_with('/')
             || input.starts_with("./")
@@ -86,6 +94,13 @@ impl SourceUrl {
                     .unwrap_or("unnamed")
                     .to_string()
             }
+            SourceUrl::Archive(path) => {
+                // Filename without extension
+                path.file_stem()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("unnamed")
+                    .to_string()
+            }
         }
     }
 
@@ -94,6 +109,7 @@ impl SourceUrl {
         match self {
             SourceUrl::Local(_) => "local",
             SourceUrl::Git(_) => "git",
+            SourceUrl::Archive(_) => "archive",
         }
     }
 
@@ -102,6 +118,7 @@ impl SourceUrl {
         match self {
             SourceUrl::Local(path) => path.display().to_string(),
             SourceUrl::Git(url) => url.clone(),
+            SourceUrl::Archive(path) => path.display().to_string(),
         }
     }
 }
@@ -281,5 +298,61 @@ mod tests {
     fn url_string_git() {
         let url = SourceUrl::Git("https://github.com/org/repo.git".to_string());
         assert_eq!(url.url_string(), "https://github.com/org/repo.git");
+    }
+
+    #[test]
+    fn parse_zip_file() {
+        match SourceUrl::parse("/tmp/my-plugin.zip").unwrap() {
+            SourceUrl::Archive(p) => assert_eq!(p, PathBuf::from("/tmp/my-plugin.zip")),
+            _ => panic!("expected Archive"),
+        }
+    }
+
+    #[test]
+    fn parse_skill_file() {
+        match SourceUrl::parse("/tmp/helper.skill").unwrap() {
+            SourceUrl::Archive(p) => assert_eq!(p, PathBuf::from("/tmp/helper.skill")),
+            _ => panic!("expected Archive"),
+        }
+    }
+
+    #[test]
+    fn parse_relative_zip() {
+        match SourceUrl::parse("./plugins/test.zip").unwrap() {
+            SourceUrl::Archive(p) => assert!(p.is_absolute()),
+            _ => panic!("expected Archive"),
+        }
+    }
+
+    #[test]
+    fn parse_non_archive_local_not_archive() {
+        // .md file should be Local, not Archive
+        match SourceUrl::parse("/tmp/my-skill.md").unwrap() {
+            SourceUrl::Local(_) => {}
+            _ => panic!("expected Local for .md file"),
+        }
+    }
+
+    #[test]
+    fn default_name_archive() {
+        let url = SourceUrl::Archive(PathBuf::from("/tmp/cool-plugin.zip"));
+        assert_eq!(url.default_name(), "cool-plugin");
+    }
+
+    #[test]
+    fn default_name_skill_archive() {
+        let url = SourceUrl::Archive(PathBuf::from("/tmp/helper.skill"));
+        assert_eq!(url.default_name(), "helper");
+    }
+
+    #[test]
+    fn source_type_archive() {
+        assert_eq!(SourceUrl::Archive(PathBuf::from("/tmp/x.zip")).source_type(), "archive");
+    }
+
+    #[test]
+    fn url_string_archive() {
+        let url = SourceUrl::Archive(PathBuf::from("/tmp/x.zip"));
+        assert_eq!(url.url_string(), "/tmp/x.zip");
     }
 }

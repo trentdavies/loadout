@@ -185,6 +185,8 @@ fn registry_save_load_roundtrip() {
             skills: vec![skittle::registry::RegisteredSkill {
                 name: "my-skill".to_string(),
                 description: Some("a skill".to_string()),
+                author: None,
+                version: None,
                 path: PathBuf::from("/tmp/cache/my-skill"),
             }],
             path: PathBuf::from("/tmp/cache/test-plugin"),
@@ -210,6 +212,8 @@ fn registry_find_skill_short_form() {
             skills: vec![skittle::registry::RegisteredSkill {
                 name: "sk".to_string(),
                 description: None,
+                author: None,
+                version: None,
                 path: PathBuf::from("/tmp"),
             }],
             path: PathBuf::from("/tmp"),
@@ -235,6 +239,8 @@ fn registry_find_skill_full_form() {
             skills: vec![skittle::registry::RegisteredSkill {
                 name: "sk".to_string(),
                 description: None,
+                author: None,
+                version: None,
                 path: PathBuf::from("/tmp"),
             }],
             path: PathBuf::from("/tmp"),
@@ -324,6 +330,8 @@ fn adapter_install_uninstall_skill() {
     let skill = skittle::registry::RegisteredSkill {
         name: "test-skill".to_string(),
         description: Some("A test".to_string()),
+        author: None,
+        version: None,
         path: skill_src.path().to_path_buf(),
     };
 

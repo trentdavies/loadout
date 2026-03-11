@@ -39,6 +39,8 @@ fn create_skill_fixture(base: &std::path::Path, name: &str) -> RegisteredSkill {
     RegisteredSkill {
         name: name.to_string(),
         description: Some("desc".to_string()),
+        author: None,
+        version: None,
         path: skill_dir,
     }
 }

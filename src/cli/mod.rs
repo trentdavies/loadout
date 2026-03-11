@@ -14,6 +14,10 @@ pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
 
+    /// Dry run — show what would change without making modifications
+    #[arg(short = 'n', long = "dry-run", global = true)]
+    pub dry_run: bool,
+
     /// Verbose output
     #[arg(short, long, global = true)]
     pub verbose: bool,
@@ -34,7 +38,27 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Command {
     /// Initialize skittle configuration
-    Init,
+    Init {
+        /// Optional source URL to populate cache (GitHub URL or local path)
+        url: Option<String>,
+    },
+
+    /// Add a source (shorthand for `source add`)
+    Add {
+        /// URL or path to the source
+        url: String,
+
+        /// Name for this source
+        #[arg(long)]
+        name: Option<String>,
+    },
+
+    /// List skills (shorthand for `skill list`)
+    List {
+        /// What to list (default: skills)
+        #[arg(default_value = "skills")]
+        what: String,
+    },
 
     /// Install skills to targets
     Install {
@@ -326,10 +350,12 @@ pub enum CacheCommand {
 
 pub fn run(cli: Cli) -> anyhow::Result<()> {
     match cli.command {
-        Command::Init => {
+        Command::Init { url } => {
             let path = crate::config::config_path(cli.config.as_deref());
             if path.exists() {
-                if !cli.quiet {
+                if url.is_some() && !cli.quiet {
+                    println!("Config already exists at {}. Use `skittle source add` instead.", path.display());
+                } else if !cli.quiet {
                     println!("Config already exists at {}. Use `skittle config edit` to modify.", path.display());
                 }
                 return Ok(());
@@ -378,6 +404,146 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             std::fs::write(&path, default_config)?;
             if !cli.quiet {
                 println!("Initialized skittle config at {}", path.display());
+            }
+
+            // If URL provided, fetch into cache and register as source
+            if let Some(ref url_str) = url {
+                let source_url = crate::source::SourceUrl::parse(url_str)?;
+                let source_name = source_url.default_name();
+                let cache_path = crate::config::cache_dir().join(&source_name);
+
+                crate::source::fetch::fetch(&source_url, &cache_path)?;
+
+                let structure = crate::source::detect::detect(&cache_path)?;
+                let registered = crate::source::normalize::normalize(
+                    &source_name, &cache_path, &structure,
+                )?;
+
+                let data_dir = crate::config::data_dir();
+                let mut registry = crate::registry::load_registry(&data_dir)?;
+                registry.sources.push(registered);
+                crate::registry::save_registry(&registry, &data_dir)?;
+
+                let mut config = crate::config::load(cli.config.as_deref())?;
+                config.source.push(crate::config::SourceConfig {
+                    name: source_name.clone(),
+                    url: source_url.url_string(),
+                    source_type: source_url.source_type().to_string(),
+                });
+                crate::config::save(&config, cli.config.as_deref())?;
+
+                if !cli.quiet {
+                    println!("Added source '{}' from {}", source_name, url_str);
+                }
+            }
+
+            Ok(())
+        }
+        Command::Add { url, name } => {
+            // Delegate to source add
+            let config_path_str = cli.config.as_deref();
+            let mut config = crate::config::load(config_path_str)?;
+            let data_dir = crate::config::data_dir();
+
+            let source_url = crate::source::SourceUrl::parse(&url)?;
+            let source_name = name.unwrap_or_else(|| source_url.default_name());
+
+            if config.source.iter().any(|s| s.name == source_name) {
+                anyhow::bail!(
+                    "source '{}' already exists. Use --name to choose a different alias.",
+                    source_name
+                );
+            }
+
+            let cache_path = crate::config::cache_dir().join(&source_name);
+
+            if !cli.dry_run {
+                crate::source::fetch::fetch(&source_url, &cache_path)?;
+
+                let structure = crate::source::detect::detect(&cache_path)?;
+                let registered = crate::source::normalize::normalize(
+                    &source_name, &cache_path, &structure,
+                )?;
+
+                let mut registry = crate::registry::load_registry(&data_dir)?;
+                registry.sources.retain(|s| s.name != source_name);
+                registry.sources.push(registered);
+                crate::registry::save_registry(&registry, &data_dir)?;
+
+                config.source.push(crate::config::SourceConfig {
+                    name: source_name.clone(),
+                    url: source_url.url_string(),
+                    source_type: source_url.source_type().to_string(),
+                });
+                crate::config::save(&config, config_path_str)?;
+            }
+
+            if !cli.quiet {
+                println!("Added source '{}'", source_name);
+            }
+            Ok(())
+        }
+        Command::List { what } => {
+            // Delegate to skill list or plugin list
+            let data_dir = crate::config::data_dir();
+            let registry = crate::registry::load_registry(&data_dir)?;
+
+            if what == "plugins" {
+                // List plugins
+                if cli.json {
+                    let entries: Vec<serde_json::Value> = registry.sources.iter()
+                        .flat_map(|s| s.plugins.iter().map(move |p| {
+                            serde_json::json!({
+                                "name": p.name,
+                                "source": s.name,
+                                "skills": p.skills.len(),
+                            })
+                        }))
+                        .collect();
+                    println!("{}", serde_json::to_string_pretty(&entries)?);
+                } else {
+                    let output = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
+                    let rows: Vec<Vec<String>> = registry.sources.iter()
+                        .flat_map(|s| s.plugins.iter().map(move |p| {
+                            vec![p.name.clone(), s.name.clone(), p.skills.len().to_string()]
+                        }))
+                        .collect();
+                    if rows.is_empty() {
+                        output.info("No plugins found. Add a source with `skittle add`");
+                    } else {
+                        output.table(&["Plugin", "Source", "Skills"], &rows);
+                    }
+                }
+            } else {
+                // List skills (default)
+                if cli.json {
+                    let entries: Vec<serde_json::Value> = registry.sources.iter()
+                        .flat_map(|s| s.plugins.iter().flat_map(move |p| {
+                            p.skills.iter().map(move |sk| {
+                                serde_json::json!({
+                                    "name": sk.name,
+                                    "plugin": p.name,
+                                    "source": s.name,
+                                })
+                            })
+                        }))
+                        .collect();
+                    println!("{}", serde_json::to_string_pretty(&entries)?);
+                } else {
+                    let output = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
+                    let rows: Vec<Vec<String>> = registry.sources.iter()
+                        .flat_map(|s| s.plugins.iter().flat_map(move |p| {
+                            p.skills.iter().map(move |sk| {
+                                vec![sk.name.clone(), p.name.clone(), s.name.clone()]
+                            })
+                        }))
+                        .collect();
+                    if rows.is_empty() {
+                        output.info("No skills found. Add a source with `skittle add`");
+                    } else {
+                        output.table(&["Skill", "Plugin", "Source"], &rows);
+                    }
+                }
             }
             Ok(())
         }
@@ -447,18 +613,26 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             for tc in &targets {
                 let adapter = crate::target::resolve_adapter(tc, &config.adapter)?;
                 for s in &skills_to_install {
-                    adapter.install_skill(s, &tc.path)?;
+                    if cli.dry_run {
+                        if !cli.quiet {
+                            println!("  (dry run) {} → {}", s.name, tc.name);
+                        }
+                    } else {
+                        adapter.install_skill(s, &tc.path)?;
+                    }
                     installed_count += 1;
                 }
             }
 
             // Track active bundle if installing a bundle
             if let Some(ref bundle_name) = bundle {
-                let mut reg = registry;
-                for tc in &targets {
-                    reg.set_active_bundle(&tc.name, bundle_name);
+                if !cli.dry_run {
+                    let mut reg = registry;
+                    for tc in &targets {
+                        reg.set_active_bundle(&tc.name, bundle_name);
+                    }
+                    crate::registry::save_registry(&reg, &data_dir)?;
                 }
-                crate::registry::save_registry(&reg, &data_dir)?;
             }
 
             if !cli.quiet {
@@ -512,10 +686,11 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
             }
 
+            let execute = force && !cli.dry_run;
             for tc in &targets {
                 let adapter = crate::target::resolve_adapter(tc, &config.adapter)?;
                 for name in &skill_names {
-                    if force {
+                    if execute {
                         adapter.uninstall_skill(name, &tc.path)?;
                     } else if !cli.quiet {
                         println!("  would uninstall {} from {}", name, tc.name);
@@ -523,7 +698,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
             }
 
-            if !force && !cli.quiet {
+            if !execute && !cli.quiet {
                 println!("Use --force to uninstall");
             } else if !cli.quiet {
                 println!("Uninstalled {} skill(s) from {} target(s)", skill_names.len(), targets.len());
@@ -605,30 +780,32 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                     let cache_path = crate::config::cache_dir().join(&source_name);
 
-                    // Fetch source content into cache
-                    crate::source::fetch::fetch(&source_url, &cache_path)?;
+                    if !cli.dry_run {
+                        // Fetch source content into cache
+                        crate::source::fetch::fetch(&source_url, &cache_path)?;
 
-                    // Detect structure
-                    let structure = crate::source::detect::detect(&cache_path)?;
+                        // Detect structure
+                        let structure = crate::source::detect::detect(&cache_path)?;
 
-                    // Normalize into registry model
-                    let registered = crate::source::normalize::normalize(
-                        &source_name, &cache_path, &structure,
-                    )?;
+                        // Normalize into registry model
+                        let registered = crate::source::normalize::normalize(
+                            &source_name, &cache_path, &structure,
+                        )?;
 
-                    // Update registry
-                    let mut registry = crate::registry::load_registry(&data_dir)?;
-                    registry.sources.retain(|s| s.name != source_name);
-                    registry.sources.push(registered);
-                    crate::registry::save_registry(&registry, &data_dir)?;
+                        // Update registry
+                        let mut registry = crate::registry::load_registry(&data_dir)?;
+                        registry.sources.retain(|s| s.name != source_name);
+                        registry.sources.push(registered);
+                        crate::registry::save_registry(&registry, &data_dir)?;
 
-                    // Update config
-                    config.source.push(crate::config::SourceConfig {
-                        name: source_name.clone(),
-                        url: source_url.url_string(),
-                        source_type: source_url.source_type().to_string(),
-                    });
-                    crate::config::save(&config, config_path_str)?;
+                        // Update config
+                        config.source.push(crate::config::SourceConfig {
+                            name: source_name.clone(),
+                            url: source_url.url_string(),
+                            source_type: source_url.source_type().to_string(),
+                        });
+                        crate::config::save(&config, config_path_str)?;
+                    }
 
                     if !cli.quiet {
                         println!("Added source '{}'", source_name);
@@ -666,7 +843,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         eprintln!("warning: source '{}' has installed skills on: {}", name, installed_on.join(", "));
                     }
 
-                    if force {
+                    let execute = force && !cli.dry_run;
+                    if execute {
                         // Remove cached content
                         let cache_path = crate::config::cache_dir().join(&name);
                         if cache_path.exists() {
@@ -684,7 +862,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
 
                     if !cli.quiet {
-                        if force {
+                        if execute {
                             println!("Removed source '{}'", name);
                         } else {
                             println!("Would remove source '{}'", name);
@@ -834,6 +1012,14 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                             println!("Updating '{}'...", src.name);
                         }
 
+                        if cli.dry_run {
+                            if !cli.quiet {
+                                println!("  (dry run) would re-fetch from {}", src.url);
+                            }
+                            updated_count += 1;
+                            continue;
+                        }
+
                         let cache_path = crate::config::cache_dir().join(&src.name);
 
                         // Re-fetch based on source type
@@ -871,6 +1057,16 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                     }
                                 }
                             }
+                            crate::source::SourceUrl::Archive(_) => {
+                                // Re-extract archive to cache
+                                if cache_path.exists() {
+                                    std::fs::remove_dir_all(&cache_path)?;
+                                }
+                                if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path) {
+                                    errors.push(format!("{}: {}", src.name, e));
+                                    continue;
+                                }
+                            }
                         }
 
                         // Re-detect and re-normalize
@@ -894,7 +1090,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         }
                     }
 
-                    crate::registry::save_registry(&updated_registry, &data_dir)?;
+                    if !cli.dry_run {
+                        crate::registry::save_registry(&updated_registry, &data_dir)?;
+                    }
 
                     if !cli.quiet {
                         if updated_count > 0 {
@@ -1150,7 +1348,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         eprintln!("warning: bundle '{}' is active on a target", name);
                     }
 
-                    if force {
+                    let execute = force && !cli.dry_run;
+                    if execute {
                         config.bundle.remove(&name);
                         crate::config::save(&config, config_path_str)?;
 
@@ -1163,7 +1362,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
 
                     if !cli.quiet {
-                        if force {
+                        if execute {
                             println!("Deleted bundle '{}'", name);
                         } else {
                             println!("Would delete bundle '{}'", name);
@@ -1302,10 +1501,11 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         config_for_install.target.iter().filter(|t| t.sync == "auto").collect()
                     };
 
+                    let execute = force && !cli.dry_run;
                     for tc in &targets {
                         let adapter = crate::target::resolve_adapter(tc, &config_for_install.adapter)?;
 
-                        if force {
+                        if execute {
                             // Uninstall 'from' skills
                             for skill_id in &from_bundle.skills {
                                 if let Ok((_, _, s)) = registry.find_skill(skill_id) {
@@ -1324,12 +1524,12 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         }
                     }
 
-                    if force {
+                    if execute {
                         crate::registry::save_registry(&registry, &data_dir)?;
                     }
 
                     if !cli.quiet {
-                        if force {
+                        if execute {
                             println!("Swapped bundle '{}' → '{}' on {} target(s)", from, to, targets.len());
                         } else {
                             println!("Use --force to swap");
@@ -1391,17 +1591,23 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         sync
                     };
 
-                    config.target.push(crate::config::TargetConfig {
-                        name: target_name.clone(),
-                        agent: agent.clone(),
-                        path: target_path,
-                        scope,
-                        sync: actual_sync,
-                    });
-                    crate::config::save(&config, config_path_str)?;
+                    if !cli.dry_run {
+                        config.target.push(crate::config::TargetConfig {
+                            name: target_name.clone(),
+                            agent: agent.clone(),
+                            path: target_path,
+                            scope,
+                            sync: actual_sync,
+                        });
+                        crate::config::save(&config, config_path_str)?;
+                    }
 
                     if !cli.quiet {
-                        println!("Added target '{}'", target_name);
+                        if cli.dry_run {
+                            println!("  (dry run) would add target '{}'", target_name);
+                        } else {
+                            println!("Added target '{}'", target_name);
+                        }
                     }
                     Ok(())
                 }
@@ -1410,13 +1616,14 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         anyhow::bail!("target '{}' not found", name);
                     }
 
-                    if force {
+                    let execute = force && !cli.dry_run;
+                    if execute {
                         config.target.retain(|t| t.name != name);
                         crate::config::save(&config, config_path_str)?;
                     }
 
                     if !cli.quiet {
-                        if force {
+                        if execute {
                             println!("Removed target '{}' (installed skills preserved)", name);
                         } else {
                             println!("Would remove target '{}'", name);
@@ -1684,7 +1891,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     Ok(())
                 }
                 CacheCommand::Clean { force } => {
-                    if !force {
+                    if !force || cli.dry_run {
                         output.info("Would clean cache and registry");
                         if cache_dir.is_dir() {
                             let size = dir_size(&cache_dir);

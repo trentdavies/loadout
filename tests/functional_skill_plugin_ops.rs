@@ -7,6 +7,8 @@ fn skill(name: &str) -> RegisteredSkill {
     RegisteredSkill {
         name: name.to_string(),
         description: None,
+        author: None,
+        version: None,
         path: PathBuf::from("/tmp"),
     }
 }

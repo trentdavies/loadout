@@ -11,6 +11,19 @@ fn parse_help_flag() {
     assert!(!cli.json);
     assert!(!cli.quiet);
     assert!(!cli.verbose);
+    assert!(!cli.dry_run);
+}
+
+#[test]
+fn parse_dry_run_flag() {
+    let cli = Cli::try_parse_from(["skittle", "-n", "install", "--all"]).unwrap();
+    assert!(cli.dry_run);
+}
+
+#[test]
+fn parse_dry_run_long_flag() {
+    let cli = Cli::try_parse_from(["skittle", "--dry-run", "status"]).unwrap();
+    assert!(cli.dry_run);
 }
 
 #[test]
@@ -80,5 +93,61 @@ fn parse_target_add() {
             }
         }
         _ => panic!("expected Target"),
+    }
+}
+
+#[test]
+fn parse_add_shorthand() {
+    let cli = Cli::try_parse_from(["skittle", "add", "/tmp/src", "--name", "my-src"]).unwrap();
+    match cli.command {
+        skittle::cli::Command::Add { url, name } => {
+            assert_eq!(url, "/tmp/src");
+            assert_eq!(name, Some("my-src".to_string()));
+        }
+        _ => panic!("expected Add"),
+    }
+}
+
+#[test]
+fn parse_list_shorthand() {
+    let cli = Cli::try_parse_from(["skittle", "list"]).unwrap();
+    match cli.command {
+        skittle::cli::Command::List { what } => {
+            assert_eq!(what, "skills");
+        }
+        _ => panic!("expected List"),
+    }
+}
+
+#[test]
+fn parse_list_plugins() {
+    let cli = Cli::try_parse_from(["skittle", "list", "plugins"]).unwrap();
+    match cli.command {
+        skittle::cli::Command::List { what } => {
+            assert_eq!(what, "plugins");
+        }
+        _ => panic!("expected List"),
+    }
+}
+
+#[test]
+fn parse_init_with_url() {
+    let cli = Cli::try_parse_from(["skittle", "init", "https://github.com/org/skills"]).unwrap();
+    match cli.command {
+        skittle::cli::Command::Init { url } => {
+            assert_eq!(url, Some("https://github.com/org/skills".to_string()));
+        }
+        _ => panic!("expected Init"),
+    }
+}
+
+#[test]
+fn parse_init_without_url() {
+    let cli = Cli::try_parse_from(["skittle", "init"]).unwrap();
+    match cli.command {
+        skittle::cli::Command::Init { url } => {
+            assert!(url.is_none());
+        }
+        _ => panic!("expected Init"),
     }
 }

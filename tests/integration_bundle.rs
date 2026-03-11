@@ -28,6 +28,8 @@ fn make_registry_with_skills(skill_names: &[&str], source_dir: &std::path::Path)
             skittle::registry::RegisteredSkill {
                 name: name.to_string(),
                 description: Some(format!("Test {}", name)),
+                author: None,
+                version: None,
                 path: skill_dir,
             }
         })

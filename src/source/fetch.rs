@@ -10,6 +10,7 @@ pub fn fetch(source_url: &SourceUrl, cache_dir: &Path) -> Result<PathBuf> {
     match source_url {
         SourceUrl::Local(path) => fetch_local(path, cache_dir),
         SourceUrl::Git(url) => fetch_git(url, cache_dir),
+        SourceUrl::Archive(path) => fetch_archive(path, cache_dir),
     }
 }
 
@@ -77,6 +78,57 @@ pub fn update_git(repo_path: &Path) -> Result<PathBuf> {
         .context("failed to reset to fetched HEAD")?;
 
     Ok(repo_path.to_path_buf())
+}
+
+/// Extract a zip/skill archive into the cache directory.
+fn fetch_archive(archive_path: &Path, cache_dir: &Path) -> Result<PathBuf> {
+    if !archive_path.exists() {
+        anyhow::bail!("archive not found: {}", archive_path.display());
+    }
+
+    fs::create_dir_all(cache_dir)
+        .with_context(|| format!("failed to create cache dir: {}", cache_dir.display()))?;
+
+    let file = fs::File::open(archive_path)
+        .with_context(|| format!("failed to open archive: {}", archive_path.display()))?;
+    let mut archive = zip::ZipArchive::new(file)
+        .with_context(|| format!("failed to read archive: {}", archive_path.display()))?;
+
+    const MAX_FILES: usize = 10_000;
+    const MAX_SIZE: u64 = 100 * 1024 * 1024; // 100MB
+
+    if archive.len() > MAX_FILES {
+        anyhow::bail!("archive exceeds maximum file count (10,000)");
+    }
+
+    let mut total_size: u64 = 0;
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i)?;
+        let name = entry.name().to_string();
+
+        // Skip directories and paths with suspicious components
+        if name.contains("..") {
+            continue;
+        }
+
+        let out_path = cache_dir.join(&name);
+
+        if entry.is_dir() {
+            fs::create_dir_all(&out_path)?;
+        } else {
+            if let Some(parent) = out_path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            total_size += entry.size();
+            if total_size > MAX_SIZE {
+                anyhow::bail!("archive exceeds maximum unpacked size (100MB)");
+            }
+            let mut outfile = fs::File::create(&out_path)?;
+            std::io::copy(&mut entry, &mut outfile)?;
+        }
+    }
+
+    Ok(cache_dir.to_path_buf())
 }
 
 /// Recursively copy a directory, skipping .git directories.
@@ -176,5 +228,58 @@ mod tests {
         copy_dir_recursive(src.path(), &dest).unwrap();
 
         assert!(dest.join("sub").join("nested.txt").exists());
+    }
+
+    /// Helper to create a zip file in memory and write it to disk.
+    fn create_test_zip(path: &Path, files: &[(&str, &[u8])]) {
+        let file = fs::File::create(path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default();
+        for (name, content) in files {
+            zip.start_file(*name, options).unwrap();
+            std::io::Write::write_all(&mut zip, content).unwrap();
+        }
+        zip.finish().unwrap();
+    }
+
+    #[test]
+    fn fetch_archive_valid_zip() {
+        let tmp = TempDir::new().unwrap();
+        let cache = TempDir::new().unwrap();
+        let zip_path = tmp.path().join("plugin.zip");
+        create_test_zip(&zip_path, &[
+            ("SKILL.md", b"---\nname: test\ndescription: d\n---\n"),
+            ("extra.txt", b"data"),
+        ]);
+
+        let url = SourceUrl::Archive(zip_path);
+        let cache_dest = cache.path().join("test-archive");
+        let result = fetch(&url, &cache_dest).unwrap();
+        assert!(result.join("SKILL.md").exists());
+        assert!(result.join("extra.txt").exists());
+    }
+
+    #[test]
+    fn fetch_archive_skill_file() {
+        let tmp = TempDir::new().unwrap();
+        let cache = TempDir::new().unwrap();
+        let skill_path = tmp.path().join("helper.skill");
+        create_test_zip(&skill_path, &[
+            ("SKILL.md", b"---\nname: helper\ndescription: d\n---\n"),
+        ]);
+
+        let url = SourceUrl::Archive(skill_path);
+        let cache_dest = cache.path().join("test-skill");
+        let result = fetch(&url, &cache_dest).unwrap();
+        assert!(result.join("SKILL.md").exists());
+    }
+
+    #[test]
+    fn fetch_archive_not_found() {
+        let cache = TempDir::new().unwrap();
+        let url = SourceUrl::Archive(PathBuf::from("/nonexistent/archive.zip"));
+        let result = fetch(&url, &cache.path().join("out"));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("archive not found"));
     }
 }

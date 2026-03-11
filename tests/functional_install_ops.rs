@@ -28,6 +28,8 @@ fn setup_test_env() -> (TempDir, TempDir, Registry, Config) {
         skills.push(RegisteredSkill {
             name: name.to_string(),
             description: Some(format!("Test skill {}", name)),
+            author: None,
+            version: None,
             path: skill_path,
         });
     }

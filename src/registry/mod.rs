@@ -172,6 +172,8 @@ mod tests {
         let skill = RegisteredSkill {
             name: "dup".to_string(),
             description: None,
+            author: None,
+            version: None,
             path: std::path::PathBuf::from("/tmp"),
         };
         for src_name in &["a", "b"] {
@@ -201,8 +203,8 @@ mod tests {
                 version: None,
                 description: None,
                 skills: vec![
-                    RegisteredSkill { name: "a".to_string(), description: None, path: std::path::PathBuf::from("/tmp") },
-                    RegisteredSkill { name: "b".to_string(), description: None, path: std::path::PathBuf::from("/tmp") },
+                    RegisteredSkill { name: "a".to_string(), description: None, author: None, version: None, path: std::path::PathBuf::from("/tmp") },
+                    RegisteredSkill { name: "b".to_string(), description: None, author: None, version: None, path: std::path::PathBuf::from("/tmp") },
                 ],
                 path: std::path::PathBuf::from("/tmp"),
             }],
@@ -256,6 +258,8 @@ mod tests {
                 skills: vec![RegisteredSkill {
                     name: "sk".to_string(),
                     description: Some("desc".to_string()),
+                    author: None,
+                    version: None,
                     path: std::path::PathBuf::from("/tmp/sk"),
                 }],
                 path: std::path::PathBuf::from("/tmp/p"),
@@ -323,6 +327,8 @@ mod tests {
                 skills: vec![RegisteredSkill {
                     name: "sk".to_string(),
                     description: None,
+                    author: None,
+                    version: None,
                     path: std::path::PathBuf::from("/tmp"),
                 }],
                 path: std::path::PathBuf::from("/tmp"),

@@ -40,6 +40,8 @@ pub fn normalize(
             let skills = discovered.into_iter().map(|ds| RegisteredSkill {
                 name: ds.name,
                 description: ds.description,
+                author: ds.author,
+                version: ds.version,
                 path: ds.path,
             }).collect();
             vec![RegisteredPlugin {
@@ -110,25 +112,47 @@ fn scan_full_source(path: &Path) -> Result<Vec<RegisteredPlugin>> {
     Ok(plugins)
 }
 
-/// Scan a directory with plugin.toml.
+/// Scan a directory with plugin.toml or .claude-plugin.
 fn scan_plugin_dir(path: &Path) -> Result<RegisteredPlugin> {
     let manifest_path = path.join("plugin.toml");
-    let (name, version, description) = if manifest_path.exists() {
+    let claude_plugin_path = path.join(".claude-plugin");
+
+    let (mut name, mut version, mut description) = if manifest_path.exists() {
         let m = manifest::load_plugin_manifest(&manifest_path)?;
         (m.name, m.version, m.description)
     } else {
-        let name = path.file_name()
+        let n = path.file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("unnamed")
             .to_string();
-        (name, None, None)
+        (n, None, None)
     };
+
+    // Supplement with .claude-plugin metadata (plugin.toml wins for all fields)
+    if claude_plugin_path.exists() {
+        if let Some(cp) = manifest::load_claude_plugin_metadata(&claude_plugin_path) {
+            if name == path.file_name().and_then(|n| n.to_str()).unwrap_or("") && !manifest_path.exists() {
+                // Only use .claude-plugin name if no plugin.toml provided one
+                if let Some(cp_name) = cp.name {
+                    name = cp_name;
+                }
+            }
+            if version.is_none() {
+                version = cp.version;
+            }
+            if description.is_none() {
+                description = cp.description;
+            }
+        }
+    }
 
     // Discover skills using the shared discovery function
     let discovered = discover::discover_skills(path)?;
     let skills = discovered.into_iter().map(|ds| RegisteredSkill {
         name: ds.name,
         description: ds.description,
+        author: ds.author,
+        version: ds.version,
         path: ds.path,
     }).collect();
 
@@ -155,10 +179,14 @@ fn scan_single_file_skill(skill_name: &str, cache_path: &Path) -> Result<Registe
     // Use frontmatter name if available, fall back to provided name
     let name = detect::parse_skill_name(&skill_file).unwrap_or_else(|| skill_name.to_string());
     let description = detect::parse_skill_description(&skill_file);
+    let author = detect::parse_skill_author(&skill_file);
+    let version = detect::parse_skill_version(&skill_file);
 
     Ok(RegisteredSkill {
         name,
         description,
+        author,
+        version,
         path: cache_path.to_path_buf(),
     })
 }
@@ -183,10 +211,14 @@ fn scan_skill_dir(skill_name: &str, path: &Path) -> Result<RegisteredSkill> {
     } else {
         None
     };
+    let author = if skill_md.exists() { detect::parse_skill_author(&skill_md) } else { None };
+    let version = if skill_md.exists() { detect::parse_skill_version(&skill_md) } else { None };
 
     Ok(RegisteredSkill {
         name,
         description,
+        author,
+        version,
         path: path.to_path_buf(),
     })
 }
