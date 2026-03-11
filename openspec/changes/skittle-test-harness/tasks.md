@@ -42,7 +42,7 @@
 - [x] 5.9 Create `tests/harness/suite/08_skill_operations.sh` — tests: skill list, skill list --plugin, skill list --source, skill show, invalid skill skipped with warning
 - [x] 5.10 Create `tests/harness/suite/09_install_engine.sh` — tests: install --all, --skill, --plugin, --bundle, --target, uninstall --skill/--bundle, dry run (-n), idempotent install
 - [x] 5.11 Create `tests/harness/suite/10_bundle_management.sh` — tests: create, delete, list, show, add skills, drop skills, install bundle, swap bundles, active bundle tracking
-- [ ] 5.12 Create `tests/harness/suite/11_end_to_end.sh` — full lifecycle: init → source add → target add → bundle create → bundle add → install --bundle → status → swap → uninstall → source remove → cache clean
+- [x] 5.12 Create `tests/harness/suite/11_end_to_end.sh` — full lifecycle: init → source add → target add → bundle create → bundle add → install --bundle → status → swap → uninstall → source remove → cache clean
 
 ## 6. Dockerfile
 
