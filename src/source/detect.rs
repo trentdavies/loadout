@@ -108,7 +108,7 @@ fn has_skill_frontmatter(path: &Path) -> bool {
 }
 
 /// Check if any subdirectories contain SKILL.md files.
-fn has_skill_subdirs(path: &Path) -> bool {
+pub fn has_skill_subdirs(path: &Path) -> bool {
     let entries = match fs::read_dir(path) {
         Ok(e) => e,
         Err(_) => return false,

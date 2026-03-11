@@ -3,7 +3,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 
 use super::detect::{self, SourceStructure};
-use super::manifest;
+use super::{discover, manifest};
 use crate::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource};
 
 /// Normalize a detected source into the canonical Source > Plugin > Skill hierarchy.
@@ -71,33 +71,34 @@ fn scan_full_source(path: &Path) -> Result<Vec<RegisteredPlugin>> {
     let manifest_path = path.join("source.toml");
     let source_manifest = manifest::load_source_manifest(&manifest_path)?;
 
-    let plugin_dirs: Vec<String> = if let Some(explicit) = source_manifest.plugins {
-        explicit
-    } else {
-        // Auto-discover: scan subdirs for plugin.toml
-        let mut dirs = Vec::new();
-        for entry in fs::read_dir(path)?.flatten() {
-            if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                if entry.path().join("plugin.toml").exists() {
-                    if let Some(name) = entry.file_name().to_str() {
-                        dirs.push(name.to_string());
-                    }
+    // If source.toml lists explicit plugins, use those directories.
+    // Otherwise, discover plugins automatically (explicit + implicit).
+    let discovered = if let Some(explicit) = source_manifest.plugins {
+        explicit.into_iter()
+            .filter_map(|name| {
+                let p = path.join(&name);
+                if p.is_dir() {
+                    Some(discover::DiscoveredPlugin {
+                        dir_name: name,
+                        path: p.clone(),
+                        has_manifest: p.join("plugin.toml").exists(),
+                    })
+                } else {
+                    eprintln!("warning: listed plugin dir '{}' does not exist", name);
+                    None
                 }
-            }
-        }
-        dirs.sort();
-        dirs
+            })
+            .collect()
+    } else {
+        discover::discover_plugins(path)?
     };
 
     let mut plugins = Vec::new();
-    for dir_name in &plugin_dirs {
-        let plugin_path = path.join(dir_name);
-        if plugin_path.is_dir() {
-            match scan_plugin_dir(&plugin_path) {
-                Ok(plugin) => plugins.push(plugin),
-                Err(e) => {
-                    eprintln!("warning: skipping plugin {}: {}", dir_name, e);
-                }
+    for dp in &discovered {
+        match scan_plugin_dir(&dp.path) {
+            Ok(plugin) => plugins.push(plugin),
+            Err(e) => {
+                eprintln!("warning: skipping plugin {}: {}", dp.dir_name, e);
             }
         }
     }
