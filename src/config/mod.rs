@@ -15,15 +15,23 @@ pub fn config_path(override_path: Option<&str>) -> PathBuf {
     config_dir().join("config.toml")
 }
 
-/// The skittle config directory (`$XDG_CONFIG_HOME/skittle` or `~/.config/skittle`).
+/// The skittle config directory.
+/// Respects `$XDG_CONFIG_HOME` first, then falls back to platform default.
 pub fn config_dir() -> PathBuf {
+    if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
+        return PathBuf::from(xdg).join("skittle");
+    }
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("~/.config"))
         .join("skittle")
 }
 
-/// The skittle data directory (`$XDG_DATA_HOME/skittle` or `~/.local/share/skittle`).
+/// The skittle data directory.
+/// Respects `$XDG_DATA_HOME` first, then falls back to platform default.
 pub fn data_dir() -> PathBuf {
+    if let Ok(xdg) = std::env::var("XDG_DATA_HOME") {
+        return PathBuf::from(xdg).join("skittle");
+    }
     dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("~/.local/share"))
         .join("skittle")

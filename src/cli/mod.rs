@@ -325,8 +325,59 @@ pub enum CacheCommand {
 pub fn run(cli: Cli) -> anyhow::Result<()> {
     match cli.command {
         Command::Init => {
-            eprintln!("skittle: init not yet implemented");
-            std::process::exit(1);
+            let path = crate::config::config_path(cli.config.as_deref());
+            if path.exists() {
+                if !cli.quiet {
+                    println!("Config already exists at {}. Use `skittle config edit` to modify.", path.display());
+                }
+                return Ok(());
+            }
+            // Create config directory and write default config
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            // Also create data directory
+            let data = crate::config::data_dir();
+            std::fs::create_dir_all(&data)?;
+
+            let default_config = r#"# Skittle configuration
+# See: skittle --help
+
+# Sources — where skills come from
+# [[source]]
+# name = "my-skills"
+# url = "~/dev/my-skills"
+# type = "local"
+
+# [[source]]
+# name = "community"
+# url = "https://github.com/org/skills.git"
+# type = "git"
+
+# Targets — where skills get installed
+# [[target]]
+# name = "claude-machine"
+# agent = "claude"
+# path = "~/.claude"
+# scope = "machine"
+# sync = "auto"
+
+# Custom adapters
+# [adapter.my-agent]
+# skill_dir = "prompts/{name}"
+# skill_file = "SKILL.md"
+# format = "agentskills"
+# copy_dirs = ["scripts"]
+
+# Bundles — named groups of skills
+# [bundle.work]
+# skills = ["my-plugin/explore", "my-plugin/apply"]
+"#;
+            std::fs::write(&path, default_config)?;
+            if !cli.quiet {
+                println!("Initialized skittle config at {}", path.display());
+            }
+            Ok(())
         }
         Command::Install { all, skill, plugin, bundle, target: _ } => {
             if !all && skill.is_none() && plugin.is_none() && bundle.is_none() {
