@@ -8,13 +8,13 @@
 
 ## 2. Assertion Library
 
-- [ ] 2.1 Create `tests/harness/lib.sh` with global pass/fail/skip counters and test name tracking
-- [ ] 2.2 Implement `assert_exit_code <expected> <command...>` — run command, check exit code, print PASS/FAIL
-- [ ] 2.3 Implement `assert_stdout_contains <pattern> <command...>` and `assert_stderr_contains <pattern> <command...>`
-- [ ] 2.4 Implement `assert_stdout_eq <expected> <command...>` for exact stdout matching
-- [ ] 2.5 Implement `assert_file_exists`, `assert_file_not_exists`, `assert_dir_exists`, `assert_file_contains`
-- [ ] 2.6 Implement `assert_json_field <json_string> <jq_path> <expected>` using jq
-- [ ] 2.7 Implement `skip_if_no_network` helper that checks `SKIP_NETWORK=1` and increments skip counter
+- [x] 2.1 Create `tests/harness/lib.sh` with global pass/fail/skip counters and test name tracking
+- [x] 2.2 Implement `assert_exit_code <expected> <command...>` — run command, check exit code, print PASS/FAIL
+- [x] 2.3 Implement `assert_stdout_contains <pattern> <command...>` and `assert_stderr_contains <pattern> <command...>`
+- [x] 2.4 Implement `assert_stdout_eq <expected> <command...>` for exact stdout matching
+- [x] 2.5 Implement `assert_file_exists`, `assert_file_not_exists`, `assert_dir_exists`, `assert_file_contains`
+- [x] 2.6 Implement `assert_json_field <json_string> <jq_path> <expected>` using jq
+- [x] 2.7 Implement `skip_if_no_network` helper that checks `SKIP_NETWORK=1` and increments skip counter
 
 ## 3. Test Runner
 
