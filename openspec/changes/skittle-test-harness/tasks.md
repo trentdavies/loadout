@@ -25,9 +25,9 @@
 
 ## 4. Environment Setup
 
-- [ ] 4.1 Create `tests/harness/setup.sh` with `reset_environment` function: wipe XDG dirs, recreate empty mock targets at `/tmp/test-targets/claude/` and `/tmp/test-targets/codex/`
-- [ ] 4.2 Add `setup_source_and_targets` helper: runs `skittle init`, adds plugin-source fixture as source, adds claude and codex mock targets
-- [ ] 4.3 Add `FIXTURES_DIR` and `SKITTLE` environment variable exports (paths to fixtures and binary)
+- [x] 4.1 Create `tests/harness/setup.sh` with `reset_environment` function: wipe XDG dirs, recreate empty mock targets at `/tmp/test-targets/claude/` and `/tmp/test-targets/codex/`
+- [x] 4.2 Add `setup_source_and_targets` helper: runs `skittle init`, adds plugin-source fixture as source, adds claude and codex mock targets
+- [x] 4.3 Add `FIXTURES_DIR` and `SKITTLE` environment variable exports (paths to fixtures and binary)
 
 ## 5. Test Suites
 
