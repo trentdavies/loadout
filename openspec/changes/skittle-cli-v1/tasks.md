@@ -1,9 +1,9 @@
 ## 1. Project Bootstrap
 
-- [ ] 1.1 Initialize Cargo project (`cargo init --name skittle`), set up `Cargo.toml` with dependencies: clap (derive feature), serde (derive feature), toml, serde_json, reqwest (blocking feature), git2, dirs, colored, thiserror, anyhow, glob
-- [ ] 1.2 Create module structure: `src/{cli, registry, source, target, bundle, config, output}` with `mod.rs` files and `lib.rs` root
-- [ ] 1.3 Set up `main.rs` with clap `#[derive(Parser)]` top-level command enum and global flags (-n, -v, -q, --json, --color, --config)
-- [ ] 1.4 Wire up help at every level (clap's `help` subcommand + `-h` + `--help`) and exit codes (0 success, non-zero error)
+- [x] 1.1 Initialize Cargo project (`cargo init --name skittle`), set up `Cargo.toml` with dependencies: clap (derive feature), serde (derive feature), toml, serde_json, reqwest (blocking feature), git2, dirs, colored, thiserror, anyhow, glob
+- [x] 1.2 Create module structure: `src/{cli, registry, source, target, bundle, config, output}` with `mod.rs` files and `lib.rs` root
+- [x] 1.3 Set up `main.rs` with clap `#[derive(Parser)]` top-level command enum and global flags (-n, -v, -q, --json, --color, --config)
+- [x] 1.4 Wire up help at every level (clap's `help` subcommand + `-h` + `--help`) and exit codes (0 success, non-zero error)
 
 ## 2. Config System
 

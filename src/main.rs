@@ -1,4 +1,11 @@
+use clap::Parser;
+use skittle::cli::Cli;
+
 fn main() {
-    eprintln!("skittle: not yet implemented");
-    std::process::exit(1);
+    let cli = Cli::parse();
+
+    if let Err(e) = skittle::cli::run(cli) {
+        eprintln!("error: {e:#}");
+        std::process::exit(1);
+    }
 }
