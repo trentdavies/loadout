@@ -709,9 +709,124 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
             }
         }
-        Command::Plugin { command: _ } => {
-            eprintln!("skittle: plugin not yet implemented");
-            std::process::exit(1);
+        Command::Plugin { command: plugin_cmd } => {
+            let data_dir = crate::config::data_dir();
+            let registry = crate::registry::load_registry(&data_dir)?;
+
+            match plugin_cmd {
+                PluginCommand::List { source } => {
+                    // Collect all plugins, optionally filtered by source
+                    let mut rows: Vec<Vec<String>> = Vec::new();
+                    let mut json_entries: Vec<serde_json::Value> = Vec::new();
+
+                    for src in &registry.sources {
+                        if let Some(ref filter) = source {
+                            if &src.name != filter {
+                                continue;
+                            }
+                        }
+                        for plugin in &src.plugins {
+                            rows.push(vec![
+                                plugin.name.clone(),
+                                src.name.clone(),
+                                plugin.version.clone().unwrap_or_default(),
+                                plugin.skills.len().to_string(),
+                            ]);
+                            json_entries.push(serde_json::json!({
+                                "name": plugin.name,
+                                "source": src.name,
+                                "version": plugin.version,
+                                "description": plugin.description,
+                                "skills": plugin.skills.len(),
+                            }));
+                        }
+                    }
+
+                    if cli.json {
+                        println!("{}", serde_json::to_string_pretty(&json_entries)?);
+                        return Ok(());
+                    }
+
+                    if rows.is_empty() {
+                        if !cli.quiet {
+                            println!("No plugins found. Use `skittle source add` to add a source.");
+                        }
+                        return Ok(());
+                    }
+
+                    let out = crate::output::Output::from_flags(
+                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                    );
+                    out.table(
+                        &["PLUGIN", "SOURCE", "VERSION", "SKILLS"],
+                        &rows,
+                    );
+                    Ok(())
+                }
+                PluginCommand::Show { name } => {
+                    // Find plugin by name across all sources
+                    let mut found = None;
+                    let mut found_source = "";
+                    for src in &registry.sources {
+                        for plugin in &src.plugins {
+                            if plugin.name == name {
+                                found = Some(plugin);
+                                found_source = &src.name;
+                                break;
+                            }
+                        }
+                        if found.is_some() { break; }
+                    }
+
+                    let plugin = found
+                        .ok_or_else(|| anyhow::anyhow!("plugin '{}' not found", name))?;
+
+                    if cli.json {
+                        let json = serde_json::json!({
+                            "name": plugin.name,
+                            "source": found_source,
+                            "version": plugin.version,
+                            "description": plugin.description,
+                            "skills": plugin.skills.iter().map(|s| {
+                                serde_json::json!({
+                                    "name": s.name,
+                                    "description": s.description,
+                                })
+                            }).collect::<Vec<_>>(),
+                        });
+                        println!("{}", serde_json::to_string_pretty(&json)?);
+                        return Ok(());
+                    }
+
+                    let out = crate::output::Output::from_flags(
+                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                    );
+                    out.status("Plugin", &plugin.name);
+                    out.status("Source", found_source);
+                    if let Some(v) = &plugin.version {
+                        out.status("Version", v);
+                    }
+                    if let Some(d) = &plugin.description {
+                        out.status("Description", d);
+                    }
+                    out.status("Skills", &plugin.skills.len().to_string());
+
+                    if !plugin.skills.is_empty() {
+                        out.info("");
+                        let tree_entries: Vec<(usize, String)> = plugin.skills.iter().map(|s| {
+                            let label = if let Some(d) = &s.description {
+                                format!("{} — {}", s.name, d)
+                            } else {
+                                s.name.clone()
+                            };
+                            (0, label)
+                        }).collect();
+                        out.tree(&tree_entries);
+                    }
+
+                    Ok(())
+                }
+            }
         }
         Command::Skill { command: _ } => {
             eprintln!("skittle: skill not yet implemented");
