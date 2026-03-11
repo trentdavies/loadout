@@ -45,11 +45,11 @@
 
 ## 7. Target Management
 
-- [ ] 7.1 Implement `skittle target add <agent> [path] [--scope] [--sync] [--name]` with defaults (machine scope → auto sync, repo scope → explicit sync)
-- [ ] 7.2 Implement `skittle target remove <name>` (removes config, does not delete installed skills)
-- [ ] 7.3 Implement `skittle target list` (table: name, agent, path, scope, sync, installed count)
-- [ ] 7.4 Implement `skittle target show <name>` (config + installed skills list via adapter)
-- [ ] 7.5 Implement `skittle target detect` — scan standard paths (~/.claude, ~/.codex, ~/.cursor, ./.claude, ./.codex) and prompt to add
+- [x] 7.1 Implement `skittle target add <agent> [path] [--scope] [--sync] [--name]` with defaults (machine scope → auto sync, repo scope → explicit sync)
+- [x] 7.2 Implement `skittle target remove <name>` (removes config, does not delete installed skills)
+- [x] 7.3 Implement `skittle target list` (table: name, agent, path, scope, sync, installed count)
+- [x] 7.4 Implement `skittle target show <name>` (config + installed skills list via adapter)
+- [x] 7.5 Implement `skittle target detect` — scan standard paths (~/.claude, ~/.codex, ~/.cursor, ./.claude, ./.codex) and prompt to add
 
 ## 8. Target Adapters
 

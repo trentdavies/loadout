@@ -923,9 +923,244 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             eprintln!("skittle: bundle not yet implemented");
             std::process::exit(1);
         }
-        Command::Target { command: _ } => {
-            eprintln!("skittle: target not yet implemented");
-            std::process::exit(1);
+        Command::Target { command: target_cmd } => {
+            let config_path_str = cli.config.as_deref();
+            let mut config = crate::config::load(config_path_str)?;
+
+            // Known built-in agent types
+            const KNOWN_AGENTS: &[&str] = &[
+                "claude", "codex", "cursor", "gemini", "vscode",
+            ];
+
+            match target_cmd {
+                TargetCommand::Add { agent, path, name, scope, sync } => {
+                    // Validate agent type against built-in + custom adapters
+                    if !KNOWN_AGENTS.contains(&agent.as_str())
+                        && !config.adapter.contains_key(&agent)
+                    {
+                        let available: Vec<String> = KNOWN_AGENTS.iter()
+                            .map(|s| s.to_string())
+                            .chain(config.adapter.keys().cloned())
+                            .collect();
+                        anyhow::bail!(
+                            "unknown agent type '{}'. Available: {}",
+                            agent,
+                            available.join(", ")
+                        );
+                    }
+
+                    let target_name = name.unwrap_or_else(|| {
+                        format!("{}-{}", agent, scope)
+                    });
+
+                    // Check for duplicate name
+                    if config.target.iter().any(|t| t.name == target_name) {
+                        anyhow::bail!("target '{}' already exists", target_name);
+                    }
+
+                    // Resolve path: default based on agent + scope
+                    let target_path = if let Some(p) = path {
+                        std::path::PathBuf::from(p)
+                    } else {
+                        // Default: ~/.{agent} for machine scope
+                        dirs::home_dir()
+                            .unwrap_or_else(|| std::path::PathBuf::from("~"))
+                            .join(format!(".{}", agent))
+                    };
+
+                    // Repo scope defaults to explicit sync
+                    let actual_sync = if scope == "repo" && sync == "auto" {
+                        "explicit".to_string()
+                    } else {
+                        sync
+                    };
+
+                    if !cli.dry_run {
+                        config.target.push(crate::config::TargetConfig {
+                            name: target_name.clone(),
+                            agent: agent.clone(),
+                            path: target_path,
+                            scope,
+                            sync: actual_sync,
+                        });
+                        crate::config::save(&config, config_path_str)?;
+                    }
+
+                    if !cli.quiet {
+                        println!("Added target '{}'", target_name);
+                    }
+                    Ok(())
+                }
+                TargetCommand::Remove { name } => {
+                    if !config.target.iter().any(|t| t.name == name) {
+                        anyhow::bail!("target '{}' not found", name);
+                    }
+
+                    if !cli.dry_run {
+                        config.target.retain(|t| t.name != name);
+                        crate::config::save(&config, config_path_str)?;
+                    }
+
+                    if !cli.quiet {
+                        println!("Removed target '{}' (installed skills preserved)", name);
+                    }
+                    Ok(())
+                }
+                TargetCommand::List => {
+                    if cli.json {
+                        let entries: Vec<serde_json::Value> = config.target.iter().map(|t| {
+                            serde_json::json!({
+                                "name": t.name,
+                                "agent": t.agent,
+                                "path": t.path,
+                                "scope": t.scope,
+                                "sync": t.sync,
+                            })
+                        }).collect();
+                        println!("{}", serde_json::to_string_pretty(&entries)?);
+                        return Ok(());
+                    }
+
+                    if config.target.is_empty() {
+                        if !cli.quiet {
+                            println!("No targets configured. Use `skittle target add` to add one.");
+                        }
+                        return Ok(());
+                    }
+
+                    let rows: Vec<Vec<String>> = config.target.iter().map(|t| {
+                        vec![
+                            t.name.clone(),
+                            t.agent.clone(),
+                            t.path.display().to_string(),
+                            t.scope.clone(),
+                            t.sync.clone(),
+                        ]
+                    }).collect();
+
+                    let out = crate::output::Output::from_flags(
+                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                    );
+                    out.table(
+                        &["NAME", "AGENT", "PATH", "SCOPE", "SYNC"],
+                        &rows,
+                    );
+                    Ok(())
+                }
+                TargetCommand::Show { name } => {
+                    let target = config.target.iter()
+                        .find(|t| t.name == name)
+                        .ok_or_else(|| anyhow::anyhow!("target '{}' not found", name))?;
+
+                    if cli.json {
+                        let json = serde_json::json!({
+                            "name": target.name,
+                            "agent": target.agent,
+                            "path": target.path,
+                            "scope": target.scope,
+                            "sync": target.sync,
+                        });
+                        println!("{}", serde_json::to_string_pretty(&json)?);
+                        return Ok(());
+                    }
+
+                    let out = crate::output::Output::from_flags(
+                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                    );
+                    out.status("Name", &target.name);
+                    out.status("Agent", &target.agent);
+                    out.status("Path", &target.path.display().to_string());
+                    out.status("Scope", &target.scope);
+                    out.status("Sync", &target.sync);
+
+                    // List installed skills if the directory exists
+                    let skills_dir = target.path.join("skills");
+                    if skills_dir.is_dir() {
+                        let mut installed = Vec::new();
+                        if let Ok(entries) = std::fs::read_dir(&skills_dir) {
+                            for entry in entries.flatten() {
+                                if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                                    if entry.path().join("SKILL.md").exists() {
+                                        installed.push(entry.file_name().to_string_lossy().to_string());
+                                    }
+                                }
+                            }
+                        }
+                        if !installed.is_empty() {
+                            installed.sort();
+                            out.status("Installed", &installed.len().to_string());
+                            out.info("");
+                            let tree: Vec<(usize, String)> = installed.into_iter()
+                                .map(|s| (0, s))
+                                .collect();
+                            out.tree(&tree);
+                        }
+                    }
+
+                    Ok(())
+                }
+                TargetCommand::Detect => {
+                    let home = std::env::var("HOME")
+                        .map(std::path::PathBuf::from)
+                        .or_else(|_| dirs::home_dir().ok_or(()))
+                        .unwrap_or_else(|_| std::path::PathBuf::from("~"));
+
+                    let candidates = vec![
+                        ("claude", home.join(".claude")),
+                        ("codex", home.join(".codex")),
+                        ("cursor", home.join(".cursor")),
+                    ];
+
+                    // Also check current directory
+                    let cwd = std::env::current_dir().unwrap_or_default();
+                    let local_candidates = vec![
+                        ("claude", cwd.join(".claude")),
+                        ("codex", cwd.join(".codex")),
+                    ];
+
+                    let mut found = Vec::new();
+                    for (agent, path) in candidates.iter().chain(local_candidates.iter()) {
+                        if path.is_dir() {
+                            let already = config.target.iter().any(|t| t.path == *path);
+                            found.push((agent.to_string(), path.clone(), already));
+                        }
+                    }
+
+                    if cli.json {
+                        let entries: Vec<serde_json::Value> = found.iter().map(|(agent, path, registered)| {
+                            serde_json::json!({
+                                "agent": agent,
+                                "path": path,
+                                "registered": registered,
+                            })
+                        }).collect();
+                        println!("{}", serde_json::to_string_pretty(&entries)?);
+                        return Ok(());
+                    }
+
+                    if found.is_empty() {
+                        if !cli.quiet {
+                            println!("No agent configurations found.");
+                        }
+                        return Ok(());
+                    }
+
+                    let out = crate::output::Output::from_flags(
+                        cli.json, cli.quiet, cli.verbose, &cli.color,
+                    );
+                    for (agent, path, registered) in &found {
+                        let status = if *registered { " (registered)" } else { "" };
+                        out.info(&format!(
+                            "Found {} at {}{}",
+                            agent,
+                            path.display(),
+                            status
+                        ));
+                    }
+
+                    Ok(())
+                }
+            }
         }
         Command::Config { command: config_cmd } => {
             let config = crate::config::load(cli.config.as_deref())?;
