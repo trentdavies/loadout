@@ -1,6 +1,5 @@
-use std::fs;
 use std::path::Path;
-use anyhow::{Context, Result};
+use anyhow::Result;
 
 use super::detect::{self, SourceStructure};
 use super::{discover, manifest};
@@ -37,7 +36,12 @@ pub fn normalize(
             let dir_name = cache_path.file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or(source_name);
-            let skills = scan_skill_subdirs(cache_path)?;
+            let discovered = discover::discover_skills(cache_path)?;
+            let skills = discovered.into_iter().map(|ds| RegisteredSkill {
+                name: ds.name,
+                description: ds.description,
+                path: ds.path,
+            }).collect();
             vec![RegisteredPlugin {
                 name: dir_name.to_string(),
                 version: None,
@@ -120,13 +124,13 @@ fn scan_plugin_dir(path: &Path) -> Result<RegisteredPlugin> {
         (name, None, None)
     };
 
-    // Look for skills in skills/ subdir or directly in the plugin dir
-    let skills_dir = path.join("skills");
-    let skills = if skills_dir.is_dir() {
-        scan_skill_subdirs(&skills_dir)?
-    } else {
-        scan_skill_subdirs(path)?
-    };
+    // Discover skills using the shared discovery function
+    let discovered = discover::discover_skills(path)?;
+    let skills = discovered.into_iter().map(|ds| RegisteredSkill {
+        name: ds.name,
+        description: ds.description,
+        path: ds.path,
+    }).collect();
 
     Ok(RegisteredPlugin {
         name,
@@ -135,53 +139,6 @@ fn scan_plugin_dir(path: &Path) -> Result<RegisteredPlugin> {
         skills,
         path: path.to_path_buf(),
     })
-}
-
-/// Scan subdirectories for SKILL.md files.
-fn scan_skill_subdirs(path: &Path) -> Result<Vec<RegisteredSkill>> {
-    let mut skills = Vec::new();
-
-    let entries = fs::read_dir(path)
-        .with_context(|| format!("failed to read dir: {}", path.display()))?;
-
-    for entry in entries.flatten() {
-        if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-            continue;
-        }
-        let skill_md = entry.path().join("SKILL.md");
-        if !skill_md.exists() {
-            continue;
-        }
-
-        let dir_name = entry.file_name().to_string_lossy().to_string();
-
-        // Validate frontmatter
-        let parsed_name = detect::parse_skill_name(&skill_md);
-        let description = detect::parse_skill_description(&skill_md);
-
-        if parsed_name.is_none() {
-            eprintln!("warning: skipping {}: no valid frontmatter in SKILL.md", dir_name);
-            continue;
-        }
-
-        let skill_name = parsed_name.unwrap();
-        if skill_name != dir_name {
-            eprintln!(
-                "warning: skipping {}: frontmatter name '{}' does not match directory name",
-                dir_name, skill_name
-            );
-            continue;
-        }
-
-        skills.push(RegisteredSkill {
-            name: skill_name,
-            description,
-            path: entry.path(),
-        });
-    }
-
-    skills.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(skills)
 }
 
 /// Create a RegisteredSkill from a single SKILL.md file in the cache root.

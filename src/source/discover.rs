@@ -15,6 +15,17 @@ pub struct DiscoveredPlugin {
     pub has_manifest: bool,
 }
 
+/// A discovered skill (SKILL.md) within a plugin.
+#[derive(Debug, Clone)]
+pub struct DiscoveredSkill {
+    /// Validated skill name from frontmatter.
+    pub name: String,
+    /// Skill description from frontmatter.
+    pub description: Option<String>,
+    /// Path to the skill directory.
+    pub path: PathBuf,
+}
+
 /// Discover plugins within a source directory.
 ///
 /// Scans subdirectories for:
@@ -79,4 +90,81 @@ fn has_skills(path: &Path) -> bool {
 
     // Check direct subdirs for SKILL.md
     detect::has_skill_subdirs(path)
+}
+
+/// Discover skills within a plugin directory.
+///
+/// Scans subdirectories for SKILL.md files and validates frontmatter:
+/// - `name` is required
+/// - `description` is required
+/// - `name` must match the directory name
+///
+/// Checks both direct subdirs and a `skills/` subdirectory.
+/// Returns validated skills sorted by name. Invalid skills are skipped with warnings.
+pub fn discover_skills(plugin_path: &Path) -> Result<Vec<DiscoveredSkill>> {
+    let skills_dir = plugin_path.join("skills");
+    let scan_path = if skills_dir.is_dir() {
+        &skills_dir
+    } else {
+        plugin_path
+    };
+
+    scan_skill_dirs(scan_path)
+}
+
+/// Scan a directory's subdirectories for valid SKILL.md files.
+fn scan_skill_dirs(path: &Path) -> Result<Vec<DiscoveredSkill>> {
+    let mut skills = Vec::new();
+
+    let entries = match fs::read_dir(path) {
+        Ok(e) => e,
+        Err(_) => return Ok(skills),
+    };
+
+    for entry in entries.flatten() {
+        if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            continue;
+        }
+
+        let skill_md = entry.path().join("SKILL.md");
+        if !skill_md.exists() {
+            continue;
+        }
+
+        let dir_name = entry.file_name().to_string_lossy().to_string();
+
+        // Validate frontmatter: name required
+        let parsed_name = detect::parse_skill_name(&skill_md);
+        if parsed_name.is_none() {
+            eprintln!("warning: skipping {}: SKILL.md missing required 'name' in frontmatter", dir_name);
+            continue;
+        }
+
+        let skill_name = parsed_name.unwrap();
+
+        // Validate: name must match directory name
+        if skill_name != dir_name {
+            eprintln!(
+                "warning: skipping {}: frontmatter name '{}' does not match directory name",
+                dir_name, skill_name
+            );
+            continue;
+        }
+
+        // Validate frontmatter: description required
+        let description = detect::parse_skill_description(&skill_md);
+        if description.is_none() {
+            eprintln!("warning: skipping {}: SKILL.md missing required 'description' in frontmatter", dir_name);
+            continue;
+        }
+
+        skills.push(DiscoveredSkill {
+            name: skill_name,
+            description,
+            path: entry.path(),
+        });
+    }
+
+    skills.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(skills)
 }

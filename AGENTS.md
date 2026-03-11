@@ -28,6 +28,8 @@ The Docker container provides:
 
 **Do NOT test skittle commands directly on the host.** Use `cargo check` to verify compilation, then Docker for functional tests.
 
+**Do NOT modify test harness files** (`tests/harness/`, `tests/fixtures/`, `tests/Dockerfile`) as part of implementing CLI tasks. The test harness is the spec — fix the CLI to pass the tests, never the other way around.
+
 ## Project Structure
 
 - `src/` — Rust CLI source (clap derive, TOML config, XDG paths)
@@ -42,9 +44,11 @@ Red-green testing against `openspec/changes/skittle-cli-v1/tasks.md`:
 1. Pick the next unchecked task
 2. Implement the code changes
 3. Run `cargo check` to verify compilation
-4. Mark the task `[x]` in tasks.md
-5. Commit with a descriptive message
-6. Run Docker test harness to verify progress (periodically, not every commit)
+4. Run Docker test harness: `docker build -t skittle-test -f tests/Dockerfile . && docker run --rm skittle-test`
+5. Verify pass count has NOT regressed (baseline: 168 passed as of task 5.2). New tests SHOULD turn green as features land.
+6. If tests regressed, fix before proceeding — do NOT commit broken code
+7. Mark the task `[x]` in tasks.md
+8. Commit with a descriptive message (include pass/fail count in commit body)
 
 ## Key Conventions
 

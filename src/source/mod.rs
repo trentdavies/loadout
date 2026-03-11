@@ -6,6 +6,6 @@ pub mod normalize;
 pub mod url;
 
 pub use detect::SourceStructure;
-pub use discover::DiscoveredPlugin;
+pub use discover::{DiscoveredPlugin, DiscoveredSkill};
 pub use manifest::{SourceManifest, PluginManifest};
 pub use url::SourceUrl;
