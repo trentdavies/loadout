@@ -4,7 +4,7 @@
 
 test_init_creates_config() {
   assert_exit_code 0 "$SKITTLE" init
-  assert_file_exists "$XDG_CONFIG_HOME/skittle/config.toml"
+  assert_file_exists "$XDG_DATA_HOME/skittle/skittle.toml"
 }
 
 test_init_idempotent() {
@@ -72,7 +72,7 @@ test_cache_clean_preview_default() {
 test_config_file_contains_examples() {
   "$SKITTLE" init >/dev/null 2>&1
   # The generated config should have example/commented sections
-  assert_file_exists "$XDG_CONFIG_HOME/skittle/config.toml"
+  assert_file_exists "$XDG_DATA_HOME/skittle/skittle.toml"
 }
 
 test_xdg_data_dir_created() {

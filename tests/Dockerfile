@@ -20,8 +20,7 @@ RUN cargo build --release 2>/dev/null; \
       echo "BUILD FAILED — skittle binary not produced (tests will report this)"; \
     fi
 
-# Set XDG env vars for test isolation
-ENV XDG_CONFIG_HOME=/tmp/test-config
+# Set XDG env var for test isolation (config + data both live in XDG_DATA_HOME)
 ENV XDG_DATA_HOME=/tmp/test-data
 ENV SKIP_NETWORK=1
 

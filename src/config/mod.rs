@@ -7,27 +7,15 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Resolve the config file path.
-/// Uses `--config` override if provided, otherwise XDG default.
+/// Uses `--config` override if provided, otherwise `~/.local/share/skittle/skittle.toml`.
 pub fn config_path(override_path: Option<&str>) -> PathBuf {
     if let Some(p) = override_path {
         return PathBuf::from(p);
     }
-    config_dir().join("config.toml")
+    data_dir().join("skittle.toml")
 }
 
-/// The skittle config directory.
-/// Respects `$XDG_CONFIG_HOME` first, then falls back to `~/.config/skittle`.
-pub fn config_dir() -> PathBuf {
-    if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
-        return PathBuf::from(xdg).join("skittle");
-    }
-    dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("~"))
-        .join(".config")
-        .join("skittle")
-}
-
-/// The skittle data directory.
+/// The skittle data directory. Everything lives here — config, registry, cached sources.
 /// Respects `$XDG_DATA_HOME` first, then falls back to `~/.local/share/skittle`.
 pub fn data_dir() -> PathBuf {
     if let Ok(xdg) = std::env::var("XDG_DATA_HOME") {
@@ -40,7 +28,7 @@ pub fn data_dir() -> PathBuf {
         .join("skittle")
 }
 
-/// The skittle source cache directory: `$XDG_DATA_HOME/skittle/sources/`.
+/// The skittle source cache directory: `<data_dir>/sources/`.
 /// Creates the directory if it doesn't exist.
 pub fn cache_dir() -> PathBuf {
     let dir = data_dir().join("sources");
@@ -77,7 +65,7 @@ pub fn save(config: &Config, override_path: Option<&str>) -> Result<()> {
 pub fn save_to(config: &Config, path: &Path) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
-            .with_context(|| format!("failed to create config directory: {}", parent.display()))?;
+            .with_context(|| format!("failed to create directory: {}", parent.display()))?;
     }
     let content = toml::to_string_pretty(config)
         .context("failed to serialize config")?;
@@ -85,6 +73,79 @@ pub fn save_to(config: &Config, path: &Path) -> Result<()> {
         .with_context(|| format!("failed to write config: {}", path.display()))?;
     Ok(())
 }
+
+/// The default config template written by `skittle init`.
+pub const DEFAULT_CONFIG: &str = r#"# Skittle — Agent Skill Manager
+# This file lives in ~/.local/share/skittle/ alongside your registry and cached sources.
+# This directory can be a git repo for versioning your configuration.
+
+# ─── Sources ────────────────────────────────────────────────────────────────
+# Where skills come from. Add with: skittle add <url>
+#
+# [[source]]
+# name = "anthropic-plugins"
+# url = "https://github.com/anthropics/knowledge-work-plugins.git"
+# type = "git"
+#
+# [[source]]
+# name = "my-skills"
+# url = "~/dev/my-skills"
+# type = "local"
+#
+# [[source]]
+# name = "team-tools"
+# url = "git@github.com:myorg/agent-skills.git"
+# type = "git"
+
+# ─── Targets ────────────────────────────────────────────────────────────────
+# Where skills get installed. Add with: skittle target add <agent> [path]
+# Targets with sync = "auto" receive skills from `skittle install --all`.
+#
+# [[target]]
+# name = "claude"
+# agent = "claude"
+# path = "~/.claude"
+# scope = "machine"
+# sync = "auto"
+#
+# [[target]]
+# name = "codex"
+# agent = "codex"
+# path = "~/.codex"
+# scope = "machine"
+# sync = "auto"
+#
+# [[target]]
+# name = "project-claude"
+# agent = "claude"
+# path = "./my-project/.claude"
+# scope = "repo"
+# sync = "explicit"
+
+# ─── Bundles ────────────────────────────────────────────────────────────────
+# Named groups of skills. Create with: skittle bundle create <name>
+# Install with: skittle install --bundle <name>
+# Swap between bundles: skittle bundle swap <from> <to> --force
+#
+# [bundle.work]
+# skills = ["legal/contract-review", "legal/compliance", "sales/call-prep"]
+#
+# [bundle.personal]
+# skills = ["productivity/daily-planner", "engineering/code-review"]
+#
+# [bundle.minimal]
+# skills = ["productivity/daily-planner"]
+
+# ─── Custom Adapters ───────────────────────────────────────────────────────
+# Define how skills are installed for non-standard agents.
+# Built-in adapters exist for: claude, codex, cursor, gemini, vscode.
+#
+# [adapter.my-agent]
+# skill_dir = "prompts/{name}"
+# skill_file = "SKILL.md"
+# format = "agentskills"
+# copy_dirs = ["scripts", "references"]
+"#;
 
 #[cfg(test)]
 mod tests {
@@ -101,7 +162,14 @@ mod tests {
     fn config_path_default() {
         let p = config_path(None);
         assert!(p.to_string_lossy().contains("skittle"));
-        assert!(p.to_string_lossy().ends_with("config.toml"));
+        assert!(p.to_string_lossy().ends_with("skittle.toml"));
+    }
+
+    #[test]
+    fn config_lives_in_data_dir() {
+        let config = config_path(None);
+        let data = data_dir();
+        assert!(config.starts_with(&data));
     }
 
     #[test]
@@ -124,7 +192,7 @@ mod tests {
     #[test]
     fn save_to_load_from_roundtrip() {
         let tmp = TempDir::new().unwrap();
-        let path = tmp.path().join("config.toml");
+        let path = tmp.path().join("skittle.toml");
 
         let mut config = Config::default();
         config.source.push(SourceConfig {
@@ -151,7 +219,7 @@ mod tests {
     #[test]
     fn save_to_creates_parent_dirs() {
         let tmp = TempDir::new().unwrap();
-        let path = tmp.path().join("deep").join("nested").join("config.toml");
+        let path = tmp.path().join("deep").join("nested").join("skittle.toml");
         let config = Config::default();
         save_to(&config, &path).unwrap();
         assert!(path.exists());

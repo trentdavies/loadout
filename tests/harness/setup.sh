@@ -11,8 +11,8 @@ export FIXTURES_DIR="$(cd "$HARNESS_DIR/../fixtures" && pwd)"
 # Skittle binary — override via environment if needed
 export SKITTLE="${SKITTLE:-/usr/local/bin/skittle}"
 
-# XDG paths (set by Dockerfile, but default for local runs)
-export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-/tmp/test-config}"
+# XDG path (set by Dockerfile, but default for local runs)
+# Config + data both live under XDG_DATA_HOME/skittle/
 export XDG_DATA_HOME="${XDG_DATA_HOME:-/tmp/test-data}"
 
 # Mock target directories
@@ -25,10 +25,7 @@ export TARGET_CODEX="/tmp/test-targets/codex"
 #   Call at the start of each test function for isolation.
 # ---------------------------------------------------------------------------
 reset_environment() {
-  # Wipe skittle config
-  rm -rf "$XDG_CONFIG_HOME/skittle"
-
-  # Wipe skittle data/cache
+  # Wipe all skittle state (config + data live together)
   rm -rf "$XDG_DATA_HOME/skittle"
 
   # Recreate empty mock target directories

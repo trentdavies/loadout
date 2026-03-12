@@ -360,47 +360,11 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
                 return Ok(());
             }
-            // Create config directory and write default config
-            if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            // Also create data directory
+            // Create data directory (config lives here too)
             let data = crate::config::data_dir();
             std::fs::create_dir_all(&data)?;
 
-            let default_config = r#"# Skittle configuration
-# See: skittle --help
-
-# Sources — where skills come from
-# [[source]]
-# name = "my-skills"
-# url = "~/dev/my-skills"
-# type = "local"
-
-# [[source]]
-# name = "community"
-# url = "https://github.com/org/skills.git"
-# type = "git"
-
-# Targets — where skills get installed
-# [[target]]
-# name = "claude-machine"
-# agent = "claude"
-# path = "~/.claude"
-# scope = "machine"
-# sync = "auto"
-
-# Custom adapters
-# [adapter.my-agent]
-# skill_dir = "prompts/{name}"
-# skill_file = "SKILL.md"
-# format = "agentskills"
-# copy_dirs = ["scripts"]
-
-# Bundles — named groups of skills
-# [bundle.work]
-# skills = ["my-plugin/explore", "my-plugin/apply"]
-"#;
+            let default_config = crate::config::DEFAULT_CONFIG;
             std::fs::write(&path, default_config)?;
             if !cli.quiet {
                 println!("Initialized skittle config at {}", path.display());
