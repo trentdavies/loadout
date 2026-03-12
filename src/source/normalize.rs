@@ -23,8 +23,8 @@ pub fn normalize(
             }]
         }
 
-        SourceStructure::FullSource => {
-            scan_full_source(cache_path)?
+        SourceStructure::Marketplace => {
+            scan_marketplace(cache_path)?
         }
 
         SourceStructure::SinglePlugin => {
@@ -72,39 +72,30 @@ pub fn normalize(
     })
 }
 
-/// Scan a full source (has source.toml).
-fn scan_full_source(path: &Path) -> Result<Vec<RegisteredPlugin>> {
-    let manifest_path = path.join("source.toml");
-    let source_manifest = manifest::load_source_manifest(&manifest_path)?;
-
-    // If source.toml lists explicit plugins, use those directories.
-    // Otherwise, discover plugins automatically (explicit + implicit).
-    let discovered = if let Some(explicit) = source_manifest.plugins {
-        explicit.into_iter()
-            .filter_map(|name| {
-                let p = path.join(&name);
-                if p.is_dir() {
-                    Some(discover::DiscoveredPlugin {
-                        dir_name: name,
-                        path: p.clone(),
-                        has_manifest: p.join("plugin.toml").exists(),
-                    })
-                } else {
-                    eprintln!("warning: listed plugin dir '{}' does not exist", name);
-                    None
-                }
-            })
-            .collect()
-    } else {
-        discover::discover_plugins(path)?
-    };
+/// Scan a marketplace (has .claude-plugin/marketplace.json).
+fn scan_marketplace(path: &Path) -> Result<Vec<RegisteredPlugin>> {
+    let manifest_path = path.join(".claude-plugin/marketplace.json");
+    let marketplace = manifest::load_marketplace(&manifest_path)?;
 
     let mut plugins = Vec::new();
-    for dp in &discovered {
-        match scan_plugin_dir(&dp.path) {
-            Ok(plugin) => plugins.push(plugin),
+    for mp in &marketplace.plugins {
+        // Resolve plugin path relative to source root
+        let plugin_path = path.join(mp.source.trim_start_matches("./"));
+        if !plugin_path.is_dir() {
+            eprintln!("warning: marketplace plugin '{}' path does not exist: {}", mp.name, mp.source);
+            continue;
+        }
+
+        match scan_plugin_dir(&plugin_path) {
+            Ok(mut plugin) => {
+                // Marketplace description supplements plugin.json description
+                if plugin.description.is_none() {
+                    plugin.description = mp.description.clone();
+                }
+                plugins.push(plugin);
+            }
             Err(e) => {
-                eprintln!("warning: skipping plugin {}: {}", dp.dir_name, e);
+                eprintln!("warning: skipping marketplace plugin '{}': {}", mp.name, e);
             }
         }
     }
@@ -112,14 +103,17 @@ fn scan_full_source(path: &Path) -> Result<Vec<RegisteredPlugin>> {
     Ok(plugins)
 }
 
-/// Scan a directory with plugin.toml or .claude-plugin.
+/// Scan a plugin directory. Reads .claude-plugin/plugin.json for metadata.
 fn scan_plugin_dir(path: &Path) -> Result<RegisteredPlugin> {
-    let manifest_path = path.join("plugin.toml");
-    let claude_plugin_path = path.join(".claude-plugin");
+    let plugin_json = path.join(".claude-plugin/plugin.json");
 
-    let (mut name, mut version, mut description) = if manifest_path.exists() {
-        let m = manifest::load_plugin_manifest(&manifest_path)?;
-        (m.name, m.version, m.description)
+    let (name, version, description) = if plugin_json.exists() {
+        let m = manifest::load_plugin_manifest(&plugin_json)?;
+        (
+            m.name,
+            m.version,
+            m.description,
+        )
     } else {
         let n = path.file_name()
             .and_then(|n| n.to_str())
@@ -128,25 +122,6 @@ fn scan_plugin_dir(path: &Path) -> Result<RegisteredPlugin> {
         (n, None, None)
     };
 
-    // Supplement with .claude-plugin metadata (plugin.toml wins for all fields)
-    if claude_plugin_path.exists() {
-        if let Some(cp) = manifest::load_claude_plugin_metadata(&claude_plugin_path) {
-            if name == path.file_name().and_then(|n| n.to_str()).unwrap_or("") && !manifest_path.exists() {
-                // Only use .claude-plugin name if no plugin.toml provided one
-                if let Some(cp_name) = cp.name {
-                    name = cp_name;
-                }
-            }
-            if version.is_none() {
-                version = cp.version;
-            }
-            if description.is_none() {
-                description = cp.description;
-            }
-        }
-    }
-
-    // Discover skills using the shared discovery function
     let discovered = discover::discover_skills(path)?;
     let skills = discovered.into_iter().map(|ds| RegisteredSkill {
         name: ds.name,
@@ -167,7 +142,6 @@ fn scan_plugin_dir(path: &Path) -> Result<RegisteredPlugin> {
 
 /// Create a RegisteredSkill from a single SKILL.md file in the cache root.
 fn scan_single_file_skill(skill_name: &str, cache_path: &Path) -> Result<RegisteredSkill> {
-    // Try the renamed file first, then SKILL.md
     let skill_file = cache_path.join(format!("{}.md", skill_name));
     let skill_file = if skill_file.exists() { skill_file } else { cache_path.join("SKILL.md") };
 
@@ -176,7 +150,6 @@ fn scan_single_file_skill(skill_name: &str, cache_path: &Path) -> Result<Registe
         anyhow::bail!("skill file missing required frontmatter (name and description)");
     }
 
-    // Use frontmatter name if available, fall back to provided name
     let name = detect::parse_skill_name(&skill_file).unwrap_or_else(|| skill_name.to_string());
     let description = detect::parse_skill_description(&skill_file);
     let author = detect::parse_skill_author(&skill_file);
@@ -200,17 +173,12 @@ fn scan_skill_dir(skill_name: &str, path: &Path) -> Result<RegisteredSkill> {
         anyhow::bail!("SKILL.md missing required frontmatter (name and description)");
     }
 
-    // Use frontmatter name if available, fall back to provided name
     let name = if skill_md.exists() {
         detect::parse_skill_name(&skill_md).unwrap_or_else(|| skill_name.to_string())
     } else {
         skill_name.to_string()
     };
-    let description = if skill_md.exists() {
-        detect::parse_skill_description(&skill_md)
-    } else {
-        None
-    };
+    let description = if skill_md.exists() { detect::parse_skill_description(&skill_md) } else { None };
     let author = if skill_md.exists() { detect::parse_skill_author(&skill_md) } else { None };
     let version = if skill_md.exists() { detect::parse_skill_version(&skill_md) } else { None };
 
@@ -230,10 +198,23 @@ mod tests {
     use tempfile::TempDir;
 
     fn make_skill_md(dir: &Path, name: &str) {
+        fs::create_dir_all(dir).unwrap();
         fs::write(
             dir.join("SKILL.md"),
             format!("---\nname: {}\ndescription: A skill\n---\nbody", name),
         ).unwrap();
+    }
+
+    fn make_plugin_json(dir: &Path, json: &str) {
+        let cp = dir.join(".claude-plugin");
+        fs::create_dir_all(&cp).unwrap();
+        fs::write(cp.join("plugin.json"), json).unwrap();
+    }
+
+    fn make_marketplace(dir: &Path, json: &str) {
+        let cp = dir.join(".claude-plugin");
+        fs::create_dir_all(&cp).unwrap();
+        fs::write(cp.join("marketplace.json"), json).unwrap();
     }
 
     #[test]
@@ -253,12 +234,8 @@ mod tests {
     #[test]
     fn normalize_flat_skills() {
         let tmp = TempDir::new().unwrap();
-        let s1 = tmp.path().join("skill-a");
-        let s2 = tmp.path().join("skill-b");
-        fs::create_dir_all(&s1).unwrap();
-        fs::create_dir_all(&s2).unwrap();
-        make_skill_md(&s1, "skill-a");
-        make_skill_md(&s2, "skill-b");
+        make_skill_md(&tmp.path().join("skill-a"), "skill-a");
+        make_skill_md(&tmp.path().join("skill-b"), "skill-b");
 
         let structure = SourceStructure::FlatSkills;
         let result = normalize("src", tmp.path(), &structure).unwrap();
@@ -267,35 +244,83 @@ mod tests {
     }
 
     #[test]
-    fn normalize_single_plugin() {
+    fn normalize_single_plugin_with_plugin_json() {
         let tmp = TempDir::new().unwrap();
-        fs::write(tmp.path().join("plugin.toml"), "name = \"plug\"").unwrap();
-        let s1 = tmp.path().join("skill-x");
-        fs::create_dir_all(&s1).unwrap();
-        make_skill_md(&s1, "skill-x");
+        make_plugin_json(tmp.path(), r#"{"name": "my-plug", "version": "1.0", "description": "A plugin"}"#);
+        make_skill_md(&tmp.path().join("skills").join("skill-x"), "skill-x");
 
         let structure = SourceStructure::SinglePlugin;
         let result = normalize("src", tmp.path(), &structure).unwrap();
         assert_eq!(result.plugins.len(), 1);
-        assert_eq!(result.plugins[0].name, "plug");
+        assert_eq!(result.plugins[0].name, "my-plug");
+        assert_eq!(result.plugins[0].version.as_deref(), Some("1.0"));
         assert_eq!(result.plugins[0].skills.len(), 1);
     }
 
     #[test]
-    fn normalize_full_source() {
+    fn normalize_single_plugin_no_manifest() {
         let tmp = TempDir::new().unwrap();
-        fs::write(tmp.path().join("source.toml"), "name = \"full\"\nplugins = [\"p1\"]").unwrap();
-        let p1 = tmp.path().join("p1");
-        fs::create_dir_all(&p1).unwrap();
-        fs::write(p1.join("plugin.toml"), "name = \"p1\"").unwrap();
-        let s1 = p1.join("my-skill");
-        fs::create_dir_all(&s1).unwrap();
-        make_skill_md(&s1, "my-skill");
+        make_skill_md(&tmp.path().join("skills").join("skill-x"), "skill-x");
 
-        let structure = SourceStructure::FullSource;
+        let structure = SourceStructure::SinglePlugin;
         let result = normalize("src", tmp.path(), &structure).unwrap();
         assert_eq!(result.plugins.len(), 1);
-        assert_eq!(result.plugins[0].name, "p1");
+        // Name falls back to directory name
+        assert_eq!(result.plugins[0].skills.len(), 1);
+    }
+
+    #[test]
+    fn normalize_marketplace() {
+        let tmp = TempDir::new().unwrap();
+
+        // Create marketplace
+        make_marketplace(tmp.path(), r#"{
+            "name": "test-marketplace",
+            "plugins": [
+                {"name": "legal", "source": "./legal", "description": "Legal tools"},
+                {"name": "sales", "source": "./sales"}
+            ]
+        }"#);
+
+        // Create plugin dirs with .claude-plugin/plugin.json and skills
+        let legal = tmp.path().join("legal");
+        make_plugin_json(&legal, r#"{"name": "legal", "version": "1.1.0", "description": "Legal"}"#);
+        make_skill_md(&legal.join("skills").join("contract-review"), "contract-review");
+        make_skill_md(&legal.join("skills").join("nda-triage"), "nda-triage");
+
+        let sales = tmp.path().join("sales");
+        make_plugin_json(&sales, r#"{"name": "sales", "version": "2.0"}"#);
+        make_skill_md(&sales.join("skills").join("call-prep"), "call-prep");
+
+        let structure = SourceStructure::Marketplace;
+        let result = normalize("mkt", tmp.path(), &structure).unwrap();
+        assert_eq!(result.plugins.len(), 2);
+        assert_eq!(result.plugins[0].name, "legal");
+        assert_eq!(result.plugins[0].version.as_deref(), Some("1.1.0"));
+        assert_eq!(result.plugins[0].skills.len(), 2);
+        assert_eq!(result.plugins[1].name, "sales");
+        assert_eq!(result.plugins[1].skills.len(), 1);
+    }
+
+    #[test]
+    fn normalize_marketplace_missing_plugin_dir_skipped() {
+        let tmp = TempDir::new().unwrap();
+        make_marketplace(tmp.path(), r#"{
+            "name": "mkt",
+            "plugins": [
+                {"name": "exists", "source": "./exists"},
+                {"name": "missing", "source": "./missing"}
+            ]
+        }"#);
+
+        let exists = tmp.path().join("exists");
+        make_skill_md(&exists.join("skills").join("sk"), "sk");
+
+        let structure = SourceStructure::Marketplace;
+        let result = normalize("mkt", tmp.path(), &structure).unwrap();
+        // Only 'exists' should be included
+        assert_eq!(result.plugins.len(), 1);
+        assert_eq!(result.plugins[0].name, "exists");
     }
 
     #[test]

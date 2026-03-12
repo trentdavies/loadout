@@ -36,10 +36,12 @@ fn full_lifecycle_smoke_test() {
         fs::create_dir_all(&scripts).unwrap();
         fs::write(scripts.join("run.sh"), "#!/bin/bash\necho ok").unwrap();
     }
-    // Add a plugin.toml
+    // Add a .claude-plugin/plugin.json
+    let claude_plugin_dir = source_dir.path().join(".claude-plugin");
+    fs::create_dir_all(&claude_plugin_dir).unwrap();
     fs::write(
-        source_dir.path().join("plugin.toml"),
-        "[plugin]\nname = \"smoke-plugin\"\nversion = \"1.0.0\"\ndescription = \"Smoke test plugin\"\n",
+        claude_plugin_dir.join("plugin.json"),
+        r#"{"name": "smoke-plugin", "version": "1.0.0", "description": "Smoke test plugin"}"#,
     )
     .unwrap();
 

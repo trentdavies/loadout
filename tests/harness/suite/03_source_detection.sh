@@ -86,14 +86,14 @@ test_detect_name_derived_from_directory() {
   assert_stdout_contains "flat-skills" "$SKITTLE" source list
 }
 
-test_detect_plugin_toml_metadata() {
+test_detect_plugin_json_metadata() {
   "$SKITTLE" init >/dev/null 2>&1
   "$SKITTLE" source add "$FIXTURES_DIR/plugin-source" --name meta-test >/dev/null 2>&1
-  # Plugin show should reflect metadata from plugin.toml
+  # Plugin show should reflect metadata from plugin.json
   local output
   output=$("$SKITTLE" plugin show test-plugin 2>/dev/null)
   if echo "$output" | grep -qF "0.1.0"; then
-    _pass "plugin show displays version from plugin.toml"
+    _pass "plugin show displays version from plugin.json"
   else
     _fail "plugin version not shown" "0.1.0 in output" "$output"
   fi

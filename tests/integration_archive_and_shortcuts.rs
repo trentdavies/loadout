@@ -41,7 +41,7 @@ fn source_add_zip_end_to_end() {
     // Create a zip with a plugin structure
     let zip_path = tmp.path().join("my-plugin.zip");
     create_test_zip(&zip_path, &[
-        ("plugin.toml", b"name = \"my-plugin\"\nversion = \"1.0\""),
+        (".claude-plugin/plugin.json", br#"{"name": "my-plugin", "version": "1.0"}"#),
         ("skill-a/SKILL.md", b"---\nname: skill-a\ndescription: Skill A\n---\n"),
         ("skill-b/SKILL.md", b"---\nname: skill-b\ndescription: Skill B\n---\n"),
     ]);
@@ -54,7 +54,7 @@ fn source_add_zip_end_to_end() {
     // Fetch (unpack)
     let source_cache = cache_dir.join("my-plugin");
     skittle::source::fetch::fetch(&source_url, &source_cache).unwrap();
-    assert!(source_cache.join("plugin.toml").exists());
+    assert!(source_cache.join(".claude-plugin/plugin.json").exists());
     assert!(source_cache.join("skill-a/SKILL.md").exists());
 
     // Detect
@@ -102,10 +102,12 @@ fn source_add_claude_plugin_end_to_end() {
     let plugin_dir = tmp.path().join("my-claude-plugin");
     fs::create_dir_all(&plugin_dir).unwrap();
 
-    // .claude-plugin file
+    // .claude-plugin/plugin.json
+    let cp_dir = plugin_dir.join(".claude-plugin");
+    fs::create_dir_all(&cp_dir).unwrap();
     fs::write(
-        plugin_dir.join(".claude-plugin"),
-        r#"{"name": "claude-tool", "version": "2.0", "author": "trent"}"#,
+        cp_dir.join("plugin.json"),
+        r#"{"name": "claude-tool", "version": "2.0", "author": {"name": "trent"}}"#,
     ).unwrap();
 
     // Skills

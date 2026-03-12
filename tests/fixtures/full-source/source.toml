@@ -1,6 +1,0 @@
-[source]
-name = "test-source"
-version = "1.0.0"
-description = "A full multi-plugin source fixture for testing source.toml-based detection."
-
-plugins = ["test-plugin-a", "test-plugin-b"]

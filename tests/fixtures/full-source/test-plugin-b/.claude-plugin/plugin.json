@@ -1,0 +1,5 @@
+{
+  "name": "test-plugin-b",
+  "version": "1.0.0",
+  "description": "Second plugin in the full-source fixture."
+}

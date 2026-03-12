@@ -116,8 +116,8 @@ fn detect_full_source() {
     let path = fixtures_dir().join("full-source");
     let result = skittle::source::detect::detect(&path).unwrap();
     match result {
-        skittle::source::detect::SourceStructure::FullSource => {}
-        other => panic!("expected FullSource, got {:?}", other),
+        skittle::source::detect::SourceStructure::Marketplace => {}
+        other => panic!("expected Marketplace, got {:?}", other),
     }
 }
 

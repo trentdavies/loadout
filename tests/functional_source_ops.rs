@@ -49,15 +49,17 @@ fn setup_env(env_dir: &Path) -> (std::path::PathBuf, std::path::PathBuf, std::pa
     (config_path, data_dir, cache_dir)
 }
 
-/// Create a fixture source directory with a plugin.toml and the given skill names.
+/// Create a fixture source directory with a .claude-plugin/plugin.json and the given skill names.
 fn make_source_with_skills(source_dir: &Path, skill_names: &[&str]) {
     let skills_path = source_dir.join("skills");
     for name in skill_names {
         make_skill_fixture(&skills_path, name);
     }
+    let cp_dir = source_dir.join(".claude-plugin");
+    fs::create_dir_all(&cp_dir).unwrap();
     fs::write(
-        source_dir.join("plugin.toml"),
-        "[plugin]\nname = \"test-plugin\"\nversion = \"1.0.0\"\ndescription = \"Test plugin\"\n",
+        cp_dir.join("plugin.json"),
+        r#"{"name": "test-plugin", "version": "1.0.0", "description": "Test plugin"}"#,
     )
     .unwrap();
 }

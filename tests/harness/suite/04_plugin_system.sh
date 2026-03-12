@@ -48,7 +48,7 @@ test_plugin_show() {
 test_plugin_show_with_version() {
   "$SKITTLE" init >/dev/null 2>&1
   "$SKITTLE" source add "$FIXTURES_DIR/plugin-source" --name src-a >/dev/null 2>&1
-  # plugin.toml declares version 0.1.0
+  # plugin.json declares version 0.1.0
   assert_stdout_contains "0.1.0" "$SKITTLE" plugin show test-plugin
 }
 

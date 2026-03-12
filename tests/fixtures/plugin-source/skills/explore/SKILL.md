@@ -5,4 +5,4 @@ description: Test fixture for exploring ideas. Part of the test-plugin plugin so
 
 # Explore
 
-A test skill within the plugin-source fixture. Used to validate plugin.toml-based source detection.
+A test skill within the plugin-source fixture. Used to validate plugin.json-based source detection.

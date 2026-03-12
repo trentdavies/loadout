@@ -1,0 +1,18 @@
+{
+  "name": "test-source",
+  "owner": {
+    "name": "test"
+  },
+  "plugins": [
+    {
+      "name": "test-plugin-a",
+      "source": "./test-plugin-a",
+      "description": "First plugin in the full-source fixture."
+    },
+    {
+      "name": "test-plugin-b",
+      "source": "./test-plugin-b",
+      "description": "Second plugin in the full-source fixture."
+    }
+  ]
+}

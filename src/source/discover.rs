@@ -11,7 +11,7 @@ pub struct DiscoveredPlugin {
     pub dir_name: String,
     /// Absolute path to the plugin directory.
     pub path: PathBuf,
-    /// Whether this plugin has an explicit plugin.toml manifest.
+    /// Whether this plugin has an explicit .claude-plugin/plugin.json manifest.
     pub has_manifest: bool,
 }
 
@@ -33,8 +33,8 @@ pub struct DiscoveredSkill {
 /// Discover plugins within a source directory.
 ///
 /// Scans subdirectories for:
-/// 1. Explicit plugins — subdirs containing plugin.toml
-/// 2. Implicit plugins — subdirs containing skill directories (SKILL.md) but no plugin.toml
+/// 1. Explicit plugins — subdirs containing .claude-plugin/plugin.json
+/// 2. Implicit plugins — subdirs containing skill directories (SKILL.md)
 ///
 /// Skips hidden directories (starting with '.').
 /// Returns results sorted by directory name.
@@ -60,8 +60,8 @@ pub fn discover_plugins(source_path: &Path) -> Result<Vec<DiscoveredPlugin>> {
 
         let dir_path = entry.path();
 
-        // Explicit: has plugin.toml
-        if dir_path.join("plugin.toml").exists() {
+        // Explicit: has .claude-plugin/plugin.json
+        if dir_path.join(".claude-plugin/plugin.json").exists() {
             plugins.push(DiscoveredPlugin {
                 dir_name,
                 path: dir_path,
@@ -208,13 +208,17 @@ mod tests {
     #[test]
     fn discover_plugins_multi_plugin() {
         let tmp = TempDir::new().unwrap();
-        // Create two plugin dirs with skill subdirs
+        // Create two plugin dirs
         let p1 = tmp.path().join("alpha");
         let p2 = tmp.path().join("beta");
         fs::create_dir_all(&p1).unwrap();
         fs::create_dir_all(&p2).unwrap();
-        // alpha has a plugin.toml
-        fs::write(p1.join("plugin.toml"), "name = \"alpha\"").unwrap();
+        // alpha has .claude-plugin/plugin.json
+        let cp1 = p1.join(".claude-plugin");
+        fs::create_dir_all(&cp1).unwrap();
+        fs::write(cp1.join("plugin.json"), r#"{"name": "alpha"}"#).unwrap();
+        // also needs skills to be valid
+        make_skill_dir(&p1.join("skills"), "sk-a", "---\nname: sk-a\ndescription: d\n---\n");
         // beta has a skill subdir (implicit plugin)
         make_skill_dir(&p2, "my-skill", "---\nname: my-skill\ndescription: d\n---\n");
 
@@ -231,7 +235,9 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let hidden = tmp.path().join(".hidden");
         fs::create_dir_all(&hidden).unwrap();
-        fs::write(hidden.join("plugin.toml"), "name = \"hidden\"").unwrap();
+        let cp = hidden.join(".claude-plugin");
+        fs::create_dir_all(&cp).unwrap();
+        fs::write(cp.join("plugin.json"), r#"{"name": "hidden"}"#).unwrap();
 
         let plugins = discover_plugins(tmp.path()).unwrap();
         assert!(plugins.is_empty());
@@ -249,8 +255,11 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         for name in &["zeta", "alpha", "mid"] {
             let d = tmp.path().join(name);
-            fs::create_dir_all(&d).unwrap();
-            fs::write(d.join("plugin.toml"), format!("name = \"{}\"", name)).unwrap();
+            let cp = d.join(".claude-plugin");
+            fs::create_dir_all(&cp).unwrap();
+            fs::write(cp.join("plugin.json"), format!(r#"{{"name": "{}"}}"#, name)).unwrap();
+            // Need skills for discovery
+            make_skill_dir(&d.join("skills"), "sk", "---\nname: sk\ndescription: d\n---\n");
         }
         let plugins = discover_plugins(tmp.path()).unwrap();
         let names: Vec<&str> = plugins.iter().map(|p| p.dir_name.as_str()).collect();

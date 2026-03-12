@@ -7,9 +7,9 @@ use anyhow::{bail, Result};
 pub enum SourceStructure {
     /// A single SKILL.md file (path points to the file).
     SingleFile { skill_name: String },
-    /// Directory with source.toml — multi-plugin source.
-    FullSource,
-    /// Directory with plugin.toml — single plugin.
+    /// Directory with .claude-plugin/marketplace.json — multi-plugin marketplace.
+    Marketplace,
+    /// Directory with .claude-plugin/plugin.json — single plugin.
     SinglePlugin,
     /// Directory with subdirs containing SKILL.md — flat plugin (inferred).
     FlatSkills,
@@ -21,12 +21,11 @@ pub enum SourceStructure {
 ///
 /// Detection order:
 /// 1. Single file with YAML frontmatter → SingleFile
-/// 2. Directory with source.toml → FullSource
-/// 3. Directory with plugin.toml → SinglePlugin
-/// 4. Directory with .claude-plugin → SinglePlugin
-/// 5. Directory with subdirs containing SKILL.md → FlatSkills
-/// 6. Directory containing SKILL.md directly → SingleSkillDir
-/// 7. Error
+/// 2. Directory with .claude-plugin/marketplace.json → Marketplace
+/// 3. Directory with .claude-plugin/plugin.json → SinglePlugin
+/// 4. Directory with subdirs containing SKILL.md → FlatSkills
+/// 5. Directory containing SKILL.md directly → SingleSkillDir
+/// 6. Error
 pub fn detect(path: &Path) -> Result<SourceStructure> {
     // 1. Single file
     if path.is_file() {
@@ -48,22 +47,17 @@ pub fn detect(path: &Path) -> Result<SourceStructure> {
         bail!("source path is not a file or directory: {}", path.display());
     }
 
-    // 2. source.toml
-    if path.join("source.toml").exists() {
-        return Ok(SourceStructure::FullSource);
+    // 2. .claude-plugin/marketplace.json
+    if path.join(".claude-plugin/marketplace.json").exists() {
+        return Ok(SourceStructure::Marketplace);
     }
 
-    // 3. plugin.toml
-    if path.join("plugin.toml").exists() {
+    // 3. .claude-plugin/plugin.json
+    if path.join(".claude-plugin/plugin.json").exists() {
         return Ok(SourceStructure::SinglePlugin);
     }
 
-    // 4. .claude-plugin
-    if path.join(".claude-plugin").exists() {
-        return Ok(SourceStructure::SinglePlugin);
-    }
-
-    // 5. Subdirs with SKILL.md
+    // 4. Subdirs with SKILL.md
     if has_skill_subdirs(path) {
         return Ok(SourceStructure::FlatSkills);
     }
@@ -82,8 +76,8 @@ pub fn detect(path: &Path) -> Result<SourceStructure> {
         "cannot determine source structure at: {}\n\
          Expected one of:\n\
          - A SKILL.md file with YAML frontmatter\n\
-         - A directory with source.toml (multi-plugin source)\n\
-         - A directory with plugin.toml (single plugin)\n\
+         - A directory with .claude-plugin/marketplace.json (multi-plugin marketplace)\n\
+         - A directory with .claude-plugin/plugin.json (single plugin)\n\
          - A directory with subdirectories containing SKILL.md files\n\
          - A directory containing SKILL.md directly",
         path.display()
@@ -97,12 +91,10 @@ pub fn has_skill_frontmatter(path: &Path) -> bool {
         Err(_) => return false,
     };
 
-    // Check for YAML frontmatter delimiters
     if !content.starts_with("---") {
         return false;
     }
 
-    // Find the closing ---
     let rest = &content[3..];
     let end = match rest.find("\n---") {
         Some(pos) => pos,
@@ -221,6 +213,20 @@ mod tests {
         path
     }
 
+    /// Create a .claude-plugin/plugin.json structure.
+    fn make_plugin_json(dir: &Path, json: &str) {
+        let cp_dir = dir.join(".claude-plugin");
+        fs::create_dir_all(&cp_dir).unwrap();
+        fs::write(cp_dir.join("plugin.json"), json).unwrap();
+    }
+
+    /// Create a .claude-plugin/marketplace.json structure.
+    fn make_marketplace_json(dir: &Path, json: &str) {
+        let cp_dir = dir.join(".claude-plugin");
+        fs::create_dir_all(&cp_dir).unwrap();
+        fs::write(cp_dir.join("marketplace.json"), json).unwrap();
+    }
+
     // -- detect() tests --
 
     #[test]
@@ -234,22 +240,39 @@ mod tests {
     }
 
     #[test]
-    fn detect_full_source() {
+    fn detect_marketplace() {
         let tmp = TempDir::new().unwrap();
-        fs::write(tmp.path().join("source.toml"), "name = \"src\"").unwrap();
+        make_marketplace_json(tmp.path(), r#"{"name": "mkt", "plugins": []}"#);
         match detect(tmp.path()).unwrap() {
-            SourceStructure::FullSource => {}
-            other => panic!("expected FullSource, got {:?}", other),
+            SourceStructure::Marketplace => {}
+            other => panic!("expected Marketplace, got {:?}", other),
         }
     }
 
     #[test]
-    fn detect_single_plugin() {
+    fn detect_single_plugin_via_plugin_json() {
         let tmp = TempDir::new().unwrap();
-        fs::write(tmp.path().join("plugin.toml"), "name = \"plug\"").unwrap();
+        make_plugin_json(tmp.path(), r#"{"name": "my-plugin"}"#);
+        let skill_dir = tmp.path().join("skills").join("my-skill");
+        fs::create_dir_all(&skill_dir).unwrap();
+        write_skill(&skill_dir, "SKILL.md", "---\nname: my-skill\ndescription: test\n---\n");
         match detect(tmp.path()).unwrap() {
             SourceStructure::SinglePlugin => {}
             other => panic!("expected SinglePlugin, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn detect_marketplace_wins_over_plugin_json() {
+        let tmp = TempDir::new().unwrap();
+        // Both marketplace.json and plugin.json exist — marketplace wins
+        let cp_dir = tmp.path().join(".claude-plugin");
+        fs::create_dir_all(&cp_dir).unwrap();
+        fs::write(cp_dir.join("marketplace.json"), r#"{"name": "mkt", "plugins": []}"#).unwrap();
+        fs::write(cp_dir.join("plugin.json"), r#"{"name": "plug"}"#).unwrap();
+        match detect(tmp.path()).unwrap() {
+            SourceStructure::Marketplace => {}
+            other => panic!("expected Marketplace, got {:?}", other),
         }
     }
 
@@ -315,7 +338,6 @@ mod tests {
     fn has_frontmatter_name_only() {
         let tmp = TempDir::new().unwrap();
         let f = write_skill(tmp.path(), "SKILL.md", "---\nname: x\n---\nbody");
-        // requires both name: and description:
         assert!(!has_skill_frontmatter(&f));
     }
 
@@ -423,38 +445,8 @@ mod tests {
     fn frontmatter_empty_delimiters() {
         let tmp = TempDir::new().unwrap();
         let f = write_skill(tmp.path(), "SKILL.md", "---\n---\nbody");
-        assert!(!has_skill_frontmatter(&f)); // no name: or description:
+        assert!(!has_skill_frontmatter(&f));
         assert_eq!(parse_skill_name(&f), None);
-    }
-
-    // -- .claude-plugin detection --
-
-    #[test]
-    fn detect_claude_plugin_only() {
-        let tmp = TempDir::new().unwrap();
-        fs::write(tmp.path().join(".claude-plugin"), r#"{"name": "my-plugin"}"#).unwrap();
-        let skill_dir = tmp.path().join("my-skill");
-        fs::create_dir_all(&skill_dir).unwrap();
-        write_skill(&skill_dir, "SKILL.md", "---\nname: my-skill\ndescription: test\n---\n");
-        match detect(tmp.path()).unwrap() {
-            SourceStructure::SinglePlugin => {}
-            other => panic!("expected SinglePlugin, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn detect_plugin_toml_wins_over_claude_plugin() {
-        let tmp = TempDir::new().unwrap();
-        fs::write(tmp.path().join("plugin.toml"), "name = \"from-toml\"").unwrap();
-        fs::write(tmp.path().join(".claude-plugin"), r#"{"name": "from-claude"}"#).unwrap();
-        let skill_dir = tmp.path().join("sk");
-        fs::create_dir_all(&skill_dir).unwrap();
-        write_skill(&skill_dir, "SKILL.md", "---\nname: sk\ndescription: d\n---\n");
-        // plugin.toml is checked before .claude-plugin in detection order
-        match detect(tmp.path()).unwrap() {
-            SourceStructure::SinglePlugin => {}
-            other => panic!("expected SinglePlugin, got {:?}", other),
-        }
     }
 
     // -- kebab-case validation --

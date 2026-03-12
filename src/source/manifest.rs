@@ -2,163 +2,64 @@ use std::fs;
 use std::path::Path;
 use anyhow::{Context, Result};
 
-/// Parsed source.toml manifest.
+/// Parsed marketplace.json — a multi-plugin source.
+/// Found at `.claude-plugin/marketplace.json`.
 #[derive(Debug, Clone, serde::Deserialize)]
-pub struct SourceManifest {
+pub struct MarketplaceManifest {
     pub name: String,
-    pub version: Option<String>,
-    pub description: Option<String>,
-    pub plugins: Option<Vec<String>>,
-    pub assets: Option<Vec<String>>,
+    pub owner: Option<MarketplaceOwner>,
+    pub plugins: Vec<MarketplacePlugin>,
 }
 
-/// Parsed plugin.toml manifest.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct MarketplaceOwner {
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct MarketplacePlugin {
+    pub name: String,
+    pub source: String,
+    pub description: Option<String>,
+    pub author: Option<MarketplaceAuthor>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct MarketplaceAuthor {
+    pub name: Option<String>,
+}
+
+/// Parsed plugin.json — a single plugin.
+/// Found at `.claude-plugin/plugin.json`.
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct PluginManifest {
     pub name: String,
     pub version: Option<String>,
     pub description: Option<String>,
-    pub assets: Option<Vec<String>>,
+    pub author: Option<PluginAuthor>,
 }
 
-// -- source.toml file format (supports [source] wrapper or flat) --
-
-#[derive(Debug, serde::Deserialize)]
-struct SourceManifestFile {
-    source: Option<SourceManifestSection>,
-    name: Option<String>,
-    version: Option<String>,
-    description: Option<String>,
-    plugins: Option<Vec<String>>,
-    assets: Option<Vec<String>>,
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct PluginAuthor {
+    pub name: Option<String>,
 }
 
-#[derive(Debug, serde::Deserialize)]
-struct SourceManifestSection {
-    name: String,
-    version: Option<String>,
-    description: Option<String>,
-    plugins: Option<Vec<String>>,
-    assets: Option<Vec<String>>,
-}
-
-impl SourceManifestFile {
-    fn into_manifest(self) -> Result<SourceManifest> {
-        if let Some(s) = self.source {
-            Ok(SourceManifest {
-                name: s.name,
-                version: s.version,
-                description: s.description,
-                plugins: s.plugins,
-                assets: s.assets,
-            })
-        } else {
-            let name = self.name
-                .filter(|n| !n.is_empty())
-                .ok_or_else(|| anyhow::anyhow!("source.toml: 'name' is required"))?;
-            Ok(SourceManifest {
-                name,
-                version: self.version,
-                description: self.description,
-                plugins: self.plugins,
-                assets: self.assets,
-            })
-        }
-    }
-}
-
-// -- plugin.toml file format (supports [plugin] wrapper or flat) --
-
-#[derive(Debug, serde::Deserialize)]
-struct PluginManifestFile {
-    plugin: Option<PluginManifestSection>,
-    name: Option<String>,
-    version: Option<String>,
-    description: Option<String>,
-    assets: Option<Vec<String>>,
-}
-
-#[derive(Debug, serde::Deserialize)]
-struct PluginManifestSection {
-    name: String,
-    version: Option<String>,
-    description: Option<String>,
-    assets: Option<Vec<String>>,
-}
-
-impl PluginManifestFile {
-    fn into_manifest(self) -> Result<PluginManifest> {
-        if let Some(p) = self.plugin {
-            Ok(PluginManifest {
-                name: p.name,
-                version: p.version,
-                description: p.description,
-                assets: p.assets,
-            })
-        } else {
-            let name = self.name
-                .filter(|n| !n.is_empty())
-                .ok_or_else(|| anyhow::anyhow!("plugin.toml: 'name' is required"))?;
-            Ok(PluginManifest {
-                name,
-                version: self.version,
-                description: self.description,
-                assets: self.assets,
-            })
-        }
-    }
-}
-
-/// Load and validate a source.toml file.
-pub fn load_source_manifest(path: &Path) -> Result<SourceManifest> {
+/// Load and validate a marketplace.json file.
+pub fn load_marketplace(path: &Path) -> Result<MarketplaceManifest> {
     let content = fs::read_to_string(path)
         .with_context(|| format!("failed to read {}", path.display()))?;
-    let file: SourceManifestFile = toml::from_str(&content)
+    let manifest: MarketplaceManifest = serde_json::from_str(&content)
         .with_context(|| format!("failed to parse {}", path.display()))?;
-    file.into_manifest()
+    Ok(manifest)
 }
 
-/// Metadata extracted from a .claude-plugin file.
-#[derive(Debug, Clone, Default)]
-pub struct ClaudePluginMetadata {
-    pub name: Option<String>,
-    pub version: Option<String>,
-    pub description: Option<String>,
-    pub author: Option<String>,
-}
-
-/// Load metadata from a .claude-plugin file (JSON, parsed defensively).
-/// Returns None if the file cannot be read or parsed — never fails fatally.
-pub fn load_claude_plugin_metadata(path: &Path) -> Option<ClaudePluginMetadata> {
-    let content = match fs::read_to_string(path) {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("warning: failed to read {}: {}", path.display(), e);
-            return None;
-        }
-    };
-    let value: serde_json::Value = match serde_json::from_str(&content) {
-        Ok(v) => v,
-        Err(e) => {
-            eprintln!("warning: failed to parse {}: {}", path.display(), e);
-            return None;
-        }
-    };
-    Some(ClaudePluginMetadata {
-        name: value.get("name").and_then(|v| v.as_str()).map(String::from),
-        version: value.get("version").and_then(|v| v.as_str()).map(String::from),
-        description: value.get("description").and_then(|v| v.as_str()).map(String::from),
-        author: value.get("author").and_then(|v| v.as_str()).map(String::from),
-    })
-}
-
-/// Load and validate a plugin.toml file.
+/// Load and validate a plugin.json file.
 pub fn load_plugin_manifest(path: &Path) -> Result<PluginManifest> {
     let content = fs::read_to_string(path)
         .with_context(|| format!("failed to read {}", path.display()))?;
-    let file: PluginManifestFile = toml::from_str(&content)
+    let manifest: PluginManifest = serde_json::from_str(&content)
         .with_context(|| format!("failed to parse {}", path.display()))?;
-    file.into_manifest()
+    Ok(manifest)
 }
 
 #[cfg(test)]
@@ -166,156 +67,113 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    fn write_manifest(dir: &Path, name: &str, content: &str) -> std::path::PathBuf {
+    fn write_json(dir: &Path, name: &str, content: &str) -> std::path::PathBuf {
         let path = dir.join(name);
         std::fs::write(&path, content).unwrap();
         path
     }
 
-    // -- load_source_manifest() tests --
+    // -- marketplace.json tests --
 
     #[test]
-    fn source_manifest_with_section_wrapper() {
+    fn marketplace_valid() {
         let tmp = TempDir::new().unwrap();
-        let f = write_manifest(tmp.path(), "source.toml", "[source]\nname = \"my-source\"\nversion = \"1.0\"");
-        let m = load_source_manifest(&f).unwrap();
-        assert_eq!(m.name, "my-source");
-        assert_eq!(m.version.as_deref(), Some("1.0"));
+        let f = write_json(tmp.path(), "marketplace.json", r#"{
+            "name": "my-marketplace",
+            "owner": {"name": "Anthropic"},
+            "plugins": [
+                {"name": "legal", "source": "./legal", "description": "Legal tools"},
+                {"name": "sales", "source": "./sales"}
+            ]
+        }"#);
+        let m = load_marketplace(&f).unwrap();
+        assert_eq!(m.name, "my-marketplace");
+        assert_eq!(m.owner.unwrap().name.as_deref(), Some("Anthropic"));
+        assert_eq!(m.plugins.len(), 2);
+        assert_eq!(m.plugins[0].name, "legal");
+        assert_eq!(m.plugins[0].source, "./legal");
+        assert_eq!(m.plugins[0].description.as_deref(), Some("Legal tools"));
     }
 
     #[test]
-    fn source_manifest_flat_form() {
+    fn marketplace_with_plugin_authors() {
         let tmp = TempDir::new().unwrap();
-        let f = write_manifest(tmp.path(), "source.toml", "name = \"flat-src\"\ndescription = \"test\"");
-        let m = load_source_manifest(&f).unwrap();
-        assert_eq!(m.name, "flat-src");
-        assert_eq!(m.description.as_deref(), Some("test"));
+        let f = write_json(tmp.path(), "marketplace.json", r#"{
+            "name": "mkt",
+            "plugins": [
+                {"name": "slack", "source": "./slack", "author": {"name": "Salesforce"}}
+            ]
+        }"#);
+        let m = load_marketplace(&f).unwrap();
+        assert_eq!(m.plugins[0].author.as_ref().unwrap().name.as_deref(), Some("Salesforce"));
     }
 
     #[test]
-    fn source_manifest_missing_name() {
+    fn marketplace_missing_name_errors() {
         let tmp = TempDir::new().unwrap();
-        let f = write_manifest(tmp.path(), "source.toml", "description = \"no name\"");
-        assert!(load_source_manifest(&f).is_err());
+        let f = write_json(tmp.path(), "marketplace.json", r#"{"plugins": []}"#);
+        assert!(load_marketplace(&f).is_err());
     }
 
     #[test]
-    fn source_manifest_empty_name() {
-        let tmp = TempDir::new().unwrap();
-        let f = write_manifest(tmp.path(), "source.toml", "name = \"\"");
-        assert!(load_source_manifest(&f).is_err());
+    fn marketplace_not_found_errors() {
+        assert!(load_marketplace(Path::new("/nonexistent/marketplace.json")).is_err());
     }
 
     #[test]
-    fn source_manifest_file_not_found() {
-        assert!(load_source_manifest(Path::new("/nonexistent/source.toml")).is_err());
+    fn marketplace_invalid_json_errors() {
+        let tmp = TempDir::new().unwrap();
+        let f = write_json(tmp.path(), "marketplace.json", "not json");
+        assert!(load_marketplace(&f).is_err());
     }
 
-    #[test]
-    fn source_manifest_invalid_toml() {
-        let tmp = TempDir::new().unwrap();
-        let f = write_manifest(tmp.path(), "source.toml", "[invalid toml");
-        assert!(load_source_manifest(&f).is_err());
-    }
+    // -- plugin.json tests --
 
     #[test]
-    fn source_manifest_with_plugins_list() {
+    fn plugin_json_valid() {
         let tmp = TempDir::new().unwrap();
-        let f = write_manifest(tmp.path(), "source.toml", "name = \"src\"\nplugins = [\"a\", \"b\"]");
-        let m = load_source_manifest(&f).unwrap();
-        assert_eq!(m.plugins.as_ref().unwrap().len(), 2);
-    }
-
-    #[test]
-    fn source_manifest_empty_plugins_list() {
-        let tmp = TempDir::new().unwrap();
-        let f = write_manifest(tmp.path(), "source.toml", "name = \"src\"\nplugins = []");
-        let m = load_source_manifest(&f).unwrap();
-        assert!(m.plugins.unwrap().is_empty());
-    }
-
-    // -- load_plugin_manifest() tests --
-
-    #[test]
-    fn plugin_manifest_happy_path() {
-        let tmp = TempDir::new().unwrap();
-        let f = write_manifest(tmp.path(), "plugin.toml", "name = \"my-plugin\"\nversion = \"0.1\"");
+        let f = write_json(tmp.path(), "plugin.json", r#"{
+            "name": "legal",
+            "version": "1.1.0",
+            "description": "Legal tools",
+            "author": {"name": "Anthropic"}
+        }"#);
         let m = load_plugin_manifest(&f).unwrap();
-        assert_eq!(m.name, "my-plugin");
-        assert_eq!(m.version.as_deref(), Some("0.1"));
+        assert_eq!(m.name, "legal");
+        assert_eq!(m.version.as_deref(), Some("1.1.0"));
+        assert_eq!(m.description.as_deref(), Some("Legal tools"));
+        assert_eq!(m.author.unwrap().name.as_deref(), Some("Anthropic"));
     }
 
     #[test]
-    fn plugin_manifest_with_section_wrapper() {
+    fn plugin_json_minimal() {
         let tmp = TempDir::new().unwrap();
-        let f = write_manifest(tmp.path(), "plugin.toml", "[plugin]\nname = \"wrapped\"");
+        let f = write_json(tmp.path(), "plugin.json", r#"{"name": "minimal"}"#);
         let m = load_plugin_manifest(&f).unwrap();
-        assert_eq!(m.name, "wrapped");
+        assert_eq!(m.name, "minimal");
+        assert!(m.version.is_none());
+        assert!(m.description.is_none());
+        assert!(m.author.is_none());
     }
 
     #[test]
-    fn plugin_manifest_missing_name() {
+    fn plugin_json_missing_name_errors() {
         let tmp = TempDir::new().unwrap();
-        let f = write_manifest(tmp.path(), "plugin.toml", "version = \"1.0\"");
+        let f = write_json(tmp.path(), "plugin.json", r#"{"version": "1.0"}"#);
         assert!(load_plugin_manifest(&f).is_err());
     }
 
     #[test]
-    fn plugin_manifest_with_optional_fields() {
+    fn plugin_json_not_found_errors() {
+        assert!(load_plugin_manifest(Path::new("/nonexistent/plugin.json")).is_err());
+    }
+
+    #[test]
+    fn plugin_json_extra_fields_ignored() {
         let tmp = TempDir::new().unwrap();
-        let f = write_manifest(tmp.path(), "plugin.toml", "name = \"p\"\nversion = \"2.0\"\ndescription = \"desc\"\nassets = [\"img\"]");
+        let f = write_json(tmp.path(), "plugin.json", r#"{"name": "p", "unknown_field": true}"#);
+        // serde should ignore unknown fields by default
         let m = load_plugin_manifest(&f).unwrap();
-        assert_eq!(m.description.as_deref(), Some("desc"));
-        assert_eq!(m.assets.as_ref().unwrap(), &vec!["img".to_string()]);
-    }
-
-    #[test]
-    fn plugin_manifest_unknown_fields_ignored() {
-        let tmp = TempDir::new().unwrap();
-        // serde default: unknown fields cause error unless deny_unknown_fields is absent
-        // This test verifies the manifest structs allow extra fields
-        let f = write_manifest(tmp.path(), "plugin.toml", "name = \"p\"\nunknown_field = \"value\"");
-        // This may or may not error depending on serde config — test documents behavior
-        let result = load_plugin_manifest(&f);
-        // If it errors, that's also valid behavior — just documenting
-        let _ = result;
-    }
-
-    // -- load_claude_plugin_metadata() tests --
-
-    #[test]
-    fn claude_plugin_valid() {
-        let tmp = TempDir::new().unwrap();
-        let f = write_manifest(tmp.path(), ".claude-plugin",
-            r#"{"name": "my-plugin", "version": "1.0", "author": "trent", "description": "a plugin"}"#);
-        let meta = load_claude_plugin_metadata(&f).unwrap();
-        assert_eq!(meta.name.as_deref(), Some("my-plugin"));
-        assert_eq!(meta.version.as_deref(), Some("1.0"));
-        assert_eq!(meta.author.as_deref(), Some("trent"));
-        assert_eq!(meta.description.as_deref(), Some("a plugin"));
-    }
-
-    #[test]
-    fn claude_plugin_partial_fields() {
-        let tmp = TempDir::new().unwrap();
-        let f = write_manifest(tmp.path(), ".claude-plugin", r#"{"name": "partial"}"#);
-        let meta = load_claude_plugin_metadata(&f).unwrap();
-        assert_eq!(meta.name.as_deref(), Some("partial"));
-        assert!(meta.version.is_none());
-        assert!(meta.author.is_none());
-    }
-
-    #[test]
-    fn claude_plugin_malformed_json() {
-        let tmp = TempDir::new().unwrap();
-        let f = write_manifest(tmp.path(), ".claude-plugin", "not json at all");
-        let result = load_claude_plugin_metadata(&f);
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn claude_plugin_not_found() {
-        let result = load_claude_plugin_metadata(Path::new("/nonexistent/.claude-plugin"));
-        assert!(result.is_none());
+        assert_eq!(m.name, "p");
     }
 }
