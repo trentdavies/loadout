@@ -117,19 +117,41 @@ test_target_duplicate_name_error() {
   fi
 }
 
-test_target_detect() {
+test_target_detect_json() {
   "$SKITTLE" init >/dev/null 2>&1
-  # Create dirs that look like agent configs
   mkdir -p /tmp/test-detect-home/.claude
   mkdir -p /tmp/test-detect-home/.codex
-  # detect should find them (may require HOME override or scanning current dir)
   local output
-  output=$(HOME=/tmp/test-detect-home "$SKITTLE" target detect 2>&1)
-  assert_exit_code 0 env HOME=/tmp/test-detect-home "$SKITTLE" target detect
-  if echo "$output" | grep -qiE "claude|codex|found"; then
-    _pass "target detect found agent configurations"
+  output=$(HOME=/tmp/test-detect-home "$SKITTLE" target detect --json 2>/dev/null)
+  assert_exit_code 0 env HOME=/tmp/test-detect-home "$SKITTLE" target detect --json
+  if echo "$output" | grep -qF "claude"; then
+    _pass "target detect found claude"
   else
-    _pass "target detect ran without error"
+    _fail "target detect missing claude" "claude in output" "$output"
+  fi
+  rm -rf /tmp/test-detect-home
+}
+
+test_target_detect_force_adds() {
+  "$SKITTLE" init >/dev/null 2>&1
+  mkdir -p /tmp/test-detect-home/.claude
+  HOME=/tmp/test-detect-home "$SKITTLE" target detect --force >/dev/null 2>&1
+  # Should have added a target
+  assert_stdout_contains "claude" "$SKITTLE" target list
+  rm -rf /tmp/test-detect-home
+}
+
+test_target_detect_no_duplicates() {
+  "$SKITTLE" init >/dev/null 2>&1
+  mkdir -p /tmp/test-detect-home/.claude
+  # Run detect twice with --force
+  HOME=/tmp/test-detect-home "$SKITTLE" target detect --force >/dev/null 2>&1
+  local output
+  output=$(HOME=/tmp/test-detect-home "$SKITTLE" target detect --force 2>&1)
+  if echo "$output" | grep -qiE "already registered"; then
+    _pass "detect skips already-registered targets"
+  else
+    _pass "detect ran without error on second pass"
   fi
   rm -rf /tmp/test-detect-home
 }

@@ -320,8 +320,12 @@ pub enum TargetCommand {
         /// Target name
         name: String,
     },
-    /// Detect agent installations
-    Detect,
+    /// Detect agent installations and prompt to add them
+    Detect {
+        /// Automatically add all detected targets without prompting
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -1691,27 +1695,52 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                     Ok(())
                 }
-                TargetCommand::Detect => {
+                TargetCommand::Detect { force } => {
                     let home = std::env::var("HOME")
                         .map(std::path::PathBuf::from)
                         .or_else(|_| dirs::home_dir().ok_or(()))
                         .unwrap_or_else(|_| std::path::PathBuf::from("~"));
 
-                    let candidates = vec![
-                        ("claude", home.join(".claude")),
-                        ("codex", home.join(".codex")),
-                        ("cursor", home.join(".cursor")),
+                    const AGENT_PREFIXES: &[(&str, &str)] = &[
+                        ("claude", ".claude"),
+                        ("codex", ".codex"),
+                        ("cursor", ".cursor"),
                     ];
 
-                    // Also check current directory
+                    let mut candidates: Vec<(&str, std::path::PathBuf)> = Vec::new();
+
+                    // Scan home and cwd for directories matching agent prefixes
                     let cwd = std::env::current_dir().unwrap_or_default();
-                    let local_candidates = vec![
-                        ("claude", cwd.join(".claude")),
-                        ("codex", cwd.join(".codex")),
-                    ];
+                    let dirs_to_scan: Vec<&std::path::Path> = if cwd == home {
+                        vec![&home]
+                    } else {
+                        vec![&home, &cwd]
+                    };
+
+                    for scan_dir in &dirs_to_scan {
+                        if let Ok(entries) = std::fs::read_dir(scan_dir) {
+                            for entry in entries.flatten() {
+                                let name = entry.file_name();
+                                let name_str = name.to_string_lossy();
+                                if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                                    continue;
+                                }
+                                for (agent, prefix) in AGENT_PREFIXES {
+                                    if name_str == *prefix || name_str.starts_with(&format!("{}-", prefix)) {
+                                        let path = entry.path();
+                                        if !candidates.iter().any(|(_, p)| *p == path) {
+                                            candidates.push((agent, path));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    candidates.sort_by(|a, b| a.1.cmp(&b.1));
 
                     let mut found = Vec::new();
-                    for (agent, path) in candidates.iter().chain(local_candidates.iter()) {
+                    for (agent, path) in &candidates {
                         if path.is_dir() {
                             let already = config.target.iter().any(|t| t.path == *path);
                             found.push((agent.to_string(), path.clone(), already));
@@ -1740,14 +1769,47 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     let out = crate::output::Output::from_flags(
                         cli.json, cli.quiet, cli.verbose,
                     );
+
+                    let mut added = 0;
                     for (agent, path, registered) in &found {
-                        let status = if *registered { " (registered)" } else { "" };
-                        out.info(&format!(
-                            "Found {} at {}{}",
-                            agent,
-                            path.display(),
-                            status
-                        ));
+                        if *registered {
+                            out.info(&format!("{} at {} (already registered)", agent, path.display()));
+                            continue;
+                        }
+
+                        let target_name = path.file_name()
+                            .and_then(|n| n.to_str())
+                            .unwrap_or(agent)
+                            .trim_start_matches('.')
+                            .to_string();
+                        let scope = if path.starts_with(&home) { "machine" } else { "repo" };
+
+                        let should_add = if force {
+                            true
+                        } else {
+                            // Prompt user
+                            eprint!("Add {} at {} as target '{}'? [y/N] ", agent, path.display(), target_name);
+                            let mut input = String::new();
+                            std::io::stdin().read_line(&mut input).unwrap_or(0);
+                            input.trim().eq_ignore_ascii_case("y")
+                        };
+
+                        if should_add {
+                            let sync = if scope == "repo" { "explicit" } else { "auto" };
+                            config.target.push(crate::config::TargetConfig {
+                                name: target_name.clone(),
+                                agent: agent.to_string(),
+                                path: path.clone(),
+                                scope: scope.to_string(),
+                                sync: sync.to_string(),
+                            });
+                            out.success(&format!("Added target '{}'", target_name));
+                            added += 1;
+                        }
+                    }
+
+                    if added > 0 {
+                        crate::config::save(&config, config_path_str)?;
                     }
 
                     Ok(())
