@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Suite 01: Config Management
-# Tests init, config show, config show --json, cache show, cache clean.
+# Tests init, config show, config show --json.
 
 test_init_creates_config() {
   assert_exit_code 0 "$SKITTLE" init
@@ -38,34 +38,6 @@ test_config_show_json() {
     _pass "config show --json produces valid JSON"
   else
     _fail "config show --json is not valid JSON" "valid JSON" "$output"
-  fi
-}
-
-test_cache_show() {
-  "$SKITTLE" init >/dev/null 2>&1
-  assert_exit_code 0 "$SKITTLE" cache show
-}
-
-test_cache_clean_empty() {
-  "$SKITTLE" init >/dev/null 2>&1
-  assert_exit_code 0 "$SKITTLE" cache clean --force
-  local output
-  output=$("$SKITTLE" cache clean --force 2>&1)
-  if echo "$output" | grep -qiE "empty|clean|no.*cache"; then
-    _pass "cache clean reports empty/clean state"
-  else
-    _fail "cache clean did not report empty state" "empty/clean message" "$output"
-  fi
-}
-
-test_cache_clean_preview_default() {
-  "$SKITTLE" init >/dev/null 2>&1
-  local output
-  output=$("$SKITTLE" cache clean 2>&1)
-  if echo "$output" | grep -qiE "would|force"; then
-    _pass "cache clean defaults to preview mode"
-  else
-    _fail "cache clean did not show preview" "would/force message" "$output"
   fi
 }
 

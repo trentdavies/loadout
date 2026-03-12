@@ -40,26 +40,6 @@ The config TOML SHALL support sections for: sources (`[[source]]`), targets (`[[
 - **WHEN** a config file contains source, target, adapter, and bundle sections
 - **THEN** the CLI SHALL parse all sections and make them available to all commands
 
-### Requirement: Cache clean
-The CLI SHALL support `skittle cache clean` to remove all cached source content from the data directory.
-
-#### Scenario: Clean cache
-- **WHEN** user runs `skittle cache clean`
-- **THEN** all content in `~/.local/share/skittle/sources/` SHALL be deleted
-- **THEN** `registry.json` SHALL be cleared
-- **THEN** the CLI SHALL display the amount of space freed
-
-#### Scenario: Clean empty cache
-- **WHEN** user runs `skittle cache clean` and the cache is empty
-- **THEN** the CLI SHALL display "Cache is already empty"
-
-### Requirement: Cache show
-The CLI SHALL support `skittle cache show` to display the cache location and size.
-
-#### Scenario: Show cache
-- **WHEN** user runs `skittle cache show`
-- **THEN** the CLI SHALL display the cache path, total size, and breakdown by source
-
 ### Requirement: Status command
 The CLI SHALL support `skittle status` to display a summary of the current state: registered sources, targets, installed skills, active bundles, and anything that's out of date.
 

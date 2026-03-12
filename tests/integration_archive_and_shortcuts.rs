@@ -125,10 +125,10 @@ fn source_add_claude_plugin_end_to_end() {
     assert_eq!(registered.plugins[0].skills.len(), 1);
 }
 
-// ─── Test: skittle add delegates to source add ──────────────────────────────
+// ─── Test: skittle add parses correctly ──────────────────────────────────────
 
 #[test]
-fn add_shorthand_parses_correctly() {
+fn add_parses_correctly() {
     use clap::Parser;
     let cli = skittle::cli::Cli::try_parse_from(["skittle", "add", "/tmp/my-src"]).unwrap();
     match cli.command {
@@ -140,13 +140,18 @@ fn add_shorthand_parses_correctly() {
     }
 }
 
-// ─── Test: skittle list delegates to skill list ─────────────────────────────
+// ─── Test: skittle list parses correctly ─────────────────────────────────────
 
 #[test]
-fn list_shorthand_parses() {
+fn list_parses() {
     use clap::Parser;
     let cli = skittle::cli::Cli::try_parse_from(["skittle", "list"]).unwrap();
-    assert!(matches!(cli.command, skittle::cli::Command::List));
+    match cli.command {
+        skittle::cli::Command::List { name } => {
+            assert!(name.is_none());
+        }
+        _ => panic!("expected List command"),
+    }
 }
 
 // ─── Test: skittle init with URL ────────────────────────────────────────────

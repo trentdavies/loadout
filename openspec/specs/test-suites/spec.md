@@ -5,15 +5,15 @@ Suite `00_cli_framework.sh` SHALL test: `skittle --help` exits 0 and lists all c
 
 #### Scenario: Help flags work
 - **WHEN** `skittle --help` is run
-- **THEN** exit code SHALL be 0 and stdout SHALL contain "install", "uninstall", "source", "target", "bundle", "skill", "plugin", "status", "config", "cache", "init"
+- **THEN** exit code SHALL be 0 and stdout SHALL contain "init", "add", "remove", "update", "list", "install", "uninstall", "status", "bundle", "target", "config"
 
 #### Scenario: Unknown command errors
 - **WHEN** `skittle foobar` is run
 - **THEN** exit code SHALL be non-zero and stderr SHALL contain "error"
 
 #### Scenario: Subcommand help
-- **WHEN** `skittle source --help` is run
-- **THEN** exit code SHALL be 0 and stdout SHALL contain "add", "remove", "list", "show", "update"
+- **WHEN** `skittle add --help` is run
+- **THEN** exit code SHALL be 0 and stdout SHALL contain usage information for the add command
 
 #### Scenario: Global flags accepted
 - **WHEN** `skittle status --json` is run
@@ -24,7 +24,7 @@ Suite `00_cli_framework.sh` SHALL test: `skittle --help` exits 0 and lists all c
 - **THEN** exit code SHALL be 0 and no files SHALL be written
 
 ### Requirement: Config management tests
-Suite `01_config.sh` SHALL test: `skittle init` creates config file, `skittle init` on existing config shows message, `skittle config show` displays config, `skittle config show --json` outputs JSON, `skittle cache show` displays cache info, `skittle cache clean` on empty cache reports "already empty".
+Suite `01_config.sh` SHALL test: `skittle init` creates config file, `skittle init` on existing config shows message, `skittle config show` displays config, `skittle config show --json` outputs JSON.
 
 #### Scenario: Init creates config
 - **WHEN** `skittle init` is run in a clean environment
@@ -38,93 +38,74 @@ Suite `01_config.sh` SHALL test: `skittle init` creates config file, `skittle in
 - **WHEN** `skittle init` then `skittle config show` is run
 - **THEN** exit code SHALL be 0 and stdout SHALL contain "skittle" or config content
 
-#### Scenario: Cache clean on empty
-- **WHEN** `skittle cache clean` is run with no cached sources
-- **THEN** stdout SHALL contain "empty" or "already clean"
-
 ### Requirement: Source management tests
 Suite `02_source_management.sh` SHALL test: add local source, add git source (@network), remove source, list sources, show source details, update source, add duplicate name errors, remove with --force.
 
 #### Scenario: Add local source
-- **WHEN** `skittle source add /fixtures/plugin-source --name test-plugin` is run
-- **THEN** exit code SHALL be 0 and `skittle source list` SHALL show "test-plugin"
+- **WHEN** `skittle add /fixtures/plugin-source --name test-plugin` is run
+- **THEN** exit code SHALL be 0 and `skittle list` SHALL show "test-plugin"
 
 #### Scenario: Add git source
-- **WHEN** `skittle source add https://github.com/anthropics/courses.git --name anthropic` is run (requires @network)
-- **THEN** exit code SHALL be 0 and `skittle source list` SHALL show "anthropic"
+- **WHEN** `skittle add https://github.com/anthropics/courses.git --name anthropic` is run (requires @network)
+- **THEN** exit code SHALL be 0 and `skittle list` SHALL show "anthropic"
 
 #### Scenario: Remove source
-- **WHEN** `skittle source remove test-plugin` is run
-- **THEN** exit code SHALL be 0 and `skittle source list` SHALL NOT show "test-plugin"
+- **WHEN** `skittle remove test-plugin` is run
+- **THEN** exit code SHALL be 0 and `skittle list` SHALL NOT show "test-plugin"
 
 #### Scenario: List sources empty
-- **WHEN** `skittle source list` is run with no sources
+- **WHEN** `skittle list` is run with no sources
 - **THEN** stdout SHALL indicate no sources registered
 
 #### Scenario: Show source details
-- **WHEN** `skittle source show test-plugin` is run after adding
+- **WHEN** `skittle list test-plugin` is run after adding
 - **THEN** stdout SHALL contain the plugin name and skill names
 
 #### Scenario: Duplicate name error
-- **WHEN** `skittle source add /fixtures/plugin-source` is run twice without `--name`
+- **WHEN** `skittle add /fixtures/plugin-source` is run twice without `--name`
 - **THEN** the second invocation SHALL exit non-zero with an error about duplicate name
 
 ### Requirement: Source detection tests
 Suite `03_source_detection.sh` SHALL test all 5 detection paths: single SKILL.md file, flat directory with skill subdirs, plugin directory with plugin.toml, full source with source.toml, and unrecognizable directory (error case).
 
 #### Scenario: Detect single file
-- **WHEN** `skittle source add /fixtures/single-skill/SKILL.md` is run
-- **THEN** exit code SHALL be 0 and `skittle skill list` SHALL show one skill
+- **WHEN** `skittle add /fixtures/single-skill/SKILL.md` is run
+- **THEN** exit code SHALL be 0 and `skittle list` SHALL show one skill
 
 #### Scenario: Detect flat directory
-- **WHEN** `skittle source add /fixtures/flat-skills/` is run
-- **THEN** `skittle skill list` SHALL show 2 skills
+- **WHEN** `skittle add /fixtures/flat-skills/` is run
+- **THEN** `skittle list` SHALL show 2 skills
 
 #### Scenario: Detect plugin directory
-- **WHEN** `skittle source add /fixtures/plugin-source/` is run
-- **THEN** `skittle plugin list` SHALL show one plugin with 3 skills
+- **WHEN** `skittle add /fixtures/plugin-source/` is run
+- **THEN** `skittle list` SHALL show one plugin with 3 skills
 
 #### Scenario: Detect full source
-- **WHEN** `skittle source add /fixtures/full-source/` is run
-- **THEN** `skittle plugin list` SHALL show 2 plugins and `skittle skill list` SHALL show 3 skills
+- **WHEN** `skittle add /fixtures/full-source/` is run
+- **THEN** `skittle list` SHALL show 2 plugins and 3 skills
 
 #### Scenario: Reject unrecognizable directory
-- **WHEN** `skittle source add /fixtures/invalid/empty-dir/` is run
+- **WHEN** `skittle add /fixtures/invalid/empty-dir/` is run
 - **THEN** exit code SHALL be non-zero and stderr SHALL contain an error about unrecognizable structure
-
-### Requirement: Plugin system tests
-Suite `04_plugin_system.sh` SHALL test: plugin list, plugin list --source, plugin show, implicit plugin wrapping, plugin.toml parsing with metadata.
-
-#### Scenario: Plugin list
-- **WHEN** sources are added and `skittle plugin list` is run
-- **THEN** all plugins SHALL be listed with source, name, and skill count
-
-#### Scenario: Plugin show
-- **WHEN** `skittle plugin show test-plugin` is run
-- **THEN** stdout SHALL contain the plugin name, version, and list of skills
-
-#### Scenario: Plugin list filtered by source
-- **WHEN** `skittle plugin list --source test-source` is run after adding the full-source fixture
-- **THEN** only plugins from "test-source" SHALL be listed
 
 ### Requirement: Local registry tests
 Suite `05_local_registry.sh` SHALL test: XDG paths are used correctly, registry.json is created and contains entries, cache directory structure mirrors sources, skill identity resolution (short form and disambiguation).
 
-#### Scenario: Registry created on source add
-- **WHEN** `skittle source add` completes
+#### Scenario: Registry created on add
+- **WHEN** `skittle add` completes
 - **THEN** `$XDG_DATA_HOME/skittle/registry.json` SHALL exist
 
 #### Scenario: Cache mirrors source
-- **WHEN** `skittle source add /fixtures/plugin-source --name tp` is run
+- **WHEN** `skittle add /fixtures/plugin-source --name tp` is run
 - **THEN** `$XDG_DATA_HOME/skittle/sources/tp/` SHALL exist and contain cached skill files
 
 #### Scenario: Short-form skill identity
-- **WHEN** `skittle skill show test-plugin/explore` is run
+- **WHEN** `skittle list test-plugin/explore` is run
 - **THEN** exit code SHALL be 0 and skill details SHALL be displayed
 
 #### Scenario: Ambiguous skill identity
 - **WHEN** two sources contain a plugin/skill with the same name
-- **THEN** `skittle skill show <ambiguous>` SHALL exit non-zero and list the conflicting sources
+- **THEN** `skittle list <ambiguous>` SHALL exit non-zero and list the conflicting sources
 
 ### Requirement: Target management tests
 Suite `06_target_management.sh` SHALL test: add target with agent type and path, remove target, list targets, show target, target scope and sync mode defaults.
@@ -167,23 +148,23 @@ Suite `07_target_adapters.sh` SHALL test: claude adapter installs SKILL.md + sup
 - **THEN** the skill SHALL appear at `<target>/prompts/<name>/SKILL.md`
 
 ### Requirement: Skill operations tests
-Suite `08_skill_operations.sh` SHALL test: skill list, skill list with filters, skill show, Agent Skills spec validation (skip invalid frontmatter).
+Suite `08_skill_operations.sh` SHALL test: list, list with filters, list <name> for detail, Agent Skills spec validation (skip invalid frontmatter).
 
-#### Scenario: Skill list shows all skills
-- **WHEN** sources are added and `skittle skill list` is run
+#### Scenario: List shows all skills
+- **WHEN** sources are added and `skittle list` is run
 - **THEN** all skills from all sources SHALL be listed
 
-#### Scenario: Skill list filtered by plugin
-- **WHEN** `skittle skill list --plugin test-plugin` is run
+#### Scenario: List filtered by plugin
+- **WHEN** `skittle list --plugin test-plugin` is run
 - **THEN** only skills from "test-plugin" SHALL be listed
 
-#### Scenario: Skill show displays metadata
-- **WHEN** `skittle skill show test-plugin/explore` is run
+#### Scenario: List name displays metadata
+- **WHEN** `skittle list test-plugin/explore` is run
 - **THEN** stdout SHALL contain name, description, and source information
 
 #### Scenario: Invalid skills are skipped with warning
 - **WHEN** a source containing `no-frontmatter/SKILL.md` is added
-- **THEN** stderr SHALL contain a warning and the invalid skill SHALL NOT appear in `skittle skill list`
+- **THEN** stderr SHALL contain a warning and the invalid skill SHALL NOT appear in `skittle list`
 
 ### Requirement: Install engine tests
 Suite `09_install_engine.sh` SHALL test: install --all, install --skill, install --plugin, install --bundle, install --target, uninstall --skill, uninstall --bundle, dry run (-n), idempotent install, install with no flags errors.
@@ -244,7 +225,7 @@ Suite `10_bundle_management.sh` SHALL test: create, delete, list, show, add skil
 - **THEN** `skittle bundle show test-bundle` SHALL NOT list "test-plugin/explore"
 
 ### Requirement: End-to-end workflow test
-Suite `11_end_to_end.sh` SHALL test the complete workflow: `skittle init` → `skittle source add` (local fixture) → `skittle target add` (mock claude + codex) → `skittle bundle create` + `skittle bundle add` → `skittle install --bundle` → `skittle status` (verify) → `skittle bundle swap` → `skittle uninstall --bundle` → `skittle source remove` → `skittle cache clean`.
+Suite `11_end_to_end.sh` SHALL test the complete workflow: `skittle init` → `skittle add` (local fixture) → `skittle target add` (mock claude + codex) → `skittle bundle create` + `skittle bundle add` → `skittle install --bundle` → `skittle status` (verify) → `skittle bundle swap` → `skittle uninstall --bundle` → `skittle remove`.
 
 #### Scenario: Full lifecycle
 - **WHEN** the complete workflow is executed in sequence

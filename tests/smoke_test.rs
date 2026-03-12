@@ -2,7 +2,7 @@ use std::fs;
 use tempfile::TempDir;
 
 /// Full end-to-end smoke test exercising the core lifecycle:
-/// init → source add → target add → install --all → status → uninstall → cache clean
+/// init → add → target add → install --all → status → uninstall → remove
 ///
 /// This test operates at the library/module level (not CLI binary) to stay safe
 /// on the host machine. Full CLI-level E2E is covered by Docker suite 11.

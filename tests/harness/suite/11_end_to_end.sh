@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Suite 11: End-to-End Lifecycle
-# Full lifecycle: init → source add → target add → bundle create → bundle add →
-# install --bundle → status → swap → uninstall → source remove → cache clean
+# Full lifecycle: init → add → target add → bundle create → bundle add →
+# install --bundle → status → swap → uninstall → remove
 
 test_full_lifecycle() {
   reset_environment
@@ -9,8 +9,8 @@ test_full_lifecycle() {
   # 1. Init
   assert_exit_code 0 "$SKITTLE" init
 
-  # 2. Source add
-  assert_exit_code 0 "$SKITTLE" source add "$FIXTURES_DIR/plugin-source" --name lifecycle-src
+  # 2. Add source
+  assert_exit_code 0 "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name lifecycle-src
 
   # 3. Target add
   assert_exit_code 0 "$SKITTLE" target add claude "$TARGET_CLAUDE" --name lifecycle-target --scope machine --sync auto
@@ -49,11 +49,8 @@ test_full_lifecycle() {
   assert_exit_code 0 "$SKITTLE" uninstall --bundle lifecycle-bundle-b --target lifecycle-target --force
   assert_file_not_exists "$TARGET_CLAUDE/skills/verify/SKILL.md"
 
-  # 10. Source remove (--force required)
-  assert_exit_code 0 "$SKITTLE" source remove lifecycle-src --force
-
-  # 11. Cache clean (--force required)
-  assert_exit_code 0 "$SKITTLE" cache clean --force
+  # 10. Remove source (--force required)
+  assert_exit_code 0 "$SKITTLE" remove lifecycle-src --force
 
   _pass "full lifecycle completed successfully"
 }
@@ -63,13 +60,13 @@ test_multi_source_lifecycle() {
   "$SKITTLE" init >/dev/null 2>&1
 
   # Add both sources
-  "$SKITTLE" source add "$FIXTURES_DIR/plugin-source" --name src-a >/dev/null 2>&1
-  "$SKITTLE" source add "$FIXTURES_DIR/full-source" --name src-b >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name src-a >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/full-source" --name src-b >/dev/null 2>&1
   "$SKITTLE" target add claude "$TARGET_CLAUDE" --name tgt --scope machine --sync auto >/dev/null 2>&1
 
   # List skills from both sources
-  assert_stdout_contains "explore" "$SKITTLE" skill list
-  assert_stdout_contains "skill-one" "$SKITTLE" skill list
+  assert_stdout_contains "explore" "$SKITTLE" list
+  assert_stdout_contains "skill-one" "$SKITTLE" list
 
   # Install from different sources
   assert_exit_code 0 "$SKITTLE" install --skill test-plugin/explore --target tgt
@@ -89,7 +86,7 @@ test_multi_target_lifecycle() {
   reset_environment
   "$SKITTLE" init >/dev/null 2>&1
 
-  "$SKITTLE" source add "$FIXTURES_DIR/plugin-source" --name src >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name src >/dev/null 2>&1
   "$SKITTLE" target add claude "$TARGET_CLAUDE" --name tgt-claude --scope machine --sync auto >/dev/null 2>&1
   "$SKITTLE" target add codex "$TARGET_CODEX" --name tgt-codex --scope machine --sync auto >/dev/null 2>&1
 
@@ -111,7 +108,7 @@ test_bundle_swap_lifecycle() {
   reset_environment
   "$SKITTLE" init >/dev/null 2>&1
 
-  "$SKITTLE" source add "$FIXTURES_DIR/plugin-source" --name src >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name src >/dev/null 2>&1
   "$SKITTLE" target add claude "$TARGET_CLAUDE" --name tgt --scope machine --sync auto >/dev/null 2>&1
 
   # Create bundles
@@ -148,7 +145,7 @@ test_idempotent_operations_lifecycle() {
   # Init is idempotent
   assert_exit_code 0 "$SKITTLE" init
 
-  "$SKITTLE" source add "$FIXTURES_DIR/plugin-source" --name src >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name src >/dev/null 2>&1
   "$SKITTLE" target add claude "$TARGET_CLAUDE" --name tgt --scope machine --sync auto >/dev/null 2>&1
 
   # Install same skill twice — should succeed both times
@@ -174,7 +171,7 @@ test_dry_run_lifecycle() {
   reset_environment
   "$SKITTLE" init >/dev/null 2>&1
 
-  "$SKITTLE" source add "$FIXTURES_DIR/plugin-source" --name src >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name src >/dev/null 2>&1
   "$SKITTLE" target add claude "$TARGET_CLAUDE" --name tgt --scope machine --sync auto >/dev/null 2>&1
   "$SKITTLE" bundle create dry-b >/dev/null 2>&1
   "$SKITTLE" bundle add dry-b test-plugin/explore test-plugin/apply >/dev/null 2>&1
@@ -203,7 +200,7 @@ test_cleanup_lifecycle() {
   reset_environment
   "$SKITTLE" init >/dev/null 2>&1
 
-  "$SKITTLE" source add "$FIXTURES_DIR/plugin-source" --name src >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name src >/dev/null 2>&1
   "$SKITTLE" target add claude "$TARGET_CLAUDE" --name tgt --scope machine --sync auto >/dev/null 2>&1
 
   # Install some skills
@@ -218,15 +215,12 @@ test_cleanup_lifecycle() {
   "$SKITTLE" target remove tgt --force >/dev/null 2>&1
 
   # Remove source (--force required)
-  "$SKITTLE" source remove src --force >/dev/null 2>&1
+  "$SKITTLE" remove src --force >/dev/null 2>&1
 
-  # Clean cache (--force required)
-  assert_exit_code 0 "$SKITTLE" cache clean --force
-
-  # Verify sources and targets are empty
-  local source_output
-  source_output=$("$SKITTLE" source list 2>/dev/null)
-  if echo "$source_output" | grep -qF "src"; then
+  # Verify sources are gone (list should show no skills)
+  local list_output
+  list_output=$("$SKITTLE" list 2>/dev/null)
+  if echo "$list_output" | grep -qF "src"; then
     _fail "source still listed after remove" "src absent" "still present"
   else
     _pass "sources cleaned up"
@@ -245,7 +239,7 @@ test_error_recovery_lifecycle() {
   reset_environment
   "$SKITTLE" init >/dev/null 2>&1
 
-  "$SKITTLE" source add "$FIXTURES_DIR/plugin-source" --name src >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name src >/dev/null 2>&1
   "$SKITTLE" target add claude "$TARGET_CLAUDE" --name tgt --scope machine --sync auto >/dev/null 2>&1
 
   # Try installing a nonexistent skill — should fail

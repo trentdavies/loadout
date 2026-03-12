@@ -50,7 +50,7 @@ test_claude_adapter_uninstalls_cleanly() {
 
 test_custom_toml_adapter() {
   "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" source add "$FIXTURES_DIR/plugin-source" --name tp >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name tp >/dev/null 2>&1
 
   # Define a custom adapter in the config
   local config_file="$XDG_DATA_HOME/skittle/skittle.toml"
@@ -99,7 +99,7 @@ TOML
 
   # Adding the target might succeed, but installing should fail on unknown format
   "$SKITTLE" target add bad-format "$bad_target" --name test-bad-fmt >/dev/null 2>&1
-  "$SKITTLE" source add "$FIXTURES_DIR/plugin-source" --name tp >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name tp >/dev/null 2>&1
 
   local output
   output=$("$SKITTLE" install --skill test-plugin/explore --target test-bad-fmt 2>&1)

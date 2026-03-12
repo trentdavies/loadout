@@ -6,14 +6,14 @@ test_help_long_flag() {
   assert_exit_code 0 "$SKITTLE" --help
   assert_stdout_contains "install" "$SKITTLE" --help
   assert_stdout_contains "uninstall" "$SKITTLE" --help
-  assert_stdout_contains "source" "$SKITTLE" --help
+  assert_stdout_contains "add" "$SKITTLE" --help
+  assert_stdout_contains "remove" "$SKITTLE" --help
+  assert_stdout_contains "update" "$SKITTLE" --help
+  assert_stdout_contains "list" "$SKITTLE" --help
   assert_stdout_contains "target" "$SKITTLE" --help
   assert_stdout_contains "bundle" "$SKITTLE" --help
-  assert_stdout_contains "skill" "$SKITTLE" --help
-  assert_stdout_contains "plugin" "$SKITTLE" --help
   assert_stdout_contains "status" "$SKITTLE" --help
   assert_stdout_contains "config" "$SKITTLE" --help
-  assert_stdout_contains "cache" "$SKITTLE" --help
   assert_stdout_contains "init" "$SKITTLE" --help
 }
 
@@ -28,15 +28,6 @@ test_help_subcommand() {
 test_unknown_command_errors() {
   assert_exit_code 2 "$SKITTLE" foobar
   assert_stderr_contains "error" "$SKITTLE" foobar
-}
-
-test_source_subcommand_help() {
-  assert_exit_code 0 "$SKITTLE" source --help
-  assert_stdout_contains "add" "$SKITTLE" source --help
-  assert_stdout_contains "remove" "$SKITTLE" source --help
-  assert_stdout_contains "list" "$SKITTLE" source --help
-  assert_stdout_contains "show" "$SKITTLE" source --help
-  assert_stdout_contains "update" "$SKITTLE" source --help
 }
 
 test_target_subcommand_help() {
@@ -59,28 +50,10 @@ test_bundle_subcommand_help() {
   assert_stdout_contains "swap" "$SKITTLE" bundle --help
 }
 
-test_skill_subcommand_help() {
-  assert_exit_code 0 "$SKITTLE" skill --help
-  assert_stdout_contains "list" "$SKITTLE" skill --help
-  assert_stdout_contains "show" "$SKITTLE" skill --help
-}
-
-test_plugin_subcommand_help() {
-  assert_exit_code 0 "$SKITTLE" plugin --help
-  assert_stdout_contains "list" "$SKITTLE" plugin --help
-  assert_stdout_contains "show" "$SKITTLE" plugin --help
-}
-
 test_config_subcommand_help() {
   assert_exit_code 0 "$SKITTLE" config --help
   assert_stdout_contains "show" "$SKITTLE" config --help
   assert_stdout_contains "edit" "$SKITTLE" config --help
-}
-
-test_cache_subcommand_help() {
-  assert_exit_code 0 "$SKITTLE" cache --help
-  assert_stdout_contains "clean" "$SKITTLE" cache --help
-  assert_stdout_contains "show" "$SKITTLE" cache --help
 }
 
 test_install_no_flags_errors() {

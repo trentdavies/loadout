@@ -11,28 +11,28 @@ When a source URL is resolved to a local path, the CLI SHALL detect its structur
 6. Otherwise → error: cannot determine source structure
 
 #### Scenario: Single SKILL.md file
-- **WHEN** user runs `skittle source add ~/my-skill.md`
+- **WHEN** user runs `skittle add ~/my-skill.md`
 - **THEN** the CLI SHALL create an implicit source and implicit plugin both named from the file (e.g., "my-skill")
 - **THEN** the single skill SHALL be accessible as `my-skill/my-skill`
 
 #### Scenario: Marketplace with marketplace.json
-- **WHEN** user runs `skittle source add ~/marketplace` and the directory contains `.claude-plugin/marketplace.json`
+- **WHEN** user runs `skittle add ~/marketplace` and the directory contains `.claude-plugin/marketplace.json`
 - **THEN** the CLI SHALL read `marketplace.json` for the plugin list
 - **THEN** the CLI SHALL resolve each plugin's `source` path relative to the marketplace root
 - **THEN** each plugin SHALL be scanned for `.claude-plugin/plugin.json` metadata and `skills/` subdirectories
 
 #### Scenario: Single plugin with plugin.json
-- **WHEN** user runs `skittle source add ~/my-plugin` and the directory contains `.claude-plugin/plugin.json` but no `marketplace.json`
+- **WHEN** user runs `skittle add ~/my-plugin` and the directory contains `.claude-plugin/plugin.json` but no `marketplace.json`
 - **THEN** the CLI SHALL wrap the plugin in an implicit source named from the directory
 - **THEN** the plugin SHALL be accessible by its name from `plugin.json`
 
 #### Scenario: Flat directory with skill subdirectories
-- **WHEN** user runs `skittle source add ~/my-skills/` and the directory has no `.claude-plugin` manifests but contains subdirectories with `SKILL.md` files
+- **WHEN** user runs `skittle add ~/my-skills/` and the directory has no `.claude-plugin` manifests but contains subdirectories with `SKILL.md` files
 - **THEN** the CLI SHALL infer a flat plugin named after the directory
 - **THEN** each subdirectory with a `SKILL.md` SHALL be registered as a skill
 
 #### Scenario: Unrecognizable directory
-- **WHEN** user runs `skittle source add ~/random-dir` and none of the detection rules match
+- **WHEN** user runs `skittle add ~/random-dir` and none of the detection rules match
 - **THEN** the CLI SHALL exit with an error explaining what structures are expected
 
 ### Requirement: Marketplace manifest format
@@ -61,9 +61,9 @@ A `.claude-plugin/plugin.json` SHALL be a JSON file with fields: `name` (require
 When no `--name` is provided and no manifest declares a name, the source name SHALL be derived from the URL: directory name for local paths, repository name for git URLs, filename (without extension) for single files.
 
 #### Scenario: Name from directory
-- **WHEN** user runs `skittle source add ~/dev/agent-skills/` with no `--name`
+- **WHEN** user runs `skittle add ~/dev/agent-skills/` with no `--name`
 - **THEN** the source SHALL be named "agent-skills"
 
 #### Scenario: Name from git URL
-- **WHEN** user runs `skittle source add https://github.com/org/my-tools.git` with no `--name`
+- **WHEN** user runs `skittle add https://github.com/org/my-tools.git` with no `--name`
 - **THEN** the source SHALL be named "my-tools"

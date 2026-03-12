@@ -46,7 +46,7 @@ setup_source_and_targets() {
   "$SKITTLE" init >/dev/null 2>&1
 
   # Add the plugin-source fixture as a source
-  "$SKITTLE" source add "$FIXTURES_DIR/plugin-source" --name test-plugin >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name test-plugin >/dev/null 2>&1
 
   # Register mock targets
   "$SKITTLE" target add claude "$TARGET_CLAUDE" --name test-claude --scope machine --sync auto >/dev/null 2>&1

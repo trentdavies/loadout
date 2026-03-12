@@ -1,15 +1,4 @@
-## ADDED Requirements
-
-### Requirement: XDG-compliant storage
-The local registry SHALL store data at the XDG data directory (`~/.local/share/skittle/` on Linux/macOS). Configuration SHALL be stored at the XDG config directory (`~/.config/skittle/`).
-
-#### Scenario: First run creates directories
-- **WHEN** user runs any skittle command for the first time
-- **THEN** the CLI SHALL create `~/.local/share/skittle/` and `~/.config/skittle/` if they do not exist
-
-#### Scenario: XDG override
-- **WHEN** `XDG_DATA_HOME` or `XDG_CONFIG_HOME` environment variables are set
-- **THEN** the CLI SHALL use those paths instead of the defaults
+## MODIFIED Requirements
 
 ### Requirement: Registry index
 The registry SHALL maintain a JSON index file (`registry.json`) that maps source, plugin, and skill identifiers to their cached filesystem paths. The index SHALL be updated when sources are added, removed, or updated.
@@ -41,7 +30,7 @@ Source content SHALL be cached in `~/.local/share/skittle/sources/<source-name>/
 The registry SHALL support lookup by any level of the hierarchy: list all sources, list plugins within a source, list skills within a plugin, or look up a skill directly by `plugin/skill` identifier.
 
 #### Scenario: Lookup by plugin/skill
-- **WHEN** a skill is referenced as `openspec/explore` (e.g., via `skittle list openspec/explore`)
+- **WHEN** a skill is referenced as `openspec/explore`
 - **THEN** the registry SHALL resolve it to the cached path and source metadata
 
 #### Scenario: Ambiguous skill identity
