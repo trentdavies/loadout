@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -e
+
+IMAGE="skittle-sandbox"
+CONTAINER="skittle-sandbox"
+PORT="${1:-2222}"
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Build
+echo "Building sandbox..."
+docker build -f "$SCRIPT_DIR/Dockerfile.sandbox" -t "$IMAGE" "$PROJECT_DIR" || exit 1
+
+# Stop previous if running
+docker rm -f "$CONTAINER" 2>/dev/null || true
+
+# Run with SSH dir mounted read-only for git auth
+docker run -d --name "$CONTAINER" \
+    -p "$PORT":22 \
+    -v "$HOME/.ssh:/root/.ssh:ro" \
+    -v "$HOME/.gitconfig:/root/.gitconfig:ro" \
+    "$IMAGE" >/dev/null
+
+echo ""
+echo "Sandbox running. Connect with:"
+echo ""
+echo "  ssh -o StrictHostKeyChecking=no -p $PORT root@localhost"
+echo "  password: skittle"
+echo ""
+echo "Your ~/.ssh and ~/.gitconfig are mounted read-only."
+echo "Git auth works for all your profiles (personal + work)."
+echo ""
+echo "Quick test:"
+echo "  skittle init"
+echo "  skittle source add git@github.com:trentdavies/some-repo.git"
+echo "  skittle list"
+echo ""
+echo "Fixtures at /fixtures/. Stop with: docker rm -f $CONTAINER"

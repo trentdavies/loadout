@@ -1,0 +1,38 @@
+FROM rust:latest
+
+# Tools for interactive use
+RUN apt-get update && apt-get install -y \
+    openssh-server jq tree vim less git \
+    && rm -rf /var/lib/apt/lists/*
+
+# SSH setup
+RUN mkdir -p /run/sshd \
+    && echo 'root:skittle' | chpasswd \
+    && sed -i 's/#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config \
+    && sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config \
+    && sed -i 's/#AllowAgentForwarding.*/AllowAgentForwarding yes/' /etc/ssh/sshd_config
+
+WORKDIR /build
+
+# Build skittle
+COPY Cargo.toml Cargo.loc[k] ./
+COPY src/ ./src/
+RUN cargo build --release && cp target/release/skittle /usr/local/bin/skittle
+
+# Clean build dir to save space
+RUN rm -rf /build/target
+
+# Set up a realistic home directory
+ENV HOME=/root
+WORKDIR /root
+
+# Simulate agent configs
+RUN mkdir -p ~/.claude ~/.codex ~/.cursor
+
+# Copy test fixtures for playing with
+COPY tests/fixtures/ /fixtures/
+
+# Skittle is on PATH, network is available, SSH on port 22
+EXPOSE 22
+
+CMD ["/usr/sbin/sshd", "-D"]

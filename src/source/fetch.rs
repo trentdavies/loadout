@@ -43,39 +43,52 @@ fn fetch_local(source_path: &Path, cache_dir: &Path) -> Result<PathBuf> {
     Ok(cache_dir.to_path_buf())
 }
 
-/// Clone a git repository into the cache directory.
+/// Clone a git repository into the cache directory using the git CLI.
+/// Uses the system git so SSH config, agent forwarding, and host aliases all work.
 fn fetch_git(url: &str, cache_dir: &Path) -> Result<PathBuf> {
     if cache_dir.exists() {
-        // Already cloned — pull instead
         return update_git(cache_dir);
     }
 
     fs::create_dir_all(cache_dir.parent().unwrap_or(cache_dir))?;
 
-    git2::Repository::clone(url, cache_dir)
-        .with_context(|| format!("failed to clone {}", url))?;
+    let output = std::process::Command::new("git")
+        .args(["clone", "--depth", "1", url])
+        .arg(cache_dir)
+        .output()
+        .context("failed to run git clone (is git installed?)")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("failed to clone {}: {}", url, stderr.trim());
+    }
 
     Ok(cache_dir.to_path_buf())
 }
 
 /// Update an existing git clone by fetching and resetting to origin/HEAD.
 pub fn update_git(repo_path: &Path) -> Result<PathBuf> {
-    let repo = git2::Repository::open(repo_path)
-        .with_context(|| format!("failed to open git repo at {}", repo_path.display()))?;
+    let output = std::process::Command::new("git")
+        .args(["fetch", "origin"])
+        .current_dir(repo_path)
+        .output()
+        .context("failed to run git fetch")?;
 
-    // Fetch origin
-    let mut remote = repo.find_remote("origin")
-        .context("no 'origin' remote found")?;
-    remote.fetch(&["HEAD"], None, None)
-        .context("failed to fetch from origin")?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("failed to fetch in {}: {}", repo_path.display(), stderr.trim());
+    }
 
-    // Reset to FETCH_HEAD
-    let fetch_head = repo.find_reference("FETCH_HEAD")
-        .context("no FETCH_HEAD after fetch")?;
-    let commit = fetch_head.peel_to_commit()
-        .context("FETCH_HEAD does not point to a commit")?;
-    repo.reset(commit.as_object(), git2::ResetType::Hard, None)
-        .context("failed to reset to fetched HEAD")?;
+    let output = std::process::Command::new("git")
+        .args(["reset", "--hard", "origin/HEAD"])
+        .current_dir(repo_path)
+        .output()
+        .context("failed to run git reset")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("failed to reset in {}: {}", repo_path.display(), stderr.trim());
+    }
 
     Ok(repo_path.to_path_buf())
 }
