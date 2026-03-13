@@ -6,34 +6,34 @@
 test_registry_json_created_on_source_add() {
   "$SKITTLE" init >/dev/null 2>&1
   "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name tp >/dev/null 2>&1
-  assert_file_exists "$XDG_DATA_HOME/skittle/registry.json"
+  assert_file_exists "$XDG_DATA_HOME/skittle/.skittle/registry.json"
 }
 
 test_registry_json_contains_source() {
   "$SKITTLE" init >/dev/null 2>&1
   "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name tp >/dev/null 2>&1
-  assert_file_contains "$XDG_DATA_HOME/skittle/registry.json" "tp"
+  assert_file_contains "$XDG_DATA_HOME/skittle/.skittle/registry.json" "tp"
 }
 
 test_registry_json_contains_skills() {
   "$SKITTLE" init >/dev/null 2>&1
   "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name tp >/dev/null 2>&1
-  assert_file_contains "$XDG_DATA_HOME/skittle/registry.json" "explore"
-  assert_file_contains "$XDG_DATA_HOME/skittle/registry.json" "apply"
-  assert_file_contains "$XDG_DATA_HOME/skittle/registry.json" "verify"
+  assert_file_contains "$XDG_DATA_HOME/skittle/.skittle/registry.json" "explore"
+  assert_file_contains "$XDG_DATA_HOME/skittle/.skittle/registry.json" "apply"
+  assert_file_contains "$XDG_DATA_HOME/skittle/.skittle/registry.json" "verify"
 }
 
 test_cache_dir_mirrors_source() {
   "$SKITTLE" init >/dev/null 2>&1
   "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name tp >/dev/null 2>&1
-  assert_dir_exists "$XDG_DATA_HOME/skittle/sources/tp"
+  assert_dir_exists "$XDG_DATA_HOME/skittle/external/tp"
 }
 
 test_cache_contains_skill_files() {
   "$SKITTLE" init >/dev/null 2>&1
   "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name tp >/dev/null 2>&1
   # Cached source should contain the skill files
-  local cache_dir="$XDG_DATA_HOME/skittle/sources/tp"
+  local cache_dir="$XDG_DATA_HOME/skittle/external/tp"
   # Look for SKILL.md somewhere in the cache
   local found
   found=$(find "$cache_dir" -name "SKILL.md" 2>/dev/null | head -1)
@@ -86,9 +86,9 @@ test_registry_cleared_on_source_remove() {
   "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name tp >/dev/null 2>&1
   "$SKITTLE" remove tp --force >/dev/null 2>&1
   # Registry should no longer contain this source's entries
-  if [ -f "$XDG_DATA_HOME/skittle/registry.json" ]; then
+  if [ -f "$XDG_DATA_HOME/skittle/.skittle/registry.json" ]; then
     local content
-    content=$(cat "$XDG_DATA_HOME/skittle/registry.json")
+    content=$(cat "$XDG_DATA_HOME/skittle/.skittle/registry.json")
     if echo "$content" | grep -qF "tp"; then
       _fail "registry still contains removed source" "tp absent" "still present"
     else

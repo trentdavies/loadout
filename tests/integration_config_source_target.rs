@@ -37,6 +37,7 @@ fn config_save_and_reload() {
         name: "test".to_string(),
         url: "/tmp/test".to_string(),
         source_type: "local".to_string(),
+        r#ref: None,
     });
     config.target.push(skittle::config::TargetConfig {
         name: "my-claude".to_string(),

@@ -132,7 +132,7 @@ fn add_parses_correctly() {
     use clap::Parser;
     let cli = skittle::cli::Cli::try_parse_from(["skittle", "add", "/tmp/my-src"]).unwrap();
     match cli.command {
-        skittle::cli::Command::Add { url, name } => {
+        skittle::cli::Command::Add { url, name, .. } => {
             assert_eq!(url, "/tmp/my-src");
             assert!(name.is_none());
         }

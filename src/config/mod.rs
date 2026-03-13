@@ -28,12 +28,22 @@ pub fn data_dir() -> PathBuf {
         .join("skittle")
 }
 
-/// The skittle source cache directory: `<data_dir>/sources/`.
+/// The external source cache directory: `<data_dir>/external/`.
 /// Creates the directory if it doesn't exist.
 pub fn cache_dir() -> PathBuf {
-    let dir = data_dir().join("sources");
+    let dir = data_dir().join("external");
     let _ = std::fs::create_dir_all(&dir);
     dir
+}
+
+/// The managed plugins directory: `<data_dir>/plugins/`.
+pub fn plugins_dir() -> PathBuf {
+    data_dir().join("plugins")
+}
+
+/// The skittle internals directory: `<data_dir>/.skittle/`.
+pub fn internal_dir() -> PathBuf {
+    data_dir().join(".skittle")
 }
 
 /// Load config from the resolved path.
@@ -199,6 +209,7 @@ mod tests {
             name: "test-src".to_string(),
             url: "/tmp/skills".to_string(),
             source_type: "local".to_string(),
+            r#ref: None,
         });
         config.target.push(TargetConfig {
             name: "test-tgt".to_string(),

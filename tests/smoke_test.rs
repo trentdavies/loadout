@@ -73,6 +73,7 @@ fn full_lifecycle_smoke_test() {
         name: "smoke-src".to_string(),
         url: source_dir.path().display().to_string(),
         source_type: "local".to_string(),
+        r#ref: None,
     });
 
     // ── Step 3: Target add ──────────────────────────────────────────────

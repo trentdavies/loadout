@@ -88,6 +88,7 @@ fn add_source(
         name: source_name.to_string(),
         url: source_dir.display().to_string(),
         source_type: "local".to_string(),
+        r#ref: None,
     });
     skittle::config::save_to(&config, config_path).unwrap();
 

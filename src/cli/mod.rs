@@ -50,6 +50,10 @@ pub enum Command {
         /// Name for this source
         #[arg(long)]
         name: Option<String>,
+
+        /// Pin to a specific git ref (tag, branch, or commit SHA)
+        #[arg(long, value_name = "REF")]
+        r#ref: Option<String>,
     },
 
     /// List skills, or show details for one
@@ -116,6 +120,25 @@ pub enum Command {
         target: Option<String>,
 
         /// Actually perform the uninstall (default is dry run)
+        #[arg(long)]
+        force: bool,
+    },
+
+    /// Collect skills from a target back to source
+    Collect {
+        /// Skill name to collect
+        #[arg(long, value_name = "SKILL")]
+        skill: Option<String>,
+
+        /// Target to collect from
+        #[arg(long, value_name = "TARGET")]
+        target: String,
+
+        /// Adopt skill into plugins/ (make it yours)
+        #[arg(long)]
+        adopt: bool,
+
+        /// Auto-adopt all untracked skills without prompting
         #[arg(long)]
         force: bool,
     },
@@ -271,14 +294,40 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
                 return Ok(());
             }
-            // Create data directory (config lives here too)
+            // Create directory structure
             let data = crate::config::data_dir();
             std::fs::create_dir_all(&data)?;
+            std::fs::create_dir_all(crate::config::plugins_dir())?;
+            std::fs::create_dir_all(crate::config::cache_dir())?;
+            std::fs::create_dir_all(crate::config::internal_dir())?;
+
+            // Legacy migration: rename sources/ to external/
+            let legacy_sources = data.join("sources");
+            let external_dir = data.join("external");
+            if legacy_sources.exists() && !external_dir.exists() {
+                std::fs::rename(&legacy_sources, &external_dir)?;
+                if !cli.quiet {
+                    println!("Migrated sources/ → external/");
+                }
+            }
+
+            // Migrate legacy registry.json to .skittle/
+            let legacy_registry = data.join("registry.json");
+            let new_registry = crate::config::internal_dir().join("registry.json");
+            if legacy_registry.exists() && !new_registry.exists() {
+                std::fs::rename(&legacy_registry, &new_registry)?;
+            }
+
+            // Write .gitignore
+            let gitignore_path = data.join(".gitignore");
+            if !gitignore_path.exists() {
+                std::fs::write(&gitignore_path, "external/\n.skittle/\n")?;
+            }
 
             let default_config = crate::config::DEFAULT_CONFIG;
             std::fs::write(&path, default_config)?;
             if !cli.quiet {
-                println!("Initialized skittle config at {}", path.display());
+                println!("Initialized skittle at {}", data.display());
             }
 
             // If URL provided, fetch into cache and register as source
@@ -304,6 +353,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     name: source_name.clone(),
                     url: source_url.url_string(),
                     source_type: source_url.source_type().to_string(),
+                    r#ref: None,
                 });
                 crate::config::save(&config, cli.config.as_deref())?;
 
@@ -314,7 +364,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
             Ok(())
         }
-        Command::Add { url, name } => {
+        Command::Add { url, name, r#ref } => {
             let config_path_str = cli.config.as_deref();
             let mut config = crate::config::load(config_path_str)?;
             let data_dir = crate::config::data_dir();
@@ -334,6 +384,19 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             if !cli.dry_run {
                 crate::source::fetch::fetch(&source_url, &cache_path)?;
 
+                // If ref specified, checkout that ref
+                if let Some(ref git_ref) = r#ref {
+                    let output = std::process::Command::new("git")
+                        .args(["checkout", git_ref])
+                        .current_dir(&cache_path)
+                        .output();
+                    if let Ok(o) = output {
+                        if !o.status.success() {
+                            eprintln!("warning: failed to checkout ref '{}': {}", git_ref, String::from_utf8_lossy(&o.stderr).trim());
+                        }
+                    }
+                }
+
                 let structure = crate::source::detect::detect(&cache_path)?;
                 let registered = crate::source::normalize::normalize(
                     &source_name, &cache_path, &structure,
@@ -348,6 +411,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     name: source_name.clone(),
                     url: source_url.url_string(),
                     source_type: source_url.source_type().to_string(),
+                    r#ref: r#ref.clone(),
                 });
                 crate::config::save(&config, config_path_str)?;
             }
@@ -446,29 +510,29 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 anyhow::bail!("no targets configured. Use `skittle target add` first.");
             }
 
-            // Collect skills to install
-            let mut skills_to_install: Vec<&crate::registry::RegisteredSkill> = Vec::new();
+            // Collect skills to install with provenance: (source, plugin, skill)
+            let mut skills_to_install: Vec<(&str, &str, &crate::registry::RegisteredSkill)> = Vec::new();
 
             if all {
                 for src in &registry.sources {
                     for p in &src.plugins {
                         for s in &p.skills {
-                            skills_to_install.push(s);
+                            skills_to_install.push((&src.name, &p.name, s));
                         }
                     }
                 }
             }
 
             if let Some(ref skill_id) = skill {
-                let (_, _, s) = registry.find_skill(skill_id)?;
-                skills_to_install.push(s);
+                let (src, plug, s) = registry.find_skill(skill_id)?;
+                skills_to_install.push((src, plug, s));
             }
 
             if let Some(ref plugin_name) = plugin {
-                let (_, p) = registry.find_plugin(plugin_name)
+                let (src_name, p) = registry.find_plugin(plugin_name)
                     .ok_or_else(|| anyhow::anyhow!("plugin '{}' not found", plugin_name))?;
                 for s in &p.skills {
-                    skills_to_install.push(s);
+                    skills_to_install.push((src_name, &p.name, s));
                 }
             }
 
@@ -476,22 +540,34 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 let bundle_cfg = config.bundle.get(bundle_name)
                     .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", bundle_name))?;
                 for skill_id in &bundle_cfg.skills {
-                    let (_, _, s) = registry.find_skill(skill_id)?;
-                    skills_to_install.push(s);
+                    let (src, plug, s) = registry.find_skill(skill_id)?;
+                    skills_to_install.push((src, plug, s));
                 }
             }
 
-            // Install to each target
+            // Install to each target and record provenance
             let mut installed_count = 0;
+            let mut reg = registry.clone();
             for tc in &targets {
                 let adapter = crate::target::resolve_adapter(tc, &config.adapter)?;
-                for s in &skills_to_install {
+                for (src_name, plug_name, s) in &skills_to_install {
                     if cli.dry_run {
                         if !cli.quiet {
                             println!("  (dry run) {} → {}", s.name, tc.name);
                         }
                     } else {
                         adapter.install_skill(s, &tc.path)?;
+                        // Record provenance
+                        let origin = s.path.strip_prefix(&data_dir)
+                            .map(|p| p.to_string_lossy().to_string())
+                            .unwrap_or_else(|_| s.path.display().to_string());
+                        let target_map = reg.installed.entry(tc.name.clone()).or_default();
+                        target_map.insert(s.name.clone(), crate::registry::InstalledSkill {
+                            source: src_name.to_string(),
+                            plugin: plug_name.to_string(),
+                            skill: s.name.clone(),
+                            origin,
+                        });
                     }
                     installed_count += 1;
                 }
@@ -500,12 +576,14 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             // Track active bundle if installing a bundle
             if let Some(ref bundle_name) = bundle {
                 if !cli.dry_run {
-                    let mut reg = registry;
                     for tc in &targets {
                         reg.set_active_bundle(&tc.name, bundle_name);
                     }
-                    crate::registry::save_registry(&reg, &data_dir)?;
                 }
+            }
+
+            if !cli.dry_run {
+                crate::registry::save_registry(&reg, &data_dir)?;
             }
 
             if !cli.quiet {
@@ -576,6 +654,139 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             } else if !cli.quiet {
                 println!("Uninstalled {} skill(s) from {} target(s)", skill_names.len(), targets.len());
             }
+            Ok(())
+        }
+        Command::Collect { skill, target, adopt, force } => {
+            let config = crate::config::load(cli.config.as_deref())?;
+            let data_dir = crate::config::data_dir();
+            let registry = crate::registry::load_registry(&data_dir)?;
+            let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
+
+            let tc = config.target.iter()
+                .find(|t| t.name == target)
+                .ok_or_else(|| anyhow::anyhow!("target '{}' not found", target))?;
+            let adapter = crate::target::resolve_adapter(tc, &config.adapter)?;
+            let installed_on_target = adapter.installed_skills(&tc.path)?;
+
+            if let Some(ref skill_name) = skill {
+                // Collect a specific skill
+                let target_skill_dir = tc.path.join("skills").join(skill_name);
+                if !target_skill_dir.exists() {
+                    anyhow::bail!("skill '{}' not found on target '{}'", skill_name, target);
+                }
+
+                if adopt {
+                    // Copy to plugins/
+                    let plugin_name = if let Some(target_installs) = registry.installed.get(&target) {
+                        if let Some(info) = target_installs.get(skill_name) {
+                            info.plugin.clone()
+                        } else {
+                            "local".to_string()
+                        }
+                    } else {
+                        "local".to_string()
+                    };
+
+                    let dest_plugin = crate::config::plugins_dir().join(&plugin_name);
+                    let dest_skill = dest_plugin.join("skills").join(skill_name);
+                    std::fs::create_dir_all(&dest_skill)?;
+                    copy_dir_all(&target_skill_dir, &dest_skill)?;
+
+                    // Create plugin.json if missing
+                    let plugin_json_dir = dest_plugin.join(".claude-plugin");
+                    let plugin_json = plugin_json_dir.join("plugin.json");
+                    if !plugin_json.exists() {
+                        std::fs::create_dir_all(&plugin_json_dir)?;
+                        let json = serde_json::json!({"name": plugin_name});
+                        std::fs::write(&plugin_json, serde_json::to_string_pretty(&json)?)?;
+                    }
+
+                    // Regenerate marketplace
+                    generate_marketplace(&data_dir)?;
+                    out.success(&format!("Adopted {} into plugins/{}", skill_name, plugin_name));
+                } else {
+                    // Copy back to origin
+                    let origin = registry.installed.get(&target)
+                        .and_then(|m| m.get(skill_name))
+                        .map(|info| info.origin.clone());
+
+                    if let Some(origin_rel) = origin {
+                        let dest = data_dir.join(&origin_rel);
+                        std::fs::create_dir_all(&dest)?;
+                        copy_dir_all(&target_skill_dir, &dest)?;
+                        out.success(&format!("Collected {} → {}", skill_name, origin_rel));
+                    } else {
+                        out.warn(&format!("'{}' has no provenance. Use --adopt to claim it.", skill_name));
+                    }
+                }
+            } else {
+                // Scan target for all skills
+                let target_installs = registry.installed.get(&target).cloned().unwrap_or_default();
+
+                let mut tracked = Vec::new();
+                let mut untracked = Vec::new();
+
+                for skill_name in &installed_on_target {
+                    if let Some(info) = target_installs.get(skill_name) {
+                        tracked.push((skill_name.clone(), info.origin.clone()));
+                    } else {
+                        untracked.push(skill_name.clone());
+                    }
+                }
+
+                if !tracked.is_empty() {
+                    out.info("Tracked:");
+                    for (name, origin) in &tracked {
+                        out.info(&format!("  {} ← {}", name, origin));
+                    }
+                }
+
+                if !untracked.is_empty() {
+                    out.info("Untracked:");
+                    for name in &untracked {
+                        out.info(&format!("  {}", name));
+                    }
+
+                    let should_adopt = if force {
+                        true
+                    } else if !untracked.is_empty() {
+                        eprint!("Adopt {} untracked skill(s) into plugins/local? [y/N] ", untracked.len());
+                        let mut input = String::new();
+                        std::io::stdin().read_line(&mut input).unwrap_or(0);
+                        input.trim().eq_ignore_ascii_case("y")
+                    } else {
+                        false
+                    };
+
+                    if should_adopt {
+                        let local_plugin = crate::config::plugins_dir().join("local");
+                        for name in &untracked {
+                            let target_skill_dir = tc.path.join("skills").join(name);
+                            let dest = local_plugin.join("skills").join(name);
+                            std::fs::create_dir_all(&dest)?;
+                            copy_dir_all(&target_skill_dir, &dest)?;
+                            out.success(&format!("Adopted {}", name));
+                        }
+
+                        // Create plugin.json for local plugin if missing
+                        let plugin_json_dir = local_plugin.join(".claude-plugin");
+                        let plugin_json = plugin_json_dir.join("plugin.json");
+                        if !plugin_json.exists() {
+                            std::fs::create_dir_all(&plugin_json_dir)?;
+                            let json = serde_json::json!({"name": "local"});
+                            std::fs::write(&plugin_json, serde_json::to_string_pretty(&json)?)?;
+                        }
+
+                        generate_marketplace(&data_dir)?;
+                    }
+                }
+
+                if tracked.is_empty() && untracked.is_empty() {
+                    out.info("No skills found on target.");
+                }
+            }
+
+            crate::registry::save_registry(&registry, &data_dir)?;
             Ok(())
         }
         Command::Status => {
@@ -1399,4 +1610,75 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
         }
     }
+}
+
+/// Recursively copy a directory's contents.
+fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> anyhow::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let dest_path = dst.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_dir_all(&entry.path(), &dest_path)?;
+        } else {
+            std::fs::copy(entry.path(), &dest_path)?;
+        }
+    }
+    Ok(())
+}
+
+/// Generate .claude-plugin/marketplace.json from the plugins/ directory.
+fn generate_marketplace(data_dir: &std::path::Path) -> anyhow::Result<()> {
+    let plugins_dir = data_dir.join("plugins");
+    let mut plugins = Vec::new();
+
+    if plugins_dir.is_dir() {
+        let mut entries: Vec<_> = std::fs::read_dir(&plugins_dir)?
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+            .collect();
+        entries.sort_by_key(|e| e.file_name());
+
+        for entry in entries {
+            let dir_name = entry.file_name().to_string_lossy().to_string();
+            if dir_name.starts_with('.') {
+                continue;
+            }
+
+            // Try to read plugin.json for metadata
+            let plugin_json = entry.path().join(".claude-plugin/plugin.json");
+            let (name, description) = if plugin_json.exists() {
+                if let Ok(manifest) = crate::source::manifest::load_plugin_manifest(&plugin_json) {
+                    (manifest.name, manifest.description)
+                } else {
+                    (dir_name.clone(), None)
+                }
+            } else {
+                (dir_name.clone(), None)
+            };
+
+            let mut plugin_entry = serde_json::json!({
+                "name": name,
+                "source": format!("./plugins/{}", dir_name),
+            });
+            if let Some(desc) = description {
+                plugin_entry["description"] = serde_json::Value::String(desc);
+            }
+            plugins.push(plugin_entry);
+        }
+    }
+
+    let marketplace = serde_json::json!({
+        "name": "skittle-marketplace",
+        "plugins": plugins,
+    });
+
+    let cp_dir = data_dir.join(".claude-plugin");
+    std::fs::create_dir_all(&cp_dir)?;
+    std::fs::write(
+        cp_dir.join("marketplace.json"),
+        serde_json::to_string_pretty(&marketplace)?,
+    )?;
+
+    Ok(())
 }

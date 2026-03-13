@@ -83,7 +83,7 @@ fn parse_target_add() {
 fn parse_add() {
     let cli = Cli::try_parse_from(["skittle", "add", "/tmp/src", "--name", "my-src"]).unwrap();
     match cli.command {
-        skittle::cli::Command::Add { url, name } => {
+        skittle::cli::Command::Add { url, name, .. } => {
             assert_eq!(url, "/tmp/src");
             assert_eq!(name, Some("my-src".to_string()));
         }

@@ -52,6 +52,7 @@ fn setup_test_env() -> (TempDir, TempDir, Registry, Config) {
         name: "test-source".to_string(),
         url: source_dir.path().to_string_lossy().to_string(),
         source_type: "local".to_string(),
+        r#ref: None,
     });
     config.target.push(TargetConfig {
         name: "claude".to_string(),

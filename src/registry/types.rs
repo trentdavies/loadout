@@ -31,6 +31,16 @@ pub struct RegisteredSkill {
     pub path: PathBuf,
 }
 
+/// Provenance record for an installed skill.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstalledSkill {
+    pub source: String,
+    pub plugin: String,
+    pub skill: String,
+    /// Relative path from skittle data dir to the skill's origin.
+    pub origin: String,
+}
+
 /// The full registry index.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Registry {
@@ -39,4 +49,8 @@ pub struct Registry {
     /// Active bundle per target: target_name → bundle_name.
     #[serde(default)]
     pub active_bundles: std::collections::BTreeMap<String, String>,
+
+    /// Installed skills per target: target_name → skill_name → provenance.
+    #[serde(default)]
+    pub installed: std::collections::BTreeMap<String, std::collections::BTreeMap<String, InstalledSkill>>,
 }

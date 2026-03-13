@@ -26,6 +26,10 @@ pub struct SourceConfig {
 
     #[serde(rename = "type", default = "default_source_type")]
     pub source_type: String,
+
+    /// Pin to a specific git ref (tag, branch, or commit SHA). Optional.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub r#ref: Option<String>,
 }
 
 fn default_source_type() -> String {
@@ -149,6 +153,7 @@ skills = ["plugin/skill-a", "plugin/skill-b"]
             name: "s".to_string(),
             url: "/tmp".to_string(),
             source_type: "local".to_string(),
+            r#ref: None,
         });
         let serialized = toml::to_string_pretty(&config).unwrap();
         let deserialized: Config = toml::from_str(&serialized).unwrap();

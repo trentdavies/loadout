@@ -7,22 +7,32 @@ use std::fs;
 use std::path::Path;
 
 /// Load the registry index from disk.
+/// Registry lives at `<data_dir>/.skittle/registry.json`.
 pub fn load_registry(data_dir: &Path) -> Result<Registry> {
-    let path = data_dir.join("registry.json");
-    if !path.exists() {
+    let internal = data_dir.join(".skittle");
+    let path = internal.join("registry.json");
+    // Also check legacy location for migration
+    let legacy_path = data_dir.join("registry.json");
+    let read_path = if path.exists() {
+        path
+    } else if legacy_path.exists() {
+        legacy_path
+    } else {
         return Ok(Registry::default());
-    }
-    let content = fs::read_to_string(&path)
-        .with_context(|| format!("failed to read {}", path.display()))?;
+    };
+    let content = fs::read_to_string(&read_path)
+        .with_context(|| format!("failed to read {}", read_path.display()))?;
     let registry: Registry = serde_json::from_str(&content)
-        .with_context(|| format!("failed to parse {}", path.display()))?;
+        .with_context(|| format!("failed to parse {}", read_path.display()))?;
     Ok(registry)
 }
 
 /// Save the registry index to disk.
+/// Registry lives at `<data_dir>/.skittle/registry.json`.
 pub fn save_registry(registry: &Registry, data_dir: &Path) -> Result<()> {
-    fs::create_dir_all(data_dir)?;
-    let path = data_dir.join("registry.json");
+    let internal = data_dir.join(".skittle");
+    fs::create_dir_all(&internal)?;
+    let path = internal.join("registry.json");
     let content = serde_json::to_string_pretty(registry)
         .context("failed to serialize registry")?;
     fs::write(&path, content)
