@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Build and run the sandbox functional test container.
+# Tests hit the network, clone real repos, and leave the container alive for exploration.
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+IMAGE="skittle-sandbox"
+CONTAINER="skittle-sandbox"
+
+echo "Building sandbox image..."
+DOCKER_BUILDKIT=0 docker build -f "$SCRIPT_DIR/Dockerfile" -t "$IMAGE" "$PROJECT_DIR" || exit 1
+
+# Remove previous container if it exists
+docker rm -f "$CONTAINER" 2>/dev/null || true
+
+echo "Starting sandbox container..."
+docker run -d --name "$CONTAINER" "$IMAGE" >/dev/null
+
+# Stream test output (runner.sh ends with sleep infinity, so ctrl-c exits logs, not the container)
+echo "Streaming test output (ctrl-c to stop following)..."
+echo ""
+docker logs -f "$CONTAINER"
+
+# After ctrl-c, print exploration instructions
+echo ""
+echo "Container is still running. Explore with:"
+echo ""
+echo "  docker exec -it $CONTAINER bash"
+echo ""
+echo "Inside the container:"
+echo "  cat /tmp/sandbox-data/sandbox.log    # full narrative log"
+echo "  tree /tmp/sandbox-data/skittle/      # cache structure"
+echo "  skittle list                          # all skills from all sources"
+echo "  skittle status                        # installed state"
+echo "  ls /tmp/sandbox-targets/claude/skills/ # installed skills"
+echo "  skittle config show                   # config"
+echo ""
+echo "Cleanup: docker rm -f $CONTAINER"

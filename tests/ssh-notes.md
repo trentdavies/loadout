@@ -16,7 +16,7 @@ macOS Keychain usually handles this automatically if you've used these keys befo
 ## Launch the sandbox
 
 ```bash
-./tests/sandbox
+./tests/sandbox-ssh
 ```
 
 This:
@@ -71,6 +71,6 @@ docker rm -f skittle-sandbox
 ## Custom port
 
 ```bash
-./tests/sandbox 3333
+./tests/sandbox-ssh 3333
 ssh -o StrictHostKeyChecking=no -p 3333 root@localhost
 ```
