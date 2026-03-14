@@ -164,7 +164,7 @@ fn parse_remove_without_name() {
 fn parse_list() {
     let cli = Cli::try_parse_from(["skittle", "list"]).unwrap();
     match cli.command {
-        skittle::cli::Command::List { patterns } => {
+        skittle::cli::Command::List { patterns, .. } => {
             assert!(patterns.is_empty());
         }
         _ => panic!("expected List"),
@@ -175,7 +175,7 @@ fn parse_list() {
 fn parse_list_with_name() {
     let cli = Cli::try_parse_from(["skittle", "list", "test-plugin/explore"]).unwrap();
     match cli.command {
-        skittle::cli::Command::List { patterns } => {
+        skittle::cli::Command::List { patterns, .. } => {
             assert_eq!(patterns, vec!["test-plugin/explore".to_string()]);
         }
         _ => panic!("expected List"),
@@ -186,7 +186,7 @@ fn parse_list_with_name() {
 fn parse_list_with_multiple_patterns() {
     let cli = Cli::try_parse_from(["skittle", "list", "legal/*", "sales/*"]).unwrap();
     match cli.command {
-        skittle::cli::Command::List { patterns } => {
+        skittle::cli::Command::List { patterns, .. } => {
             assert_eq!(patterns, vec!["legal/*".to_string(), "sales/*".to_string()]);
         }
         _ => panic!("expected List"),

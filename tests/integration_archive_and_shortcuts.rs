@@ -147,7 +147,7 @@ fn list_parses() {
     use clap::Parser;
     let cli = skittle::cli::Cli::try_parse_from(["skittle", "list"]).unwrap();
     match cli.command {
-        skittle::cli::Command::List { patterns } => {
+        skittle::cli::Command::List { patterns, .. } => {
             assert!(patterns.is_empty());
         }
         _ => panic!("expected List command"),

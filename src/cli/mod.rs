@@ -80,6 +80,10 @@ pub enum Command {
     List {
         /// Skill identity or glob pattern (plugin/skill, source:plugin/skill, or glob like "legal/*")
         patterns: Vec<String>,
+
+        /// List external sources instead of skills
+        #[arg(long)]
+        external: bool,
     },
 
     /// Remove a skill source
@@ -317,6 +321,25 @@ pub enum ConfigCommand {
     Edit,
 }
 
+/// Extract the domain from a URL. Returns empty string for local paths.
+fn extract_domain(url: &str) -> String {
+    // git@github.com:org/repo.git → github.com
+    if let Some(rest) = url.strip_prefix("git@") {
+        return rest.split(':').next().unwrap_or("").to_string();
+    }
+    // https://github.com/... → github.com
+    if let Some(after_scheme) = url.strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))
+        .or_else(|| url.strip_prefix("git://"))
+        .or_else(|| url.strip_prefix("ssh://"))
+    {
+        let host = after_scheme.split('/').next().unwrap_or("");
+        // strip user@ prefix (ssh://git@github.com/...)
+        return host.split('@').last().unwrap_or(host).to_string();
+    }
+    String::new()
+}
+
 pub fn run(cli: Cli) -> anyhow::Result<()> {
     match cli.command {
         Command::Init { url } => {
@@ -550,10 +573,57 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
             Ok(())
         }
-        Command::List { patterns } => {
+        Command::List { patterns, external } => {
             let data_dir = crate::config::data_dir();
             let config_for_list = crate::config::load(cli.config.as_deref())?;
             let registry = crate::registry::load_registry(&data_dir)?;
+
+            if external {
+                // List external sources in table format
+                if cli.json {
+                    let entries: Vec<serde_json::Value> = config_for_list.source.iter().map(|src| {
+                        let skill_count: usize = registry.sources.iter()
+                            .find(|rs| rs.name == src.name)
+                            .map(|rs| rs.plugins.iter().map(|p| p.skills.len()).sum())
+                            .unwrap_or(0);
+                        serde_json::json!({
+                            "name": src.name,
+                            "type": src.source_type,
+                            "domain": extract_domain(&src.url),
+                            "ref": src.r#ref,
+                            "skills": skill_count,
+                            "mode": src.mode,
+                        })
+                    }).collect();
+                    println!("{}", serde_json::to_string_pretty(&entries)?);
+                    return Ok(());
+                }
+
+                if config_for_list.source.is_empty() {
+                    let output = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
+                    output.info("No sources configured. Use `skittle add` to add one.");
+                    return Ok(());
+                }
+
+                let rows: Vec<Vec<String>> = config_for_list.source.iter().map(|src| {
+                    let skill_count: usize = registry.sources.iter()
+                        .find(|rs| rs.name == src.name)
+                        .map(|rs| rs.plugins.iter().map(|p| p.skills.len()).sum())
+                        .unwrap_or(0);
+                    vec![
+                        src.name.clone(),
+                        src.source_type.clone(),
+                        extract_domain(&src.url),
+                        src.r#ref.clone().unwrap_or_default(),
+                        skill_count.to_string(),
+                        src.mode.clone().unwrap_or_default(),
+                    ]
+                }).collect();
+
+                let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
+                out.table(&["NAME", "TYPE", "DOMAIN", "REF", "SKILLS", "MODE"], &rows);
+                return Ok(());
+            }
 
             if patterns.len() == 1 && !crate::registry::is_glob(&patterns[0]) {
                 // Show details for a single exact skill
