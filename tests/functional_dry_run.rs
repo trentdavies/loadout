@@ -8,7 +8,10 @@ fn make_skill_fixture(parent: &std::path::Path, name: &str) {
     fs::create_dir_all(&dir).unwrap();
     fs::write(
         dir.join("SKILL.md"),
-        format!("---\nname: {}\ndescription: Test skill {}\n---\n# {}\n", name, name, name),
+        format!(
+            "---\nname: {}\ndescription: Test skill {}\n---\n# {}\n",
+            name, name, name
+        ),
     )
     .unwrap();
 }
@@ -29,7 +32,8 @@ fn setup_env() -> (TempDir, TempDir, TempDir, PathBuf, PathBuf) {
 
     // Build registry
     let structure = skittle::source::detect::detect(source_dir.path()).unwrap();
-    let registered = skittle::source::normalize::normalize("test-src", source_dir.path(), &structure).unwrap();
+    let registered =
+        skittle::source::normalize::normalize("test-src", source_dir.path(), &structure).unwrap();
     let mut registry = skittle::registry::Registry::default();
     registry.sources.push(registered);
     skittle::registry::save_registry(&registry, &data_dir).unwrap();
@@ -96,7 +100,11 @@ fn not_calling_uninstall_removes_nothing() {
 
     // Without --force, uninstall skips adapter calls — verify files remain
     let installed_after = adapter.installed_skills(&target.path).unwrap();
-    assert_eq!(installed_after.len(), 2, "uninstall without --force should leave files intact");
+    assert_eq!(
+        installed_after.len(),
+        2,
+        "uninstall without --force should leave files intact"
+    );
     assert!(target_dir.path().join("skills/skill-a/SKILL.md").exists());
     assert!(target_dir.path().join("skills/skill-b/SKILL.md").exists());
 }
@@ -111,5 +119,8 @@ fn not_calling_cache_clean_removes_nothing() {
     fs::write(cache_dir.join("cached-file.txt"), "cached data").unwrap();
 
     // Without --force, cache clean skips deletion
-    assert!(cache_dir.join("cached-file.txt").exists(), "cache should still have files without --force");
+    assert!(
+        cache_dir.join("cached-file.txt").exists(),
+        "cache should still have files without --force"
+    );
 }

@@ -60,12 +60,27 @@ fn parse_apply_requires_flag() {
 #[test]
 fn parse_target_add() {
     let cli = Cli::try_parse_from([
-        "skittle", "target", "add", "claude", "/tmp/t", "--scope", "repo", "--name", "my-target"
-    ]).unwrap();
+        "skittle",
+        "target",
+        "add",
+        "claude",
+        "/tmp/t",
+        "--scope",
+        "repo",
+        "--name",
+        "my-target",
+    ])
+    .unwrap();
     match cli.command {
         skittle::cli::Command::Target { command } => {
             match command {
-                skittle::cli::TargetCommand::Add { agent, path, scope, sync, name } => {
+                skittle::cli::TargetCommand::Add {
+                    agent,
+                    path,
+                    scope,
+                    sync,
+                    name,
+                } => {
                     assert_eq!(agent, "claude");
                     assert_eq!(scope, "repo");
                     assert_eq!(name, Some("my-target".to_string()));
@@ -106,10 +121,16 @@ fn parse_add_deprecated_name_flag() {
 #[test]
 fn parse_add_with_plugin_and_skill_flags() {
     let cli = Cli::try_parse_from([
-        "skittle", "add", "/tmp/src", "--source", "s", "--plugin", "p", "--skill", "sk"
-    ]).unwrap();
+        "skittle", "add", "/tmp/src", "--source", "s", "--plugin", "p", "--skill", "sk",
+    ])
+    .unwrap();
     match cli.command {
-        skittle::cli::Command::Add { source, plugin, skill, .. } => {
+        skittle::cli::Command::Add {
+            source,
+            plugin,
+            skill,
+            ..
+        } => {
             assert_eq!(source, Some("s".to_string()));
             assert_eq!(plugin, Some("p".to_string()));
             assert_eq!(skill, Some("sk".to_string()));
@@ -251,19 +272,30 @@ fn parse_init_without_url() {
 
 #[test]
 fn parse_bundle_activate_with_target() {
-    let cli = Cli::try_parse_from(["skittle", "bundle", "activate", "dev", "my-claude", "--force"]).unwrap();
+    let cli = Cli::try_parse_from([
+        "skittle",
+        "bundle",
+        "activate",
+        "dev",
+        "my-claude",
+        "--force",
+    ])
+    .unwrap();
     match cli.command {
-        skittle::cli::Command::Bundle { command } => {
-            match command {
-                skittle::cli::BundleCommand::Activate { name, target, all, force } => {
-                    assert_eq!(name, "dev");
-                    assert_eq!(target, Some("my-claude".to_string()));
-                    assert!(!all);
-                    assert!(force);
-                }
-                _ => panic!("expected Activate"),
+        skittle::cli::Command::Bundle { command } => match command {
+            skittle::cli::BundleCommand::Activate {
+                name,
+                target,
+                all,
+                force,
+            } => {
+                assert_eq!(name, "dev");
+                assert_eq!(target, Some("my-claude".to_string()));
+                assert!(!all);
+                assert!(force);
             }
-        }
+            _ => panic!("expected Activate"),
+        },
         _ => panic!("expected Bundle"),
     }
 }
@@ -272,34 +304,45 @@ fn parse_bundle_activate_with_target() {
 fn parse_bundle_activate_with_all() {
     let cli = Cli::try_parse_from(["skittle", "bundle", "activate", "dev", "--all"]).unwrap();
     match cli.command {
-        skittle::cli::Command::Bundle { command } => {
-            match command {
-                skittle::cli::BundleCommand::Activate { name, all, target, .. } => {
-                    assert_eq!(name, "dev");
-                    assert!(all);
-                    assert!(target.is_none());
-                }
-                _ => panic!("expected Activate"),
+        skittle::cli::Command::Bundle { command } => match command {
+            skittle::cli::BundleCommand::Activate {
+                name, all, target, ..
+            } => {
+                assert_eq!(name, "dev");
+                assert!(all);
+                assert!(target.is_none());
             }
-        }
+            _ => panic!("expected Activate"),
+        },
         _ => panic!("expected Bundle"),
     }
 }
 
 #[test]
 fn parse_bundle_deactivate_with_target() {
-    let cli = Cli::try_parse_from(["skittle", "bundle", "deactivate", "dev", "my-claude", "--force"]).unwrap();
+    let cli = Cli::try_parse_from([
+        "skittle",
+        "bundle",
+        "deactivate",
+        "dev",
+        "my-claude",
+        "--force",
+    ])
+    .unwrap();
     match cli.command {
-        skittle::cli::Command::Bundle { command } => {
-            match command {
-                skittle::cli::BundleCommand::Deactivate { name, target, force, .. } => {
-                    assert_eq!(name, "dev");
-                    assert_eq!(target, Some("my-claude".to_string()));
-                    assert!(force);
-                }
-                _ => panic!("expected Deactivate"),
+        skittle::cli::Command::Bundle { command } => match command {
+            skittle::cli::BundleCommand::Deactivate {
+                name,
+                target,
+                force,
+                ..
+            } => {
+                assert_eq!(name, "dev");
+                assert_eq!(target, Some("my-claude".to_string()));
+                assert!(force);
             }
-        }
+            _ => panic!("expected Deactivate"),
+        },
         _ => panic!("expected Bundle"),
     }
 }
@@ -307,5 +350,8 @@ fn parse_bundle_deactivate_with_target() {
 #[test]
 fn parse_bundle_swap_no_longer_exists() {
     let result = Cli::try_parse_from(["skittle", "bundle", "swap", "a", "b"]);
-    assert!(result.is_err(), "bundle swap should no longer be a valid subcommand");
+    assert!(
+        result.is_err(),
+        "bundle swap should no longer be a valid subcommand"
+    );
 }

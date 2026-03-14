@@ -77,8 +77,7 @@ pub fn save_to(config: &Config, path: &Path) -> Result<()> {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create directory: {}", parent.display()))?;
     }
-    let content = toml::to_string_pretty(config)
-        .context("failed to serialize config")?;
+    let content = toml::to_string_pretty(config).context("failed to serialize config")?;
     fs::write(path, content)
         .with_context(|| format!("failed to write config: {}", path.display()))?;
     Ok(())

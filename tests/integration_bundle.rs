@@ -14,7 +14,10 @@ fn make_config_with_bundle(bundle_name: &str, skills: &[&str]) -> skittle::confi
     config
 }
 
-fn make_registry_with_skills(skill_names: &[&str], source_dir: &std::path::Path) -> skittle::registry::Registry {
+fn make_registry_with_skills(
+    skill_names: &[&str],
+    source_dir: &std::path::Path,
+) -> skittle::registry::Registry {
     let skills: Vec<skittle::registry::RegisteredSkill> = skill_names
         .iter()
         .map(|name| {
@@ -22,7 +25,10 @@ fn make_registry_with_skills(skill_names: &[&str], source_dir: &std::path::Path)
             fs::create_dir_all(&skill_dir).unwrap();
             fs::write(
                 skill_dir.join("SKILL.md"),
-                format!("---\nname: {}\ndescription: Test {}\n---\n# {}\n", name, name, name),
+                format!(
+                    "---\nname: {}\ndescription: Test {}\n---\n# {}\n",
+                    name, name, name
+                ),
             )
             .unwrap();
             skittle::registry::RegisteredSkill {
@@ -104,7 +110,9 @@ fn bundle_drop_skills() {
     bundle.skills.retain(|s| s != "plug/sk2");
 
     assert_eq!(config.bundle["dev"].skills.len(), 2);
-    assert!(!config.bundle["dev"].skills.contains(&"plug/sk2".to_string()));
+    assert!(!config.bundle["dev"]
+        .skills
+        .contains(&"plug/sk2".to_string()));
 }
 
 #[test]
@@ -120,7 +128,9 @@ fn bundle_config_roundtrip() {
 
     let loaded = skittle::config::load_from(&config_path).unwrap();
     assert_eq!(loaded.bundle["production"].skills.len(), 2);
-    assert!(loaded.bundle["production"].skills.contains(&"core/explore".to_string()));
+    assert!(loaded.bundle["production"]
+        .skills
+        .contains(&"core/explore".to_string()));
 }
 
 // ─── Bundle Swap (adapter-level simulation) ─────────────────────────────
@@ -168,4 +178,3 @@ fn bundle_swap_installs_new_uninstalls_old() {
     assert!(installed.contains(&"sk-d".to_string()));
     assert!(!installed.contains(&"sk-a".to_string()));
 }
-

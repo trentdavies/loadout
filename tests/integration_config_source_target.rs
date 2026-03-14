@@ -60,15 +60,21 @@ fn config_save_and_reload() {
 fn config_roundtrip_with_bundles_and_adapters() {
     let (_tmp, config_path, _) = setup_env();
     let mut config = skittle::config::Config::default();
-    config.bundle.insert("dev".to_string(), skittle::config::BundleConfig {
-        skills: vec!["plugin/skill-a".to_string(), "plugin/skill-b".to_string()],
-    });
-    config.adapter.insert("custom-agent".to_string(), skittle::config::AdapterConfig {
-        skill_dir: "prompts/{name}".to_string(),
-        skill_file: "SKILL.md".to_string(),
-        format: "agentskills".to_string(),
-        copy_dirs: vec!["scripts".to_string()],
-    });
+    config.bundle.insert(
+        "dev".to_string(),
+        skittle::config::BundleConfig {
+            skills: vec!["plugin/skill-a".to_string(), "plugin/skill-b".to_string()],
+        },
+    );
+    config.adapter.insert(
+        "custom-agent".to_string(),
+        skittle::config::AdapterConfig {
+            skill_dir: "prompts/{name}".to_string(),
+            skill_file: "SKILL.md".to_string(),
+            format: "agentskills".to_string(),
+            copy_dirs: vec!["scripts".to_string()],
+        },
+    );
     skittle::config::save_to(&config, &config_path).unwrap();
 
     let reloaded = skittle::config::load_from(&config_path).unwrap();
@@ -168,8 +174,15 @@ fn normalize_plugin_source() {
     let registered = skittle::source::normalize::normalize("psrc", &path, &structure).unwrap();
     assert_eq!(registered.name, "psrc");
     assert!(registered.plugins.iter().any(|p| p.name == "test-plugin"));
-    let plugin = registered.plugins.iter().find(|p| p.name == "test-plugin").unwrap();
-    assert!(plugin.skills.len() >= 3, "test-plugin should have explore, apply, verify");
+    let plugin = registered
+        .plugins
+        .iter()
+        .find(|p| p.name == "test-plugin")
+        .unwrap();
+    assert!(
+        plugin.skills.len() >= 3,
+        "test-plugin should have explore, apply, verify"
+    );
 }
 
 // ─── Registry ───────────────────────────────────────────────────────────
@@ -341,12 +354,15 @@ fn adapter_install_uninstall_skill() {
 #[test]
 fn adapter_custom_toml() {
     let mut adapters = std::collections::BTreeMap::new();
-    adapters.insert("my-agent".to_string(), skittle::config::AdapterConfig {
-        skill_dir: "prompts/{name}".to_string(),
-        skill_file: "SKILL.md".to_string(),
-        format: "agentskills".to_string(),
-        copy_dirs: vec![],
-    });
+    adapters.insert(
+        "my-agent".to_string(),
+        skittle::config::AdapterConfig {
+            skill_dir: "prompts/{name}".to_string(),
+            skill_file: "SKILL.md".to_string(),
+            format: "agentskills".to_string(),
+            copy_dirs: vec![],
+        },
+    );
 
     let target = skittle::config::TargetConfig {
         name: "t".to_string(),

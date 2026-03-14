@@ -148,7 +148,9 @@ fn install_to_specific_target() {
     let adapter = resolve_adapter(&config.target[1], &config.adapter).unwrap();
     let (_src, plugin) = registry.find_plugin("test-plugin").unwrap();
     for skill in &plugin.skills {
-        adapter.install_skill(skill, second_target_dir.path()).unwrap();
+        adapter
+            .install_skill(skill, second_target_dir.path())
+            .unwrap();
     }
 
     // Second target has all 3 skills
@@ -198,10 +200,15 @@ fn uninstall_specific_skill() {
     for skill in &plugin.skills {
         adapter.install_skill(skill, target_dir.path()).unwrap();
     }
-    assert_eq!(adapter.installed_skills(target_dir.path()).unwrap().len(), 3);
+    assert_eq!(
+        adapter.installed_skills(target_dir.path()).unwrap().len(),
+        3
+    );
 
     // Uninstall skill-a
-    adapter.uninstall_skill("skill-a", target_dir.path()).unwrap();
+    adapter
+        .uninstall_skill("skill-a", target_dir.path())
+        .unwrap();
 
     let remaining = adapter.installed_skills(target_dir.path()).unwrap();
     assert_eq!(remaining.len(), 2);
@@ -233,12 +240,17 @@ fn uninstall_bundle() {
         let (_src, _plug, skill) = registry.find_skill(identity).unwrap();
         adapter.install_skill(skill, target_dir.path()).unwrap();
     }
-    assert_eq!(adapter.installed_skills(target_dir.path()).unwrap().len(), 2);
+    assert_eq!(
+        adapter.installed_skills(target_dir.path()).unwrap().len(),
+        2
+    );
 
     // Uninstall bundle skills
     for identity in &config.bundle["dev"].skills {
         let (_src, _plug, skill) = registry.find_skill(identity).unwrap();
-        adapter.uninstall_skill(&skill.name, target_dir.path()).unwrap();
+        adapter
+            .uninstall_skill(&skill.name, target_dir.path())
+            .unwrap();
     }
 
     let remaining = adapter.installed_skills(target_dir.path()).unwrap();

@@ -1,6 +1,6 @@
+use anyhow::{Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
-use anyhow::{Context, Result};
 
 use crate::config::{AdapterConfig, TargetConfig};
 use crate::registry::RegisteredSkill;
@@ -67,7 +67,11 @@ impl Adapter {
     }
 
     /// Compare a source skill against what's installed at the target.
-    pub fn compare_skill(&self, skill: &RegisteredSkill, target_path: &Path) -> Result<SkillStatus> {
+    pub fn compare_skill(
+        &self,
+        skill: &RegisteredSkill,
+        target_path: &Path,
+    ) -> Result<SkillStatus> {
         let dest_dir = self.skill_dest(target_path, &skill.name);
         if !dest_dir.exists() {
             return Ok(SkillStatus::New);
@@ -76,20 +80,18 @@ impl Adapter {
         // Compare SKILL.md
         let src_skill_file = skill.path.join(&self.skill_file);
         let dst_skill_file = dest_dir.join(&self.skill_file);
-        if src_skill_file.exists() || dst_skill_file.exists() {
-            if !files_equal(&src_skill_file, &dst_skill_file)? {
-                return Ok(SkillStatus::Changed);
-            }
+        if (src_skill_file.exists() || dst_skill_file.exists())
+            && !files_equal(&src_skill_file, &dst_skill_file)?
+        {
+            return Ok(SkillStatus::Changed);
         }
 
         // Compare configured subdirectories
         for dir_name in &self.copy_dirs {
             let src_dir = skill.path.join(dir_name);
             let dst_dir = dest_dir.join(dir_name);
-            if src_dir.is_dir() || dst_dir.is_dir() {
-                if !dirs_equal(&src_dir, &dst_dir)? {
-                    return Ok(SkillStatus::Changed);
-                }
+            if (src_dir.is_dir() || dst_dir.is_dir()) && !dirs_equal(&src_dir, &dst_dir)? {
+                return Ok(SkillStatus::Changed);
             }
         }
 
@@ -98,7 +100,11 @@ impl Adapter {
 
     /// Collect all file paths within a skill directory (relative to skill root),
     /// along with their absolute paths on both sides. Used for diff display.
-    pub fn skill_file_pairs(&self, skill: &RegisteredSkill, target_path: &Path) -> Result<Vec<(String, PathBuf, PathBuf)>> {
+    pub fn skill_file_pairs(
+        &self,
+        skill: &RegisteredSkill,
+        target_path: &Path,
+    ) -> Result<Vec<(String, PathBuf, PathBuf)>> {
         let dest_dir = self.skill_dest(target_path, &skill.name);
         let mut pairs = Vec::new();
 
@@ -139,10 +145,10 @@ impl Adapter {
 
         let mut names = Vec::new();
         for entry in fs::read_dir(&base)?.flatten() {
-            if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                if entry.path().join(&self.skill_file).exists() {
-                    names.push(entry.file_name().to_string_lossy().to_string());
-                }
+            if entry.file_type().map(|t| t.is_dir()).unwrap_or(false)
+                && entry.path().join(&self.skill_file).exists()
+            {
+                names.push(entry.file_name().to_string_lossy().to_string());
             }
         }
         names.sort();
@@ -197,7 +203,8 @@ pub fn resolve_adapter(
         return Ok(builtin_adapter());
     }
 
-    let available: Vec<String> = BUILTIN_AGENTS.iter()
+    let available: Vec<String> = BUILTIN_AGENTS
+        .iter()
         .map(|s| s.to_string())
         .chain(custom_adapters.keys().cloned())
         .collect();
@@ -242,10 +249,8 @@ fn files_equal(a: &Path, b: &Path) -> Result<bool> {
         (false, false) => Ok(true),
         (true, false) | (false, true) => Ok(false),
         (true, true) => {
-            let a_bytes = fs::read(a)
-                .with_context(|| format!("failed to read {}", a.display()))?;
-            let b_bytes = fs::read(b)
-                .with_context(|| format!("failed to read {}", b.display()))?;
+            let a_bytes = fs::read(a).with_context(|| format!("failed to read {}", a.display()))?;
+            let b_bytes = fs::read(b).with_context(|| format!("failed to read {}", b.display()))?;
             Ok(a_bytes == b_bytes)
         }
     }
@@ -280,7 +285,11 @@ fn dirs_equal(src: &Path, dst: &Path) -> Result<bool> {
 }
 
 /// Collect all file paths relative to `base` under `dir`.
-fn collect_relative_paths(dir: &Path, base: &Path, out: &mut std::collections::BTreeSet<PathBuf>) -> Result<()> {
+fn collect_relative_paths(
+    dir: &Path,
+    base: &Path,
+    out: &mut std::collections::BTreeSet<PathBuf>,
+) -> Result<()> {
     if !dir.is_dir() {
         return Ok(());
     }
@@ -290,9 +299,7 @@ fn collect_relative_paths(dir: &Path, base: &Path, out: &mut std::collections::B
         if path.is_dir() {
             collect_relative_paths(&path, base, out)?;
         } else {
-            let rel = path.strip_prefix(base)
-                .unwrap_or(&path)
-                .to_path_buf();
+            let rel = path.strip_prefix(base).unwrap_or(&path).to_path_buf();
             out.insert(rel);
         }
     }

@@ -1,6 +1,6 @@
+use anyhow::{bail, Result};
 use std::fs;
 use std::path::Path;
-use anyhow::{bail, Result};
 
 /// Detected source structure.
 #[derive(Debug, Clone)]
@@ -29,7 +29,8 @@ pub enum SourceStructure {
 pub fn detect(path: &Path) -> Result<SourceStructure> {
     // 1. Single file
     if path.is_file() {
-        let name = path.file_stem()
+        let name = path
+            .file_stem()
             .and_then(|n| n.to_str())
             .unwrap_or("unnamed")
             .to_string();
@@ -64,7 +65,8 @@ pub fn detect(path: &Path) -> Result<SourceStructure> {
 
     // 5. SKILL.md in this directory
     if path.join("SKILL.md").exists() {
-        let name = path.file_name()
+        let name = path
+            .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("unnamed")
             .to_string();
@@ -113,10 +115,10 @@ pub fn has_skill_subdirs(path: &Path) -> bool {
     };
 
     for entry in entries.flatten() {
-        if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-            if entry.path().join("SKILL.md").exists() {
-                return true;
-            }
+        if entry.file_type().map(|t| t.is_dir()).unwrap_or(false)
+            && entry.path().join("SKILL.md").exists()
+        {
+            return true;
         }
     }
 
@@ -136,7 +138,13 @@ pub fn parse_skill_name(path: &Path) -> Option<String> {
     for line in frontmatter.lines() {
         let trimmed = line.trim();
         if let Some(value) = trimmed.strip_prefix("name:") {
-            return Some(value.trim().trim_matches('"').trim_matches('\'').to_string());
+            return Some(
+                value
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'')
+                    .to_string(),
+            );
         }
     }
     None
@@ -145,7 +153,9 @@ pub fn parse_skill_name(path: &Path) -> Option<String> {
 /// Check if a name is valid kebab-case (lowercase, digits, hyphens only).
 pub fn is_kebab_case(name: &str) -> bool {
     !name.is_empty()
-        && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        && name
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
         && !name.starts_with('-')
         && !name.ends_with('-')
 }
@@ -176,7 +186,13 @@ fn parse_frontmatter_field(path: &Path, field: &str) -> Option<String> {
     for line in frontmatter.lines() {
         let trimmed = line.trim();
         if let Some(value) = trimmed.strip_prefix(&prefix) {
-            return Some(value.trim().trim_matches('"').trim_matches('\'').to_string());
+            return Some(
+                value
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'')
+                    .to_string(),
+            );
         }
     }
     None
@@ -195,7 +211,13 @@ pub fn parse_skill_description(path: &Path) -> Option<String> {
     for line in frontmatter.lines() {
         let trimmed = line.trim();
         if let Some(value) = trimmed.strip_prefix("description:") {
-            return Some(value.trim().trim_matches('"').trim_matches('\'').to_string());
+            return Some(
+                value
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'')
+                    .to_string(),
+            );
         }
     }
     None
@@ -232,7 +254,11 @@ mod tests {
     #[test]
     fn detect_single_file() {
         let tmp = TempDir::new().unwrap();
-        let skill = write_skill(tmp.path(), "SKILL.md", "---\nname: test\ndescription: A test\n---\nbody");
+        let skill = write_skill(
+            tmp.path(),
+            "SKILL.md",
+            "---\nname: test\ndescription: A test\n---\nbody",
+        );
         match detect(&skill).unwrap() {
             SourceStructure::SingleFile { skill_name } => assert_eq!(skill_name, "SKILL"),
             other => panic!("expected SingleFile, got {:?}", other),
@@ -255,7 +281,11 @@ mod tests {
         make_plugin_json(tmp.path(), r#"{"name": "my-plugin"}"#);
         let skill_dir = tmp.path().join("skills").join("my-skill");
         fs::create_dir_all(&skill_dir).unwrap();
-        write_skill(&skill_dir, "SKILL.md", "---\nname: my-skill\ndescription: test\n---\n");
+        write_skill(
+            &skill_dir,
+            "SKILL.md",
+            "---\nname: my-skill\ndescription: test\n---\n",
+        );
         match detect(tmp.path()).unwrap() {
             SourceStructure::SinglePlugin => {}
             other => panic!("expected SinglePlugin, got {:?}", other),
@@ -268,7 +298,11 @@ mod tests {
         // Both marketplace.json and plugin.json exist — marketplace wins
         let cp_dir = tmp.path().join(".claude-plugin");
         fs::create_dir_all(&cp_dir).unwrap();
-        fs::write(cp_dir.join("marketplace.json"), r#"{"name": "mkt", "plugins": []}"#).unwrap();
+        fs::write(
+            cp_dir.join("marketplace.json"),
+            r#"{"name": "mkt", "plugins": []}"#,
+        )
+        .unwrap();
         fs::write(cp_dir.join("plugin.json"), r#"{"name": "plug"}"#).unwrap();
         match detect(tmp.path()).unwrap() {
             SourceStructure::Marketplace => {}
@@ -281,7 +315,11 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let sub = tmp.path().join("my-skill");
         fs::create_dir(&sub).unwrap();
-        fs::write(sub.join("SKILL.md"), "---\nname: my-skill\ndescription: d\n---\n").unwrap();
+        fs::write(
+            sub.join("SKILL.md"),
+            "---\nname: my-skill\ndescription: d\n---\n",
+        )
+        .unwrap();
         match detect(tmp.path()).unwrap() {
             SourceStructure::FlatSkills => {}
             other => panic!("expected FlatSkills, got {:?}", other),
@@ -291,7 +329,11 @@ mod tests {
     #[test]
     fn detect_single_skill_dir() {
         let tmp = TempDir::new().unwrap();
-        fs::write(tmp.path().join("SKILL.md"), "---\nname: x\ndescription: d\n---\n").unwrap();
+        fs::write(
+            tmp.path().join("SKILL.md"),
+            "---\nname: x\ndescription: d\n---\n",
+        )
+        .unwrap();
         match detect(tmp.path()).unwrap() {
             SourceStructure::SingleSkillDir { skill_name } => {
                 assert!(!skill_name.is_empty());
@@ -323,7 +365,11 @@ mod tests {
     #[test]
     fn has_frontmatter_valid() {
         let tmp = TempDir::new().unwrap();
-        let f = write_skill(tmp.path(), "SKILL.md", "---\nname: x\ndescription: d\n---\nbody");
+        let f = write_skill(
+            tmp.path(),
+            "SKILL.md",
+            "---\nname: x\ndescription: d\n---\nbody",
+        );
         assert!(has_skill_frontmatter(&f));
     }
 
@@ -344,7 +390,11 @@ mod tests {
     #[test]
     fn has_frontmatter_no_closing_delimiter() {
         let tmp = TempDir::new().unwrap();
-        let f = write_skill(tmp.path(), "SKILL.md", "---\nname: x\ndescription: d\nno closing");
+        let f = write_skill(
+            tmp.path(),
+            "SKILL.md",
+            "---\nname: x\ndescription: d\nno closing",
+        );
         assert!(!has_skill_frontmatter(&f));
     }
 
@@ -358,7 +408,11 @@ mod tests {
     #[test]
     fn parse_name_present() {
         let tmp = TempDir::new().unwrap();
-        let f = write_skill(tmp.path(), "SKILL.md", "---\nname: my-skill\ndescription: d\n---\n");
+        let f = write_skill(
+            tmp.path(),
+            "SKILL.md",
+            "---\nname: my-skill\ndescription: d\n---\n",
+        );
         assert_eq!(parse_skill_name(&f), Some("my-skill".to_string()));
     }
 
@@ -379,14 +433,22 @@ mod tests {
     #[test]
     fn parse_name_quoted() {
         let tmp = TempDir::new().unwrap();
-        let f = write_skill(tmp.path(), "SKILL.md", "---\nname: \"quoted-name\"\ndescription: d\n---\n");
+        let f = write_skill(
+            tmp.path(),
+            "SKILL.md",
+            "---\nname: \"quoted-name\"\ndescription: d\n---\n",
+        );
         assert_eq!(parse_skill_name(&f), Some("quoted-name".to_string()));
     }
 
     #[test]
     fn parse_name_with_whitespace() {
         let tmp = TempDir::new().unwrap();
-        let f = write_skill(tmp.path(), "SKILL.md", "---\nname:   spaced  \ndescription: d\n---\n");
+        let f = write_skill(
+            tmp.path(),
+            "SKILL.md",
+            "---\nname:   spaced  \ndescription: d\n---\n",
+        );
         assert_eq!(parse_skill_name(&f), Some("spaced".to_string()));
     }
 
@@ -395,8 +457,15 @@ mod tests {
     #[test]
     fn parse_description_present() {
         let tmp = TempDir::new().unwrap();
-        let f = write_skill(tmp.path(), "SKILL.md", "---\nname: x\ndescription: A test skill\n---\n");
-        assert_eq!(parse_skill_description(&f), Some("A test skill".to_string()));
+        let f = write_skill(
+            tmp.path(),
+            "SKILL.md",
+            "---\nname: x\ndescription: A test skill\n---\n",
+        );
+        assert_eq!(
+            parse_skill_description(&f),
+            Some("A test skill".to_string())
+        );
     }
 
     #[test]
@@ -409,7 +478,11 @@ mod tests {
     #[test]
     fn parse_description_quoted() {
         let tmp = TempDir::new().unwrap();
-        let f = write_skill(tmp.path(), "SKILL.md", "---\nname: x\ndescription: \"quoted desc\"\n---\n");
+        let f = write_skill(
+            tmp.path(),
+            "SKILL.md",
+            "---\nname: x\ndescription: \"quoted desc\"\n---\n",
+        );
         assert_eq!(parse_skill_description(&f), Some("quoted desc".to_string()));
     }
 
@@ -472,32 +545,44 @@ mod tests {
     #[test]
     fn parse_author_from_frontmatter() {
         let tmp = TempDir::new().unwrap();
-        let f = write_skill(tmp.path(), "SKILL.md",
-            "---\nname: test\ndescription: d\nauthor: trent\n---\n");
+        let f = write_skill(
+            tmp.path(),
+            "SKILL.md",
+            "---\nname: test\ndescription: d\nauthor: trent\n---\n",
+        );
         assert_eq!(parse_skill_author(&f), Some("trent".to_string()));
     }
 
     #[test]
     fn parse_version_from_frontmatter() {
         let tmp = TempDir::new().unwrap();
-        let f = write_skill(tmp.path(), "SKILL.md",
-            "---\nname: test\ndescription: d\nversion: 1.2.3\n---\n");
+        let f = write_skill(
+            tmp.path(),
+            "SKILL.md",
+            "---\nname: test\ndescription: d\nversion: 1.2.3\n---\n",
+        );
         assert_eq!(parse_skill_version(&f), Some("1.2.3".to_string()));
     }
 
     #[test]
     fn parse_metadata_author_nested() {
         let tmp = TempDir::new().unwrap();
-        let f = write_skill(tmp.path(), "SKILL.md",
-            "---\nname: test\ndescription: d\nmetadata.author: nested-author\n---\n");
+        let f = write_skill(
+            tmp.path(),
+            "SKILL.md",
+            "---\nname: test\ndescription: d\nmetadata.author: nested-author\n---\n",
+        );
         assert_eq!(parse_skill_author(&f), Some("nested-author".to_string()));
     }
 
     #[test]
     fn parse_metadata_missing() {
         let tmp = TempDir::new().unwrap();
-        let f = write_skill(tmp.path(), "SKILL.md",
-            "---\nname: test\ndescription: d\n---\n");
+        let f = write_skill(
+            tmp.path(),
+            "SKILL.md",
+            "---\nname: test\ndescription: d\n---\n",
+        );
         assert_eq!(parse_skill_author(&f), None);
         assert_eq!(parse_skill_version(&f), None);
     }

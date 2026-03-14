@@ -77,7 +77,8 @@ fn add_source(
     copy_dir_recursive(source_dir, &cached).unwrap();
 
     let structure = skittle::source::detect::detect(&cached).unwrap();
-    let registered = skittle::source::normalize::normalize(source_name, &cached, &structure).unwrap();
+    let registered =
+        skittle::source::normalize::normalize(source_name, &cached, &structure).unwrap();
 
     let mut registry = skittle::registry::load_registry(data_dir).unwrap();
     registry.sources.push(registered);
@@ -112,10 +113,8 @@ fn add_local_source_and_verify_registry() {
     make_source_with_skills(source_dir.path(), &["analyze", "transform"]);
 
     // Parse URL, fetch, detect, normalize, save
-    let source_url = skittle::source::SourceUrl::parse(
-        source_dir.path().to_str().unwrap(),
-    )
-    .unwrap();
+    let source_url =
+        skittle::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
     let default_name = source_url.default_name();
     let cached = cache_dir.join(&default_name);
     skittle::source::fetch::fetch(&source_url, &cached, None).unwrap();
@@ -124,7 +123,10 @@ fn add_local_source_and_verify_registry() {
     let registered =
         skittle::source::normalize::normalize(&default_name, &cached, &structure).unwrap();
 
-    assert!(!registered.plugins.is_empty(), "should detect at least one plugin");
+    assert!(
+        !registered.plugins.is_empty(),
+        "should detect at least one plugin"
+    );
     let total_skills: usize = registered.plugins.iter().map(|p| p.skills.len()).sum();
     assert_eq!(total_skills, 2, "should find 2 skills");
 
@@ -159,10 +161,8 @@ fn add_source_with_custom_name() {
     let source_dir = TempDir::new().unwrap();
     make_source_with_skills(source_dir.path(), &["deploy"]);
 
-    let source_url = skittle::source::SourceUrl::parse(
-        source_dir.path().to_str().unwrap(),
-    )
-    .unwrap();
+    let source_url =
+        skittle::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
 
     // Use a custom name instead of the default
     let custom_name = "my-custom-source";
@@ -217,10 +217,16 @@ fn remove_source_cleans_registry() {
 
     // Verify both are empty
     let loaded_registry = skittle::registry::load_registry(&data_dir).unwrap();
-    assert!(loaded_registry.sources.is_empty(), "registry should be empty after removal");
+    assert!(
+        loaded_registry.sources.is_empty(),
+        "registry should be empty after removal"
+    );
 
     let loaded_config = skittle::config::load_from(&config_path).unwrap();
-    assert!(loaded_config.source.is_empty(), "config should be empty after removal");
+    assert!(
+        loaded_config.source.is_empty(),
+        "config should be empty after removal"
+    );
 }
 
 #[test]
@@ -311,11 +317,27 @@ fn list_sources_returns_all() {
     );
 
     // Verify all names are present
-    let config_names: Vec<&str> = loaded_config.source.iter().map(|s| s.name.as_str()).collect();
-    let registry_names: Vec<&str> = loaded_registry.sources.iter().map(|s| s.name.as_str()).collect();
+    let config_names: Vec<&str> = loaded_config
+        .source
+        .iter()
+        .map(|s| s.name.as_str())
+        .collect();
+    let registry_names: Vec<&str> = loaded_registry
+        .sources
+        .iter()
+        .map(|s| s.name.as_str())
+        .collect();
     for name in &names {
-        assert!(config_names.contains(name), "config missing source '{}'", name);
-        assert!(registry_names.contains(name), "registry missing source '{}'", name);
+        assert!(
+            config_names.contains(name),
+            "config missing source '{}'",
+            name
+        );
+        assert!(
+            registry_names.contains(name),
+            "registry missing source '{}'",
+            name
+        );
     }
 }
 
@@ -450,9 +472,8 @@ fn normalize_with_overrides_uses_custom_names() {
     let source_dir = TempDir::new().unwrap();
     make_source_with_skills(source_dir.path(), &["original"]);
 
-    let source_url = skittle::source::SourceUrl::parse(
-        source_dir.path().to_str().unwrap(),
-    ).unwrap();
+    let source_url =
+        skittle::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
     let cached = cache_dir.join("test-src");
     skittle::source::fetch::fetch(&source_url, &cached, None).unwrap();
 
@@ -461,9 +482,9 @@ fn normalize_with_overrides_uses_custom_names() {
         plugin: Some("custom-plug"),
         skill: None,
     };
-    let registered = skittle::source::normalize::normalize_with(
-        "test-src", &cached, &structure, &overrides,
-    ).unwrap();
+    let registered =
+        skittle::source::normalize::normalize_with("test-src", &cached, &structure, &overrides)
+            .unwrap();
 
     assert_eq!(registered.plugins[0].name, "custom-plug");
 }
@@ -476,9 +497,8 @@ fn normalize_with_overrides_rejects_invalid_kebab() {
     let source_dir = TempDir::new().unwrap();
     make_source_with_skills(source_dir.path(), &["original"]);
 
-    let source_url = skittle::source::SourceUrl::parse(
-        source_dir.path().to_str().unwrap(),
-    ).unwrap();
+    let source_url =
+        skittle::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
     let cached = cache_dir.join("test-src");
     skittle::source::fetch::fetch(&source_url, &cached, None).unwrap();
 
@@ -487,9 +507,8 @@ fn normalize_with_overrides_rejects_invalid_kebab() {
         plugin: Some("NotKebab"),
         skill: None,
     };
-    let result = skittle::source::normalize::normalize_with(
-        "test-src", &cached, &structure, &overrides,
-    );
+    let result =
+        skittle::source::normalize::normalize_with("test-src", &cached, &structure, &overrides);
     assert!(result.is_err());
 }
 
@@ -504,7 +523,10 @@ fn prompt_confirm_uses_default_non_interactive() {
 fn prompt_select_errors_non_interactive() {
     let options = vec!["alpha".to_string(), "beta".to_string()];
     let result = skittle::prompt::select_from("Source", &options, false);
-    assert!(result.is_err(), "select_from should error when not interactive");
+    assert!(
+        result.is_err(),
+        "select_from should error when not interactive"
+    );
 }
 
 #[test]
@@ -515,9 +537,8 @@ fn fetch_local_symlink_creates_symlink() {
     let cache_dir = TempDir::new().unwrap();
     let cached = cache_dir.path().join("linked-src");
 
-    let source_url = skittle::source::SourceUrl::parse(
-        source_dir.path().to_str().unwrap(),
-    ).unwrap();
+    let source_url =
+        skittle::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
 
     skittle::source::fetch::fetch_with_mode(&source_url, &cached, None, true).unwrap();
 
@@ -535,9 +556,8 @@ fn fetch_local_copy_creates_real_dir() {
     let cache_dir = TempDir::new().unwrap();
     let cached = cache_dir.path().join("copied-src");
 
-    let source_url = skittle::source::SourceUrl::parse(
-        source_dir.path().to_str().unwrap(),
-    ).unwrap();
+    let source_url =
+        skittle::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
 
     skittle::source::fetch::fetch_with_mode(&source_url, &cached, None, false).unwrap();
 
@@ -555,9 +575,7 @@ fn fetch_local_single_file_always_copies() {
     let cache_dir = TempDir::new().unwrap();
     let cached = cache_dir.path().join("file-src");
 
-    let source_url = skittle::source::SourceUrl::parse(
-        skill_file.to_str().unwrap(),
-    ).unwrap();
+    let source_url = skittle::source::SourceUrl::parse(skill_file.to_str().unwrap()).unwrap();
 
     // Even with symlink=true, single file should be copied
     skittle::source::fetch::fetch_with_mode(&source_url, &cached, None, true).unwrap();

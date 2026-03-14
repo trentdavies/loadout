@@ -3,10 +3,8 @@ use std::path::PathBuf;
 
 use tempfile::TempDir;
 
-use skittle::config::{BundleConfig, Config, TargetConfig, load_from, save_to};
-use skittle::registry::{
-    RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry,
-};
+use skittle::config::{load_from, save_to, BundleConfig, Config, TargetConfig};
+use skittle::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry};
 use skittle::target::resolve_adapter;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -63,8 +61,12 @@ fn create_bundle_and_add_skills() {
     let reloaded = load_from(&config_path).unwrap();
     assert!(reloaded.bundle.contains_key("dev"));
     assert_eq!(reloaded.bundle["dev"].skills.len(), 2);
-    assert!(reloaded.bundle["dev"].skills.contains(&"p/skill-a".to_string()));
-    assert!(reloaded.bundle["dev"].skills.contains(&"p/skill-b".to_string()));
+    assert!(reloaded.bundle["dev"]
+        .skills
+        .contains(&"p/skill-a".to_string()));
+    assert!(reloaded.bundle["dev"]
+        .skills
+        .contains(&"p/skill-b".to_string()));
 }
 
 /// Add a bundle, save, remove it, save again, reload, and verify it is gone.
@@ -110,9 +112,15 @@ fn drop_skill_from_bundle() {
 
     let reloaded = load_from(&config_path).unwrap();
     assert_eq!(reloaded.bundle["trio"].skills.len(), 2);
-    assert!(reloaded.bundle["trio"].skills.contains(&"p/alpha".to_string()));
-    assert!(reloaded.bundle["trio"].skills.contains(&"p/gamma".to_string()));
-    assert!(!reloaded.bundle["trio"].skills.contains(&"p/beta".to_string()));
+    assert!(reloaded.bundle["trio"]
+        .skills
+        .contains(&"p/alpha".to_string()));
+    assert!(reloaded.bundle["trio"]
+        .skills
+        .contains(&"p/gamma".to_string()));
+    assert!(!reloaded.bundle["trio"]
+        .skills
+        .contains(&"p/beta".to_string()));
 }
 
 /// Create two bundles with different skills backed by real fixture files.
@@ -173,8 +181,12 @@ fn swap_bundle() {
     assert!(installed.contains(&"skill-a2".to_string()));
 
     // Swap: uninstall A, install B
-    adapter.uninstall_skill("skill-a1", target_dir.path()).unwrap();
-    adapter.uninstall_skill("skill-a2", target_dir.path()).unwrap();
+    adapter
+        .uninstall_skill("skill-a1", target_dir.path())
+        .unwrap();
+    adapter
+        .uninstall_skill("skill-a2", target_dir.path())
+        .unwrap();
     adapter.install_skill(&skill_b1, target_dir.path()).unwrap();
     adapter.install_skill(&skill_b2, target_dir.path()).unwrap();
     let installed = adapter.installed_skills(target_dir.path()).unwrap();

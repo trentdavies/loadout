@@ -202,7 +202,6 @@ pub enum Command {
         #[command(subcommand)]
         command: ConfigCommand,
     },
-
 }
 
 #[derive(Subcommand)]
@@ -344,14 +343,15 @@ fn extract_domain(url: &str) -> String {
         return rest.split(':').next().unwrap_or("").to_string();
     }
     // https://github.com/... → github.com
-    if let Some(after_scheme) = url.strip_prefix("https://")
+    if let Some(after_scheme) = url
+        .strip_prefix("https://")
         .or_else(|| url.strip_prefix("http://"))
         .or_else(|| url.strip_prefix("git://"))
         .or_else(|| url.strip_prefix("ssh://"))
     {
         let host = after_scheme.split('/').next().unwrap_or("");
         // strip user@ prefix (ssh://git@github.com/...)
-        return host.split('@').last().unwrap_or(host).to_string();
+        return host.split('@').next_back().unwrap_or(host).to_string();
     }
     String::new()
 }
@@ -362,9 +362,15 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             let path = crate::config::config_path(cli.config.as_deref());
             if path.exists() {
                 if url.is_some() && !cli.quiet {
-                    println!("Config already exists at {}. Use `skittle add` instead.", path.display());
+                    println!(
+                        "Config already exists at {}. Use `skittle add` instead.",
+                        path.display()
+                    );
                 } else if !cli.quiet {
-                    println!("Config already exists at {}. Use `skittle config edit` to modify.", path.display());
+                    println!(
+                        "Config already exists at {}. Use `skittle config edit` to modify.",
+                        path.display()
+                    );
                 }
                 return Ok(());
             }
@@ -413,9 +419,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 crate::source::fetch::fetch(&source_url, &cache_path, None)?;
 
                 let structure = crate::source::detect::detect(&cache_path)?;
-                let registered = crate::source::normalize::normalize(
-                    &source_name, &cache_path, &structure,
-                )?;
+                let registered =
+                    crate::source::normalize::normalize(&source_name, &cache_path, &structure)?;
 
                 let data_dir = crate::config::data_dir();
                 let mut registry = crate::registry::load_registry(&data_dir)?;
@@ -439,7 +444,16 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
             Ok(())
         }
-        Command::Add { url, source, plugin, skill, name, r#ref, symlink, copy } => {
+        Command::Add {
+            url,
+            source,
+            plugin,
+            skill,
+            name,
+            r#ref,
+            symlink,
+            copy,
+        } => {
             // Backward-compat: error on deprecated --name
             if name.is_some() {
                 anyhow::bail!("`--name` has been renamed to `--source`");
@@ -481,7 +495,12 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             };
 
             if !cli.dry_run {
-                crate::source::fetch::fetch_with_mode(&source_url, &cache_path, r#ref.as_deref(), use_symlink)?;
+                crate::source::fetch::fetch_with_mode(
+                    &source_url,
+                    &cache_path,
+                    r#ref.as_deref(),
+                    use_symlink,
+                )?;
 
                 let structure = crate::source::detect::detect(&cache_path)?;
 
@@ -494,33 +513,51 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     } else {
                         // Prompt only when the inferred plugin differs from source
                         let default_plugin = match &structure {
-                            SourceStructure::SingleFile { .. } | SourceStructure::SingleSkillDir { .. } => {
+                            SourceStructure::SingleFile { .. }
+                            | SourceStructure::SingleSkillDir { .. } => {
                                 // plugin = source_name, no point prompting
                                 None
                             }
                             SourceStructure::FlatSkills => {
-                                let dir = cache_path.file_name()
+                                let dir = cache_path
+                                    .file_name()
                                     .and_then(|n| n.to_str())
                                     .unwrap_or(&source_name);
-                                if dir == source_name { None } else { Some(dir.to_string()) }
+                                if dir == source_name {
+                                    None
+                                } else {
+                                    Some(dir.to_string())
+                                }
                             }
                             SourceStructure::SinglePlugin => {
                                 let plugin_json = cache_path.join(".claude-plugin/plugin.json");
                                 if plugin_json.exists() {
-                                    let m = crate::source::manifest::load_plugin_manifest(&plugin_json)?;
-                                    if m.name == source_name { None } else { Some(m.name) }
+                                    let m = crate::source::manifest::load_plugin_manifest(
+                                        &plugin_json,
+                                    )?;
+                                    if m.name == source_name {
+                                        None
+                                    } else {
+                                        Some(m.name)
+                                    }
                                 } else {
-                                    let n = cache_path.file_name()
+                                    let n = cache_path
+                                        .file_name()
                                         .and_then(|n| n.to_str())
                                         .unwrap_or("unnamed")
                                         .to_string();
-                                    if n == source_name { None } else { Some(n) }
+                                    if n == source_name {
+                                        None
+                                    } else {
+                                        Some(n)
+                                    }
                                 }
                             }
                             SourceStructure::Marketplace => None,
                         };
                         if let Some(ref dp) = default_plugin {
-                            let confirmed = crate::prompt::confirm_or_override("Plugin name", dp, cli.quiet);
+                            let confirmed =
+                                crate::prompt::confirm_or_override("Plugin name", dp, cli.quiet);
                             // Leak the confirmed string into the overrides
                             if confirmed != *dp {
                                 Some(confirmed)
@@ -537,12 +574,28 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     } else {
                         match &structure {
                             SourceStructure::SingleFile { skill_name } => {
-                                let confirmed = crate::prompt::confirm_or_override("Skill name", skill_name, cli.quiet);
-                                if confirmed != *skill_name { Some(confirmed) } else { None }
+                                let confirmed = crate::prompt::confirm_or_override(
+                                    "Skill name",
+                                    skill_name,
+                                    cli.quiet,
+                                );
+                                if confirmed != *skill_name {
+                                    Some(confirmed)
+                                } else {
+                                    None
+                                }
                             }
                             SourceStructure::SingleSkillDir { skill_name } => {
-                                let confirmed = crate::prompt::confirm_or_override("Skill name", skill_name, cli.quiet);
-                                if confirmed != *skill_name { Some(confirmed) } else { None }
+                                let confirmed = crate::prompt::confirm_or_override(
+                                    "Skill name",
+                                    skill_name,
+                                    cli.quiet,
+                                );
+                                if confirmed != *skill_name {
+                                    Some(confirmed)
+                                } else {
+                                    None
+                                }
                             }
                             _ => None,
                         }
@@ -557,14 +610,20 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 };
 
                 let registered = crate::source::normalize::normalize_with(
-                    &source_name, &cache_path, &structure, &norm_overrides,
+                    &source_name,
+                    &cache_path,
+                    &structure,
+                    &norm_overrides,
                 )?;
 
                 // In non-interactive/quiet mode, show what was resolved
                 if !cli.quiet && !crate::prompt::is_interactive() {
                     for p in &registered.plugins {
                         for s in &p.skills {
-                            eprintln!("resolved: {}", crate::output::plain_identity(&source_name, &p.name, &s.name));
+                            eprintln!(
+                                "resolved: {}",
+                                crate::output::plain_identity(&source_name, &p.name, &s.name)
+                            );
                         }
                     }
                 }
@@ -579,7 +638,11 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     url: source_url.url_string(),
                     source_type: source_url.source_type().to_string(),
                     r#ref: r#ref.clone(),
-                    mode: if use_symlink { Some("symlink".to_string()) } else { None },
+                    mode: if use_symlink {
+                        Some("symlink".to_string())
+                    } else {
+                        None
+                    },
                 });
                 crate::config::save(&config, config_path_str)?;
             }
@@ -597,44 +660,57 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             if external {
                 // List external sources in table format
                 if cli.json {
-                    let entries: Vec<serde_json::Value> = config_for_list.source.iter().map(|src| {
-                        let skill_count: usize = registry.sources.iter()
-                            .find(|rs| rs.name == src.name)
-                            .map(|rs| rs.plugins.iter().map(|p| p.skills.len()).sum())
-                            .unwrap_or(0);
-                        serde_json::json!({
-                            "name": src.name,
-                            "type": src.source_type,
-                            "domain": extract_domain(&src.url),
-                            "ref": src.r#ref,
-                            "skills": skill_count,
-                            "mode": src.mode,
+                    let entries: Vec<serde_json::Value> = config_for_list
+                        .source
+                        .iter()
+                        .map(|src| {
+                            let skill_count: usize = registry
+                                .sources
+                                .iter()
+                                .find(|rs| rs.name == src.name)
+                                .map(|rs| rs.plugins.iter().map(|p| p.skills.len()).sum())
+                                .unwrap_or(0);
+                            serde_json::json!({
+                                "name": src.name,
+                                "type": src.source_type,
+                                "domain": extract_domain(&src.url),
+                                "ref": src.r#ref,
+                                "skills": skill_count,
+                                "mode": src.mode,
+                            })
                         })
-                    }).collect();
+                        .collect();
                     println!("{}", serde_json::to_string_pretty(&entries)?);
                     return Ok(());
                 }
 
                 if config_for_list.source.is_empty() {
-                    let output = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
+                    let output =
+                        crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
                     output.info("No sources configured. Use `skittle add` to add one.");
                     return Ok(());
                 }
 
-                let rows: Vec<Vec<String>> = config_for_list.source.iter().map(|src| {
-                    let skill_count: usize = registry.sources.iter()
-                        .find(|rs| rs.name == src.name)
-                        .map(|rs| rs.plugins.iter().map(|p| p.skills.len()).sum())
-                        .unwrap_or(0);
-                    vec![
-                        src.name.clone(),
-                        src.source_type.clone(),
-                        extract_domain(&src.url),
-                        src.r#ref.clone().unwrap_or_default(),
-                        skill_count.to_string(),
-                        src.mode.clone().unwrap_or_default(),
-                    ]
-                }).collect();
+                let rows: Vec<Vec<String>> = config_for_list
+                    .source
+                    .iter()
+                    .map(|src| {
+                        let skill_count: usize = registry
+                            .sources
+                            .iter()
+                            .find(|rs| rs.name == src.name)
+                            .map(|rs| rs.plugins.iter().map(|p| p.skills.len()).sum())
+                            .unwrap_or(0);
+                        vec![
+                            src.name.clone(),
+                            src.source_type.clone(),
+                            extract_domain(&src.url),
+                            src.r#ref.clone().unwrap_or_default(),
+                            skill_count.to_string(),
+                            src.mode.clone().unwrap_or_default(),
+                        ]
+                    })
+                    .collect();
 
                 let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
                 out.table(&["NAME", "TYPE", "DOMAIN", "REF", "SKILLS", "MODE"], &rows);
@@ -659,17 +735,25 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     return Ok(());
                 }
 
-                let out = crate::output::Output::from_flags(
-                    cli.json, cli.quiet, cli.verbose,
+                let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
+                out.status(
+                    "Identity",
+                    &crate::output::format_identity(source_name, plugin_name, &skill.name),
                 );
-                out.status("Identity", &crate::output::format_identity(source_name, plugin_name, &skill.name));
-                out.status("Description", skill.description.as_deref().unwrap_or("(none)"));
+                out.status(
+                    "Description",
+                    skill.description.as_deref().unwrap_or("(none)"),
+                );
                 if cli.verbose {
                     out.status("Path", &skill.path.display().to_string());
                 }
             } else {
                 // List skills: all (no patterns), or filtered by glob/exact patterns
-                let skills: Vec<(&str, &crate::registry::RegisteredPlugin, &crate::registry::RegisteredSkill)> = if patterns.is_empty() {
+                let skills: Vec<(
+                    &str,
+                    &crate::registry::RegisteredPlugin,
+                    &crate::registry::RegisteredSkill,
+                )> = if patterns.is_empty() {
                     registry.all_skills()
                 } else {
                     let mut seen = std::collections::HashSet::new();
@@ -677,7 +761,11 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     for pat in &patterns {
                         if crate::registry::is_glob(pat) {
                             for triple in registry.match_skills(pat) {
-                                let id = crate::output::plain_identity(triple.0, &triple.1.name, &triple.2.name);
+                                let id = crate::output::plain_identity(
+                                    triple.0,
+                                    &triple.1.name,
+                                    &triple.2.name,
+                                );
                                 if seen.insert(id) {
                                     result.push(triple);
                                 }
@@ -687,9 +775,16 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                 Ok((src, plug, sk)) => {
                                     let id = crate::output::plain_identity(src, plug, &sk.name);
                                     if seen.insert(id) {
-                                        result.push((src, registry.sources.iter()
-                                            .flat_map(|s| s.plugins.iter())
-                                            .find(|p| p.name == plug).unwrap(), sk));
+                                        result.push((
+                                            src,
+                                            registry
+                                                .sources
+                                                .iter()
+                                                .flat_map(|s| s.plugins.iter())
+                                                .find(|p| p.name == plug)
+                                                .unwrap(),
+                                            sk,
+                                        ));
                                     }
                                 }
                                 Err(e) => anyhow::bail!("{}", e),
@@ -719,7 +814,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         .collect();
                     println!("{}", serde_json::to_string_pretty(&entries)?);
                 } else {
-                    let output = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
+                    let output =
+                        crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
                     if skills.is_empty() {
                         if patterns.is_empty() {
                             output.info("No skills found. Add a source with `skittle add`");
@@ -728,14 +824,29 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         }
                     } else {
                         for (source_name, plugin, skill) in &skills {
-                            println!("{}", crate::output::format_identity(source_name, &plugin.name, &skill.name));
+                            println!(
+                                "{}",
+                                crate::output::format_identity(
+                                    source_name,
+                                    &plugin.name,
+                                    &skill.name
+                                )
+                            );
                         }
                     }
                 }
             }
             Ok(())
         }
-        Command::Apply { all, skill, plugin, bundle, target, force, interactive } => {
+        Command::Apply {
+            all,
+            skill,
+            plugin,
+            bundle,
+            target,
+            force,
+            interactive,
+        } => {
             if !all && skill.is_none() && plugin.is_none() && bundle.is_none() {
                 eprintln!("error: apply requires --all, --skill, --plugin, or --bundle");
                 std::process::exit(2);
@@ -748,7 +859,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
             // Determine which targets to apply to
             let targets: Vec<&crate::config::TargetConfig> = if let Some(ref t) = target {
-                let tc = config.target.iter()
+                let tc = config
+                    .target
+                    .iter()
                     .find(|tc| tc.name == *t)
                     .ok_or_else(|| anyhow::anyhow!("target '{}' not found", t))?;
                 vec![tc]
@@ -761,7 +874,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
 
             // Collect skills to apply with provenance: (source, plugin, skill)
-            let mut skills_to_apply: Vec<(&str, &str, &crate::registry::RegisteredSkill)> = Vec::new();
+            let mut skills_to_apply: Vec<(&str, &str, &crate::registry::RegisteredSkill)> =
+                Vec::new();
 
             if all {
                 for src in &registry.sources {
@@ -779,7 +893,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
 
             if let Some(ref plugin_name) = plugin {
-                let (src_name, p) = registry.find_plugin(plugin_name)
+                let (src_name, p) = registry
+                    .find_plugin(plugin_name)
                     .ok_or_else(|| anyhow::anyhow!("plugin '{}' not found", plugin_name))?;
                 for s in &p.skills {
                     skills_to_apply.push((src_name, &p.name, s));
@@ -787,7 +902,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
 
             if let Some(ref bundle_name) = bundle {
-                let bundle_cfg = config.bundle.get(bundle_name)
+                let bundle_cfg = config
+                    .bundle
+                    .get(bundle_name)
                     .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", bundle_name))?;
                 for skill_id in &bundle_cfg.skills {
                     let (src, plug, s) = registry.find_skill(skill_id)?;
@@ -816,7 +933,11 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         }
                     }
                     if !conflicts.is_empty() {
-                        eprintln!("error: {} skill(s) have changed at target '{}':", conflicts.len(), tc.name);
+                        eprintln!(
+                            "error: {} skill(s) have changed at target '{}':",
+                            conflicts.len(),
+                            tc.name
+                        );
                         for name in &conflicts {
                             eprintln!("  - {}", name);
                         }
@@ -836,7 +957,12 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                 crate::target::SkillStatus::Unchanged => "unchanged",
                                 crate::target::SkillStatus::Changed => "changed",
                             };
-                            println!("  (dry run) {} → {} [{}]", crate::output::format_identity(src_name, plug_name, &s.name), tc.name, label);
+                            println!(
+                                "  (dry run) {} → {} [{}]",
+                                crate::output::format_identity(src_name, plug_name, &s.name),
+                                tc.name,
+                                label
+                            );
                         }
                         continue;
                     }
@@ -864,19 +990,29 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                     }
                                     ConflictAction::Overwrite => {
                                         adapter.install_skill(s, &tc.path)?;
-                                        record_provenance(&mut reg, &data_dir, tc, src_name, plug_name, s);
+                                        record_provenance(
+                                            &mut reg, &data_dir, tc, src_name, plug_name, s,
+                                        );
                                         updated_count += 1;
                                     }
                                     ConflictAction::ForceAll => {
                                         adapter.install_skill(s, &tc.path)?;
-                                        record_provenance(&mut reg, &data_dir, tc, src_name, plug_name, s);
+                                        record_provenance(
+                                            &mut reg, &data_dir, tc, src_name, plug_name, s,
+                                        );
                                         updated_count += 1;
                                         force_remaining = true;
                                     }
                                     ConflictAction::Quit => {
                                         // Save what we have so far and exit
                                         crate::registry::save_registry(&reg, &data_dir)?;
-                                        print_apply_summary(new_count, updated_count, unchanged_count, conflict_skipped, cli.quiet);
+                                        print_apply_summary(
+                                            new_count,
+                                            updated_count,
+                                            unchanged_count,
+                                            conflict_skipped,
+                                            cli.quiet,
+                                        );
                                         return Ok(());
                                     }
                                 }
@@ -892,11 +1028,23 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
 
             if !cli.quiet && !cli.dry_run {
-                print_apply_summary(new_count, updated_count, unchanged_count, conflict_skipped, cli.quiet);
+                print_apply_summary(
+                    new_count,
+                    updated_count,
+                    unchanged_count,
+                    conflict_skipped,
+                    cli.quiet,
+                );
             }
             Ok(())
         }
-        Command::Uninstall { skill, plugin, bundle, target, force } => {
+        Command::Uninstall {
+            skill,
+            plugin,
+            bundle,
+            target,
+            force,
+        } => {
             if skill.is_none() && plugin.is_none() && bundle.is_none() {
                 eprintln!("error: uninstall requires --skill, --plugin, or --bundle");
                 std::process::exit(2);
@@ -909,7 +1057,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
             // Determine targets
             let targets: Vec<&crate::config::TargetConfig> = if let Some(ref t) = target {
-                let tc = config.target.iter()
+                let tc = config
+                    .target
+                    .iter()
                     .find(|tc| tc.name == *t)
                     .ok_or_else(|| anyhow::anyhow!("target '{}' not found", t))?;
                 vec![tc]
@@ -926,7 +1076,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
 
             if let Some(ref plugin_name) = plugin {
-                let (_, p) = registry.find_plugin(plugin_name)
+                let (_, p) = registry
+                    .find_plugin(plugin_name)
                     .ok_or_else(|| anyhow::anyhow!("plugin '{}' not found", plugin_name))?;
                 for s in &p.skills {
                     skill_names.push(s.name.clone());
@@ -934,7 +1085,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
 
             if let Some(ref bundle_name) = bundle {
-                let bundle_cfg = config.bundle.get(bundle_name)
+                let bundle_cfg = config
+                    .bundle
+                    .get(bundle_name)
                     .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", bundle_name))?;
                 for skill_id in &bundle_cfg.skills {
                     let (_, _, s) = registry.find_skill(skill_id)?;
@@ -950,9 +1103,17 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         adapter.uninstall_skill(name, &tc.path)?;
                     } else if !cli.quiet {
                         // Look up provenance for colored identity
-                        let identity = registry.installed.get(&tc.name)
+                        let identity = registry
+                            .installed
+                            .get(&tc.name)
                             .and_then(|m| m.get(name))
-                            .map(|info| crate::output::format_identity(&info.source, &info.plugin, &info.skill))
+                            .map(|info| {
+                                crate::output::format_identity(
+                                    &info.source,
+                                    &info.plugin,
+                                    &info.skill,
+                                )
+                            })
                             .unwrap_or_else(|| name.clone());
                         println!("  would uninstall {} from {}", identity, tc.name);
                     }
@@ -962,17 +1123,28 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             if !execute && !cli.quiet {
                 println!("Use --force to uninstall");
             } else if !cli.quiet {
-                println!("Uninstalled {} skill(s) from {} target(s)", skill_names.len(), targets.len());
+                println!(
+                    "Uninstalled {} skill(s) from {} target(s)",
+                    skill_names.len(),
+                    targets.len()
+                );
             }
             Ok(())
         }
-        Command::Collect { skill, target, adopt, force } => {
+        Command::Collect {
+            skill,
+            target,
+            adopt,
+            force,
+        } => {
             let config = crate::config::load(cli.config.as_deref())?;
             let data_dir = crate::config::data_dir();
             let registry = crate::registry::load_registry(&data_dir)?;
             let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
 
-            let tc = config.target.iter()
+            let tc = config
+                .target
+                .iter()
                 .find(|t| t.name == target)
                 .ok_or_else(|| anyhow::anyhow!("target '{}' not found", target))?;
             let adapter = crate::target::resolve_adapter(tc, &config.adapter)?;
@@ -987,7 +1159,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                 if adopt {
                     // Copy to plugins/
-                    let provenance = registry.installed.get(&target)
+                    let provenance = registry
+                        .installed
+                        .get(&target)
                         .and_then(|m| m.get(skill_name));
                     let plugin_name = provenance
                         .map(|info| info.plugin.clone())
@@ -1012,21 +1186,28 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                     // Regenerate marketplace
                     generate_marketplace(&data_dir)?;
-                    let identity = crate::output::format_identity(&source_name, &plugin_name, skill_name);
+                    let identity =
+                        crate::output::format_identity(&source_name, &plugin_name, skill_name);
                     out.success(&format!("Adopted {}", identity));
                 } else {
                     // Copy back to origin
-                    let provenance = registry.installed.get(&target)
+                    let provenance = registry
+                        .installed
+                        .get(&target)
                         .and_then(|m| m.get(skill_name));
 
                     if let Some(info) = provenance {
                         let dest = data_dir.join(&info.origin);
                         std::fs::create_dir_all(&dest)?;
                         copy_dir_all(&target_skill_dir, &dest)?;
-                        let identity = crate::output::format_identity(&info.source, &info.plugin, &info.skill);
+                        let identity =
+                            crate::output::format_identity(&info.source, &info.plugin, &info.skill);
                         out.success(&format!("Collected {} → {}", identity, info.origin));
                     } else {
-                        out.warn(&format!("'{}' has no provenance. Use --adopt to claim it.", skill_name));
+                        out.warn(&format!(
+                            "'{}' has no provenance. Use --adopt to claim it.",
+                            skill_name
+                        ));
                     }
                 }
             } else {
@@ -1047,7 +1228,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 if !tracked.is_empty() {
                     out.info("Tracked:");
                     for (_name, info) in &tracked {
-                        let identity = crate::output::format_identity(&info.source, &info.plugin, &info.skill);
+                        let identity =
+                            crate::output::format_identity(&info.source, &info.plugin, &info.skill);
                         out.info(&format!("  {} ← {}", identity, info.origin));
                     }
                 }
@@ -1061,7 +1243,10 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     let should_adopt = if force {
                         true
                     } else if !untracked.is_empty() {
-                        eprint!("Adopt {} untracked skill(s) into plugins/local? [y/N] ", untracked.len());
+                        eprint!(
+                            "Adopt {} untracked skill(s) into plugins/local? [y/N] ",
+                            untracked.len()
+                        );
                         let mut input = String::new();
                         std::io::stdin().read_line(&mut input).unwrap_or(0);
                         input.trim().eq_ignore_ascii_case("y")
@@ -1117,7 +1302,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
             }
 
-            let total_skills: usize = registry.sources.iter()
+            let total_skills: usize = registry
+                .sources
+                .iter()
                 .flat_map(|s| &s.plugins)
                 .map(|p| p.skills.len())
                 .sum();
@@ -1135,20 +1322,25 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 return Ok(());
             }
 
-            let out = crate::output::Output::from_flags(
-                cli.json, cli.quiet, cli.verbose,
-            );
+            let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
             out.status("Sources", &config.source.len().to_string());
             out.status("Targets", &config.target.len().to_string());
-            out.status("Plugins", &registry.sources.iter().flat_map(|s| &s.plugins).count().to_string());
+            out.status(
+                "Plugins",
+                &registry
+                    .sources
+                    .iter()
+                    .flat_map(|s| &s.plugins)
+                    .count()
+                    .to_string(),
+            );
             out.status("Skills", &total_skills.to_string());
             out.status("Installed", &total_installed.to_string());
             out.status("Bundles", &config.bundle.len().to_string());
 
             // Show source refs if any are pinned/tracking
-            let sources_with_refs: Vec<_> = config.source.iter()
-                .filter(|s| s.r#ref.is_some())
-                .collect();
+            let sources_with_refs: Vec<_> =
+                config.source.iter().filter(|s| s.r#ref.is_some()).collect();
             if !sources_with_refs.is_empty() {
                 out.info("");
                 out.info("Source versions:");
@@ -1168,9 +1360,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             let name = match name {
                 Some(n) => n,
                 None => {
-                    let source_names: Vec<String> = config.source.iter()
-                        .map(|s| s.name.clone())
-                        .collect();
+                    let source_names: Vec<String> =
+                        config.source.iter().map(|s| s.name.clone()).collect();
                     if source_names.is_empty() {
                         anyhow::bail!("no sources configured");
                     }
@@ -1186,7 +1377,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             let registry = crate::registry::load_registry(&data_dir)?;
             let mut installed_on: Vec<String> = Vec::new();
             if let Some(reg_src) = registry.sources.iter().find(|s| s.name == name) {
-                let skill_names: Vec<&str> = reg_src.plugins.iter()
+                let skill_names: Vec<&str> = reg_src
+                    .plugins
+                    .iter()
                     .flat_map(|p| p.skills.iter().map(|s| s.name.as_str()))
                     .collect();
                 for tc in &config.target {
@@ -1205,7 +1398,11 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
 
             if !installed_on.is_empty() && !cli.quiet {
-                eprintln!("warning: source '{}' has installed skills on: {}", name, installed_on.join(", "));
+                eprintln!(
+                    "warning: source '{}' has installed skills on: {}",
+                    name,
+                    installed_on.join(", ")
+                );
             }
 
             let execute = force && !cli.dry_run;
@@ -1236,19 +1433,26 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
             Ok(())
         }
-        Command::Update { name, r#ref: update_ref } => {
+        Command::Update {
+            name,
+            r#ref: update_ref,
+        } => {
             let config_path_str = cli.config.as_deref();
             let mut config = crate::config::load(config_path_str)?;
             let data_dir = crate::config::data_dir();
             let registry = crate::registry::load_registry(&data_dir)?;
 
             if update_ref.is_some() && name.is_none() {
-                anyhow::bail!("--ref requires a source name (e.g., skittle update my-source --ref v2.0)");
+                anyhow::bail!(
+                    "--ref requires a source name (e.g., skittle update my-source --ref v2.0)"
+                );
             }
 
             // Determine which sources to update
             let sources_to_update: Vec<&crate::config::SourceConfig> = if let Some(ref n) = name {
-                let src = config.source.iter()
+                let src = config
+                    .source
+                    .iter()
                     .find(|s| s.name == *n)
                     .ok_or_else(|| anyhow::anyhow!("source '{}' not found", n))?;
                 vec![src]
@@ -1306,7 +1510,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                             if cache_path.exists() {
                                 std::fs::remove_dir_all(&cache_path)?;
                             }
-                            if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path, None) {
+                            if let Err(e) =
+                                crate::source::fetch::fetch(&source_url, &cache_path, None)
+                            {
                                 errors.push(format!("{}: {}", src.name, e));
                                 continue;
                             }
@@ -1317,31 +1523,46 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         if let Some(ref new_ref) = update_ref {
                             // Ref switch: fetch + checkout new ref + update config
                             if !cache_path.exists() {
-                                let effective_ref = if new_ref == "latest" { None } else { Some(new_ref.as_str()) };
-                                if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path, effective_ref) {
+                                let effective_ref = if new_ref == "latest" {
+                                    None
+                                } else {
+                                    Some(new_ref.as_str())
+                                };
+                                if let Err(e) = crate::source::fetch::fetch(
+                                    &source_url,
+                                    &cache_path,
+                                    effective_ref,
+                                ) {
                                     errors.push(format!("{}: {}", src.name, e));
                                     continue;
                                 }
                             } else if new_ref == "latest" {
                                 // Unpin: fetch + reset to default branch
-                                if let Err(e) = crate::source::fetch::update_git(&cache_path, None) {
+                                if let Err(e) = crate::source::fetch::update_git(&cache_path, None)
+                                {
                                     errors.push(format!("{}: {}", src.name, e));
                                     continue;
                                 }
-                            } else {
-                                if let Err(e) = crate::source::fetch::switch_ref(&cache_path, new_ref) {
-                                    errors.push(format!("{}: {}", src.name, e));
-                                    continue;
-                                }
+                            } else if let Err(e) =
+                                crate::source::fetch::switch_ref(&cache_path, new_ref)
+                            {
+                                errors.push(format!("{}: {}", src.name, e));
+                                continue;
                             }
                             ref_changed = true;
                         } else if cache_path.exists() {
-                            match crate::source::fetch::update_git_ref(&cache_path, src.r#ref.as_deref()) {
+                            match crate::source::fetch::update_git_ref(
+                                &cache_path,
+                                src.r#ref.as_deref(),
+                            ) {
                                 Ok(None) => {
                                     // Pinned to a tag — warn and skip
                                     if !cli.quiet {
                                         let tag = src.r#ref.as_deref().unwrap_or("unknown");
-                                        eprintln!("warning: source '{}' is pinned to {}, skipping", src.name, tag);
+                                        eprintln!(
+                                            "warning: source '{}' is pinned to {}, skipping",
+                                            src.name, tag
+                                        );
                                     }
                                     continue;
                                 }
@@ -1351,11 +1572,13 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                     continue;
                                 }
                             }
-                        } else {
-                            if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path, src.r#ref.as_deref()) {
-                                errors.push(format!("{}: {}", src.name, e));
-                                continue;
-                            }
+                        } else if let Err(e) = crate::source::fetch::fetch(
+                            &source_url,
+                            &cache_path,
+                            src.r#ref.as_deref(),
+                        ) {
+                            errors.push(format!("{}: {}", src.name, e));
+                            continue;
                         }
                     }
                     crate::source::SourceUrl::Archive(_) => {
@@ -1363,7 +1586,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         if cache_path.exists() {
                             std::fs::remove_dir_all(&cache_path)?;
                         }
-                        if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path, None) {
+                        if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path, None)
+                        {
                             errors.push(format!("{}: {}", src.name, e));
                             continue;
                         }
@@ -1396,8 +1620,14 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 if ref_changed {
                     if let Some(ref new_ref) = update_ref {
                         if let Some(ref source_name) = name {
-                            if let Some(cfg_src) = config.source.iter_mut().find(|s| s.name == *source_name) {
-                                cfg_src.r#ref = if new_ref == "latest" { None } else { Some(new_ref.clone()) };
+                            if let Some(cfg_src) =
+                                config.source.iter_mut().find(|s| s.name == *source_name)
+                            {
+                                cfg_src.r#ref = if new_ref == "latest" {
+                                    None
+                                } else {
+                                    Some(new_ref.clone())
+                                };
                             }
                         }
                     }
@@ -1420,7 +1650,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
             Ok(())
         }
-        Command::Bundle { command: bundle_cmd } => {
+        Command::Bundle {
+            command: bundle_cmd,
+        } => {
             let config_path_str = cli.config.as_deref();
             let mut config = crate::config::load(config_path_str)?;
             let data_dir = crate::config::data_dir();
@@ -1430,7 +1662,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     if config.bundle.contains_key(&name) {
                         anyhow::bail!("bundle '{}' already exists", name);
                     }
-                    config.bundle.insert(name.clone(), crate::config::BundleConfig::default());
+                    config
+                        .bundle
+                        .insert(name.clone(), crate::config::BundleConfig::default());
                     crate::config::save(&config, config_path_str)?;
                     if !cli.quiet {
                         println!("Created bundle '{}'", name);
@@ -1459,27 +1693,35 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     Ok(())
                 }
                 BundleCommand::List { patterns } => {
-                    let bundles: Vec<(&String, &crate::config::BundleConfig)> = if patterns.is_empty() {
-                        config.bundle.iter().collect()
-                    } else {
-                        config.bundle.iter().filter(|(name, _)| {
-                            patterns.iter().any(|pat| {
-                                if crate::registry::is_glob(pat) {
-                                    glob_match::glob_match(pat, name)
-                                } else {
-                                    *name == pat
-                                }
-                            })
-                        }).collect()
-                    };
+                    let bundles: Vec<(&String, &crate::config::BundleConfig)> =
+                        if patterns.is_empty() {
+                            config.bundle.iter().collect()
+                        } else {
+                            config
+                                .bundle
+                                .iter()
+                                .filter(|(name, _)| {
+                                    patterns.iter().any(|pat| {
+                                        if crate::registry::is_glob(pat) {
+                                            glob_match::glob_match(pat, name)
+                                        } else {
+                                            *name == pat
+                                        }
+                                    })
+                                })
+                                .collect()
+                        };
 
                     if cli.json {
-                        let entries: Vec<serde_json::Value> = bundles.iter().map(|(name, b)| {
-                            serde_json::json!({
-                                "name": name,
-                                "skills": b.skills.len(),
+                        let entries: Vec<serde_json::Value> = bundles
+                            .iter()
+                            .map(|(name, b)| {
+                                serde_json::json!({
+                                    "name": name,
+                                    "skills": b.skills.len(),
+                                })
                             })
-                        }).collect();
+                            .collect();
                         println!("{}", serde_json::to_string_pretty(&entries)?);
                         return Ok(());
                     }
@@ -1495,21 +1737,19 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         return Ok(());
                     }
 
-                    let rows: Vec<Vec<String>> = bundles.iter().map(|(name, b)| {
-                        vec![
-                            (*name).clone(),
-                            b.skills.len().to_string(),
-                        ]
-                    }).collect();
+                    let rows: Vec<Vec<String>> = bundles
+                        .iter()
+                        .map(|(name, b)| vec![(*name).clone(), b.skills.len().to_string()])
+                        .collect();
 
-                    let out = crate::output::Output::from_flags(
-                        cli.json, cli.quiet, cli.verbose,
-                    );
+                    let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
                     out.table(&["BUNDLE", "SKILLS"], &rows);
                     Ok(())
                 }
                 BundleCommand::Show { name } => {
-                    let bundle = config.bundle.get(&name)
+                    let bundle = config
+                        .bundle
+                        .get(&name)
                         .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", name))?;
 
                     if cli.json {
@@ -1521,24 +1761,23 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         return Ok(());
                     }
 
-                    let out = crate::output::Output::from_flags(
-                        cli.json, cli.quiet, cli.verbose,
-                    );
+                    let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
                     out.status("Bundle", &name);
                     out.status("Skills", &bundle.skills.len().to_string());
 
                     if !bundle.skills.is_empty() {
                         out.info("");
-                        let tree: Vec<(usize, String)> = bundle.skills.iter()
-                            .map(|s| (0, s.clone()))
-                            .collect();
+                        let tree: Vec<(usize, String)> =
+                            bundle.skills.iter().map(|s| (0, s.clone())).collect();
                         out.tree(&tree);
                     }
 
                     Ok(())
                 }
                 BundleCommand::Add { name, skills } => {
-                    let bundle = config.bundle.get_mut(&name)
+                    let bundle = config
+                        .bundle
+                        .get_mut(&name)
                         .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", name))?;
 
                     let registry = crate::registry::load_registry(&data_dir)?;
@@ -1551,7 +1790,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                 anyhow::bail!("no skills matched pattern '{}'", skill_id);
                             }
                             for (src, plugin, skill) in &matches {
-                                let fq = crate::output::plain_identity(src, &plugin.name, &skill.name);
+                                let fq =
+                                    crate::output::plain_identity(src, &plugin.name, &skill.name);
                                 if !bundle.skills.contains(&fq) {
                                     bundle.skills.push(fq);
                                     added += 1;
@@ -1575,7 +1815,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     Ok(())
                 }
                 BundleCommand::Drop { name, skills } => {
-                    let bundle = config.bundle.get_mut(&name)
+                    let bundle = config
+                        .bundle
+                        .get_mut(&name)
                         .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", name))?;
 
                     for skill_id in &skills {
@@ -1588,12 +1830,19 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
                     Ok(())
                 }
-                BundleCommand::Activate { name, target, all, force } => {
+                BundleCommand::Activate {
+                    name,
+                    target,
+                    all,
+                    force,
+                } => {
                     if target.is_none() && !all {
                         anyhow::bail!("provide a <target> or use --all");
                     }
 
-                    let bundle = config.bundle.get(&name)
+                    let bundle = config
+                        .bundle
+                        .get(&name)
                         .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", name))?
                         .clone();
                     let registry = crate::registry::load_registry(&data_dir)?;
@@ -1602,7 +1851,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         config.target.iter().collect()
                     } else {
                         let t = target.as_ref().unwrap();
-                        let tc = config.target.iter()
+                        let tc = config
+                            .target
+                            .iter()
                             .find(|tc| tc.name == *t)
                             .ok_or_else(|| anyhow::anyhow!("target '{}' not found", t))?;
                         vec![tc]
@@ -1630,19 +1881,29 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                     if !cli.quiet {
                         if execute {
-                            println!("Activated bundle '{}' ({} skill(s) installed)", name, installed_count);
+                            println!(
+                                "Activated bundle '{}' ({} skill(s) installed)",
+                                name, installed_count
+                            );
                         } else {
                             println!("Use --force to activate");
                         }
                     }
                     Ok(())
                 }
-                BundleCommand::Deactivate { name, target, all, force } => {
+                BundleCommand::Deactivate {
+                    name,
+                    target,
+                    all,
+                    force,
+                } => {
                     if target.is_none() && !all {
                         anyhow::bail!("provide a <target> or use --all");
                     }
 
-                    let bundle = config.bundle.get(&name)
+                    let bundle = config
+                        .bundle
+                        .get(&name)
                         .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", name))?
                         .clone();
                     let registry = crate::registry::load_registry(&data_dir)?;
@@ -1651,7 +1912,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         config.target.iter().collect()
                     } else {
                         let t = target.as_ref().unwrap();
-                        let tc = config.target.iter()
+                        let tc = config
+                            .target
+                            .iter()
                             .find(|tc| tc.name == *t)
                             .ok_or_else(|| anyhow::anyhow!("target '{}' not found", t))?;
                         vec![tc]
@@ -1679,7 +1942,10 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                     if !cli.quiet {
                         if execute {
-                            println!("Deactivated bundle '{}' ({} skill(s) removed)", name, removed_count);
+                            println!(
+                                "Deactivated bundle '{}' ({} skill(s) removed)",
+                                name, removed_count
+                            );
                         } else {
                             println!("Use --force to deactivate");
                         }
@@ -1688,22 +1954,29 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
             }
         }
-        Command::Target { command: target_cmd } => {
+        Command::Target {
+            command: target_cmd,
+        } => {
             let config_path_str = cli.config.as_deref();
             let mut config = crate::config::load(config_path_str)?;
 
             // Known built-in agent types
-            const KNOWN_AGENTS: &[&str] = &[
-                "claude", "codex", "cursor", "gemini", "vscode",
-            ];
+            const KNOWN_AGENTS: &[&str] = &["claude", "codex", "cursor", "gemini", "vscode"];
 
             match target_cmd {
-                TargetCommand::Add { agent, path, name, scope, sync } => {
+                TargetCommand::Add {
+                    agent,
+                    path,
+                    name,
+                    scope,
+                    sync,
+                } => {
                     // Validate agent type against built-in + custom adapters
                     if !KNOWN_AGENTS.contains(&agent.as_str())
                         && !config.adapter.contains_key(&agent)
                     {
-                        let available: Vec<String> = KNOWN_AGENTS.iter()
+                        let available: Vec<String> = KNOWN_AGENTS
+                            .iter()
                             .map(|s| s.to_string())
                             .chain(config.adapter.keys().cloned())
                             .collect();
@@ -1714,9 +1987,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         );
                     }
 
-                    let target_name = name.unwrap_or_else(|| {
-                        format!("{}-{}", agent, scope)
-                    });
+                    let target_name = name.unwrap_or_else(|| format!("{}-{}", agent, scope));
 
                     // Check for duplicate name
                     if config.target.iter().any(|t| t.name == target_name) {
@@ -1783,15 +2054,19 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
                 TargetCommand::List => {
                     if cli.json {
-                        let entries: Vec<serde_json::Value> = config.target.iter().map(|t| {
-                            serde_json::json!({
-                                "name": t.name,
-                                "agent": t.agent,
-                                "path": t.path,
-                                "scope": t.scope,
-                                "sync": t.sync,
+                        let entries: Vec<serde_json::Value> = config
+                            .target
+                            .iter()
+                            .map(|t| {
+                                serde_json::json!({
+                                    "name": t.name,
+                                    "agent": t.agent,
+                                    "path": t.path,
+                                    "scope": t.scope,
+                                    "sync": t.sync,
+                                })
                             })
-                        }).collect();
+                            .collect();
                         println!("{}", serde_json::to_string_pretty(&entries)?);
                         return Ok(());
                     }
@@ -1803,27 +2078,28 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         return Ok(());
                     }
 
-                    let rows: Vec<Vec<String>> = config.target.iter().map(|t| {
-                        vec![
-                            t.name.clone(),
-                            t.agent.clone(),
-                            t.path.display().to_string(),
-                            t.scope.clone(),
-                            t.sync.clone(),
-                        ]
-                    }).collect();
+                    let rows: Vec<Vec<String>> = config
+                        .target
+                        .iter()
+                        .map(|t| {
+                            vec![
+                                t.name.clone(),
+                                t.agent.clone(),
+                                t.path.display().to_string(),
+                                t.scope.clone(),
+                                t.sync.clone(),
+                            ]
+                        })
+                        .collect();
 
-                    let out = crate::output::Output::from_flags(
-                        cli.json, cli.quiet, cli.verbose,
-                    );
-                    out.table(
-                        &["NAME", "AGENT", "PATH", "SCOPE", "SYNC"],
-                        &rows,
-                    );
+                    let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
+                    out.table(&["NAME", "AGENT", "PATH", "SCOPE", "SYNC"], &rows);
                     Ok(())
                 }
                 TargetCommand::Show { name } => {
-                    let target = config.target.iter()
+                    let target = config
+                        .target
+                        .iter()
                         .find(|t| t.name == name)
                         .ok_or_else(|| anyhow::anyhow!("target '{}' not found", name))?;
 
@@ -1839,9 +2115,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         return Ok(());
                     }
 
-                    let out = crate::output::Output::from_flags(
-                        cli.json, cli.quiet, cli.verbose,
-                    );
+                    let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
                     out.status("Name", &target.name);
                     out.status("Agent", &target.agent);
                     out.status("Path", &target.path.display().to_string());
@@ -1854,10 +2128,10 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         let mut installed = Vec::new();
                         if let Ok(entries) = std::fs::read_dir(&skills_dir) {
                             for entry in entries.flatten() {
-                                if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                                    if entry.path().join("SKILL.md").exists() {
-                                        installed.push(entry.file_name().to_string_lossy().to_string());
-                                    }
+                                if entry.file_type().map(|t| t.is_dir()).unwrap_or(false)
+                                    && entry.path().join("SKILL.md").exists()
+                                {
+                                    installed.push(entry.file_name().to_string_lossy().to_string());
                                 }
                             }
                         }
@@ -1865,9 +2139,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                             installed.sort();
                             out.status("Installed", &installed.len().to_string());
                             out.info("");
-                            let tree: Vec<(usize, String)> = installed.into_iter()
-                                .map(|s| (0, s))
-                                .collect();
+                            let tree: Vec<(usize, String)> =
+                                installed.into_iter().map(|s| (0, s)).collect();
                             out.tree(&tree);
                         }
                     }
@@ -1905,7 +2178,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                     continue;
                                 }
                                 for (agent, prefix) in AGENT_PREFIXES {
-                                    if name_str == *prefix || name_str.starts_with(&format!("{}-", prefix)) {
+                                    if name_str == *prefix
+                                        || name_str.starts_with(&format!("{}-", prefix))
+                                    {
                                         let path = entry.path();
                                         if !candidates.iter().any(|(_, p)| *p == path) {
                                             candidates.push((agent, path));
@@ -1927,13 +2202,16 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
 
                     if cli.json {
-                        let entries: Vec<serde_json::Value> = found.iter().map(|(agent, path, registered)| {
-                            serde_json::json!({
-                                "agent": agent,
-                                "path": path,
-                                "registered": registered,
+                        let entries: Vec<serde_json::Value> = found
+                            .iter()
+                            .map(|(agent, path, registered)| {
+                                serde_json::json!({
+                                    "agent": agent,
+                                    "path": path,
+                                    "registered": registered,
+                                })
                             })
-                        }).collect();
+                            .collect();
                         println!("{}", serde_json::to_string_pretty(&entries)?);
                         return Ok(());
                     }
@@ -1945,29 +2223,41 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         return Ok(());
                     }
 
-                    let out = crate::output::Output::from_flags(
-                        cli.json, cli.quiet, cli.verbose,
-                    );
+                    let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
 
                     let mut added = 0;
                     for (agent, path, registered) in &found {
                         if *registered {
-                            out.info(&format!("{} at {} (already registered)", agent, path.display()));
+                            out.info(&format!(
+                                "{} at {} (already registered)",
+                                agent,
+                                path.display()
+                            ));
                             continue;
                         }
 
-                        let target_name = path.file_name()
+                        let target_name = path
+                            .file_name()
                             .and_then(|n| n.to_str())
                             .unwrap_or(agent)
                             .trim_start_matches('.')
                             .to_string();
-                        let scope = if path.starts_with(&home) { "machine" } else { "repo" };
+                        let scope = if path.starts_with(&home) {
+                            "machine"
+                        } else {
+                            "repo"
+                        };
 
                         let should_add = if force {
                             true
                         } else {
                             // Prompt user
-                            eprint!("Add {} at {} as target '{}'? [y/N] ", agent, path.display(), target_name);
+                            eprint!(
+                                "Add {} at {} as target '{}'? [y/N] ",
+                                agent,
+                                path.display(),
+                                target_name
+                            );
                             let mut input = String::new();
                             std::io::stdin().read_line(&mut input).unwrap_or(0);
                             input.trim().eq_ignore_ascii_case("y")
@@ -1995,7 +2285,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
             }
         }
-        Command::Config { command: config_cmd } => {
+        Command::Config {
+            command: config_cmd,
+        } => {
             let config = crate::config::load(cli.config.as_deref())?;
             match config_cmd {
                 ConfigCommand::Show => {
@@ -2014,7 +2306,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                             println!("  {} ({} @ {})", t.name, t.agent, t.path.display());
                         }
                         println!("Adapters: {}", config.adapter.len());
-                        for (name, _) in &config.adapter {
+                        for name in config.adapter.keys() {
                             println!("  {}", name);
                         }
                         println!("Bundles: {}", config.bundle.len());
@@ -2032,9 +2324,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     let editor = std::env::var("EDITOR")
                         .or_else(|_| std::env::var("VISUAL"))
                         .unwrap_or_else(|_| "vi".to_string());
-                    let status = std::process::Command::new(&editor)
-                        .arg(&path)
-                        .status()?;
+                    let status = std::process::Command::new(&editor).arg(&path).status()?;
                     if !status.success() {
                         anyhow::bail!("editor exited with {}", status);
                     }
@@ -2055,16 +2345,21 @@ fn record_provenance(
     plug_name: &str,
     s: &crate::registry::RegisteredSkill,
 ) {
-    let origin = s.path.strip_prefix(data_dir)
+    let origin = s
+        .path
+        .strip_prefix(data_dir)
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| s.path.display().to_string());
     let target_map = reg.installed.entry(tc.name.clone()).or_default();
-    target_map.insert(s.name.clone(), crate::registry::InstalledSkill {
-        source: src_name.to_string(),
-        plugin: plug_name.to_string(),
-        skill: s.name.clone(),
-        origin,
-    });
+    target_map.insert(
+        s.name.clone(),
+        crate::registry::InstalledSkill {
+            source: src_name.to_string(),
+            plugin: plug_name.to_string(),
+            skill: s.name.clone(),
+            origin,
+        },
+    );
 }
 
 /// Action chosen by user in interactive conflict resolution.
@@ -2150,7 +2445,11 @@ fn show_skill_diff(
         eprintln!("    === {} ===", label);
 
         let diff = similar::TextDiff::from_lines(&dst_content, &src_content);
-        for hunk in diff.unified_diff().header("installed", "source").iter_hunks() {
+        for hunk in diff
+            .unified_diff()
+            .header("installed", "source")
+            .iter_hunks()
+        {
             eprint!("    {}", hunk);
         }
     }
@@ -2159,12 +2458,21 @@ fn show_skill_diff(
 }
 
 /// Print the apply summary line.
-fn print_apply_summary(new_count: usize, updated_count: usize, unchanged_count: usize, conflict_skipped: usize, quiet: bool) {
+fn print_apply_summary(
+    new_count: usize,
+    updated_count: usize,
+    unchanged_count: usize,
+    conflict_skipped: usize,
+    quiet: bool,
+) {
     if quiet {
         return;
     }
     let applied = new_count + updated_count;
-    let mut msg = format!("Applied {} skill(s) ({} new, {} updated), skipped {} unchanged.", applied, new_count, updated_count, unchanged_count);
+    let mut msg = format!(
+        "Applied {} skill(s) ({} new, {} updated), skipped {} unchanged.",
+        applied, new_count, updated_count, unchanged_count
+    );
     if conflict_skipped > 0 {
         msg.push_str(&format!(" {} conflict skipped.", conflict_skipped));
     }

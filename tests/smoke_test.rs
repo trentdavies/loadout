@@ -56,7 +56,8 @@ fn full_lifecycle_smoke_test() {
     copy_dir_recursive(source_dir.path(), &cached).unwrap();
 
     let structure = skittle::source::detect::detect(&cached).unwrap();
-    let registered = skittle::source::normalize::normalize("smoke-src", &cached, &structure).unwrap();
+    let registered =
+        skittle::source::normalize::normalize("smoke-src", &cached, &structure).unwrap();
 
     assert!(!registered.plugins.is_empty(), "should detect plugin");
     let total_skills: usize = registered.plugins.iter().map(|p| p.skills.len()).sum();
@@ -157,7 +158,10 @@ fn full_lifecycle_smoke_test() {
 
     // Verify clean state
     let registry = skittle::registry::load_registry(&data_dir).unwrap();
-    assert!(registry.sources.is_empty(), "registry should be empty after cache clean");
+    assert!(
+        registry.sources.is_empty(),
+        "registry should be empty after cache clean"
+    );
     assert!(
         fs::read_dir(&cache_dir).unwrap().count() == 0,
         "cache dir should be empty"

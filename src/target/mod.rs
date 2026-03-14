@@ -1,3 +1,3 @@
 pub mod adapter;
 
-pub use adapter::{Adapter, SkillStatus, resolve_adapter};
+pub use adapter::{resolve_adapter, Adapter, SkillStatus};

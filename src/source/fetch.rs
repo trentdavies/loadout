@@ -1,6 +1,6 @@
+use anyhow::{Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
-use anyhow::{Context, Result};
 
 use super::SourceUrl;
 
@@ -13,7 +13,12 @@ pub fn fetch(source_url: &SourceUrl, cache_dir: &Path, git_ref: Option<&str>) ->
 /// Fetch a source with an explicit symlink mode.
 /// When `symlink` is true and the source is a local directory, create a symlink
 /// instead of copying. SingleFile sources always copy regardless of mode.
-pub fn fetch_with_mode(source_url: &SourceUrl, cache_dir: &Path, git_ref: Option<&str>, symlink: bool) -> Result<PathBuf> {
+pub fn fetch_with_mode(
+    source_url: &SourceUrl,
+    cache_dir: &Path,
+    git_ref: Option<&str>,
+    symlink: bool,
+) -> Result<PathBuf> {
     match source_url {
         SourceUrl::Local(path) => fetch_local(path, cache_dir, symlink),
         SourceUrl::Git(url) => fetch_git(url, cache_dir, git_ref),
@@ -32,11 +37,17 @@ fn fetch_local(source_path: &Path, cache_dir: &Path, symlink: bool) -> Result<Pa
         // Single file source — always copy regardless of symlink mode
         fs::create_dir_all(cache_dir)
             .with_context(|| format!("failed to create cache dir: {}", cache_dir.display()))?;
-        let file_name = source_path.file_name()
+        let file_name = source_path
+            .file_name()
             .context("source path has no file name")?;
         let dest = cache_dir.join(file_name);
-        fs::copy(source_path, &dest)
-            .with_context(|| format!("failed to copy {} to {}", source_path.display(), dest.display()))?;
+        fs::copy(source_path, &dest).with_context(|| {
+            format!(
+                "failed to copy {} to {}",
+                source_path.display(),
+                dest.display()
+            )
+        })?;
         return Ok(cache_dir.to_path_buf());
     }
 
@@ -45,12 +56,13 @@ fn fetch_local(source_path: &Path, cache_dir: &Path, symlink: bool) -> Result<Pa
     }
 
     // Directory source — recursive copy
-    copy_dir_recursive(source_path, cache_dir)
-        .with_context(|| format!(
+    copy_dir_recursive(source_path, cache_dir).with_context(|| {
+        format!(
             "failed to copy source {} to {}",
             source_path.display(),
             cache_dir.display()
-        ))?;
+        )
+    })?;
 
     Ok(cache_dir.to_path_buf())
 }
@@ -74,12 +86,13 @@ fn fetch_local_symlink(source_path: &Path, cache_dir: &Path) -> Result<PathBuf> 
     }
 
     // Fallback: copy
-    copy_dir_recursive(source_path, cache_dir)
-        .with_context(|| format!(
+    copy_dir_recursive(source_path, cache_dir).with_context(|| {
+        format!(
             "failed to copy source {} to {}",
             source_path.display(),
             cache_dir.display()
-        ))?;
+        )
+    })?;
 
     Ok(cache_dir.to_path_buf())
 }
@@ -202,7 +215,11 @@ fn git_fetch(repo_path: &Path) -> Result<()> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("failed to fetch in {}: {}", repo_path.display(), stderr.trim());
+        anyhow::bail!(
+            "failed to fetch in {}: {}",
+            repo_path.display(),
+            stderr.trim()
+        );
     }
     Ok(())
 }
@@ -216,7 +233,11 @@ fn git_reset(repo_path: &Path, target: &str) -> Result<()> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("failed to reset in {}: {}", repo_path.display(), stderr.trim());
+        anyhow::bail!(
+            "failed to reset in {}: {}",
+            repo_path.display(),
+            stderr.trim()
+        );
     }
     Ok(())
 }
@@ -327,7 +348,11 @@ mod tests {
     fn fetch_local_directory() {
         let src = TempDir::new().unwrap();
         let cache = TempDir::new().unwrap();
-        fs::write(src.path().join("SKILL.md"), "---\nname: x\ndescription: d\n---\n").unwrap();
+        fs::write(
+            src.path().join("SKILL.md"),
+            "---\nname: x\ndescription: d\n---\n",
+        )
+        .unwrap();
         fs::write(src.path().join("extra.txt"), "data").unwrap();
 
         let url = SourceUrl::Local(src.path().to_path_buf());
@@ -407,10 +432,13 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let cache = TempDir::new().unwrap();
         let zip_path = tmp.path().join("plugin.zip");
-        create_test_zip(&zip_path, &[
-            ("SKILL.md", b"---\nname: test\ndescription: d\n---\n"),
-            ("extra.txt", b"data"),
-        ]);
+        create_test_zip(
+            &zip_path,
+            &[
+                ("SKILL.md", b"---\nname: test\ndescription: d\n---\n"),
+                ("extra.txt", b"data"),
+            ],
+        );
 
         let url = SourceUrl::Archive(zip_path);
         let cache_dest = cache.path().join("test-archive");
@@ -424,9 +452,10 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let cache = TempDir::new().unwrap();
         let skill_path = tmp.path().join("helper.skill");
-        create_test_zip(&skill_path, &[
-            ("SKILL.md", b"---\nname: helper\ndescription: d\n---\n"),
-        ]);
+        create_test_zip(
+            &skill_path,
+            &[("SKILL.md", b"---\nname: helper\ndescription: d\n---\n")],
+        );
 
         let url = SourceUrl::Archive(skill_path);
         let cache_dest = cache.path().join("test-skill");
@@ -440,6 +469,9 @@ mod tests {
         let url = SourceUrl::Archive(PathBuf::from("/nonexistent/archive.zip"));
         let result = fetch(&url, &cache.path().join("out"), None);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("archive not found"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("archive not found"));
     }
 }

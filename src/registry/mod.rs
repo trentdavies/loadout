@@ -33,10 +33,8 @@ pub fn save_registry(registry: &Registry, data_dir: &Path) -> Result<()> {
     let internal = data_dir.join(".skittle");
     fs::create_dir_all(&internal)?;
     let path = internal.join("registry.json");
-    let content = serde_json::to_string_pretty(registry)
-        .context("failed to serialize registry")?;
-    fs::write(&path, content)
-        .with_context(|| format!("failed to write {}", path.display()))?;
+    let content = serde_json::to_string_pretty(registry).context("failed to serialize registry")?;
+    fs::write(&path, content).with_context(|| format!("failed to write {}", path.display()))?;
     Ok(())
 }
 
@@ -84,7 +82,8 @@ impl Registry {
             0 => anyhow::bail!("skill '{}' not found", identity),
             1 => Ok((matches[0].0, matches[0].1, matches[0].2)),
             _ => {
-                let sources: Vec<String> = matches.iter()
+                let sources: Vec<String> = matches
+                    .iter()
                     .map(|(s, p, sk)| format!("  {}:{}/{}", s, p, sk.name))
                     .collect();
                 anyhow::bail!(
@@ -148,9 +147,16 @@ fn parse_skill_identity(identity: &str) -> Result<(Option<String>, String, Strin
     // source:plugin/skill
     if let Some((source, rest)) = identity.split_once(':') {
         if let Some((plugin, skill)) = rest.split_once('/') {
-            return Ok((Some(source.to_string()), plugin.to_string(), skill.to_string()));
+            return Ok((
+                Some(source.to_string()),
+                plugin.to_string(),
+                skill.to_string(),
+            ));
         }
-        anyhow::bail!("invalid skill identity '{}': expected source:plugin/skill", identity);
+        anyhow::bail!(
+            "invalid skill identity '{}': expected source:plugin/skill",
+            identity
+        );
     }
 
     // plugin/skill
@@ -231,8 +237,20 @@ mod tests {
                 version: None,
                 description: None,
                 skills: vec![
-                    RegisteredSkill { name: "a".to_string(), description: None, author: None, version: None, path: std::path::PathBuf::from("/tmp") },
-                    RegisteredSkill { name: "b".to_string(), description: None, author: None, version: None, path: std::path::PathBuf::from("/tmp") },
+                    RegisteredSkill {
+                        name: "a".to_string(),
+                        description: None,
+                        author: None,
+                        version: None,
+                        path: std::path::PathBuf::from("/tmp"),
+                    },
+                    RegisteredSkill {
+                        name: "b".to_string(),
+                        description: None,
+                        author: None,
+                        version: None,
+                        path: std::path::PathBuf::from("/tmp"),
+                    },
                 ],
                 path: std::path::PathBuf::from("/tmp"),
             }],
@@ -371,8 +389,20 @@ mod tests {
                 version: None,
                 description: None,
                 skills: vec![
-                    RegisteredSkill { name: "contract-review".to_string(), description: None, author: None, version: None, path: std::path::PathBuf::from("/tmp") },
-                    RegisteredSkill { name: "compliance".to_string(), description: None, author: None, version: None, path: std::path::PathBuf::from("/tmp") },
+                    RegisteredSkill {
+                        name: "contract-review".to_string(),
+                        description: None,
+                        author: None,
+                        version: None,
+                        path: std::path::PathBuf::from("/tmp"),
+                    },
+                    RegisteredSkill {
+                        name: "compliance".to_string(),
+                        description: None,
+                        author: None,
+                        version: None,
+                        path: std::path::PathBuf::from("/tmp"),
+                    },
                 ],
                 path: std::path::PathBuf::from("/tmp"),
             }],
@@ -384,9 +414,13 @@ mod tests {
                 name: "sales".to_string(),
                 version: None,
                 description: None,
-                skills: vec![
-                    RegisteredSkill { name: "call-prep".to_string(), description: None, author: None, version: None, path: std::path::PathBuf::from("/tmp") },
-                ],
+                skills: vec![RegisteredSkill {
+                    name: "call-prep".to_string(),
+                    description: None,
+                    author: None,
+                    version: None,
+                    path: std::path::PathBuf::from("/tmp"),
+                }],
                 path: std::path::PathBuf::from("/tmp"),
             }],
             cache_path: std::path::PathBuf::from("/tmp"),

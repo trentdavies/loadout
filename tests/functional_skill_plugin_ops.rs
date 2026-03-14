@@ -38,8 +38,12 @@ fn source(name: &str, plugins: Vec<RegisteredPlugin>) -> RegisteredSource {
 #[test]
 fn list_plugins_across_sources() {
     let mut registry = Registry::default();
-    registry.sources.push(source("src-a", vec![plugin("alpha", vec![skill("s1")])]));
-    registry.sources.push(source("src-b", vec![plugin("beta", vec![skill("s2")])]));
+    registry
+        .sources
+        .push(source("src-a", vec![plugin("alpha", vec![skill("s1")])]));
+    registry
+        .sources
+        .push(source("src-b", vec![plugin("beta", vec![skill("s2")])]));
 
     let plugin_count: usize = registry.sources.iter().map(|s| s.plugins.len()).sum();
     assert_eq!(plugin_count, 2);
@@ -48,8 +52,12 @@ fn list_plugins_across_sources() {
 #[test]
 fn list_plugins_filtered_by_source() {
     let mut registry = Registry::default();
-    registry.sources.push(source("src-a", vec![plugin("alpha", vec![skill("s1")])]));
-    registry.sources.push(source("src-b", vec![plugin("beta", vec![skill("s2")])]));
+    registry
+        .sources
+        .push(source("src-a", vec![plugin("alpha", vec![skill("s1")])]));
+    registry
+        .sources
+        .push(source("src-b", vec![plugin("beta", vec![skill("s2")])]));
 
     let filtered: Vec<&RegisteredPlugin> = registry
         .sources
@@ -86,10 +94,9 @@ fn list_skills_across_sources() {
         "src-a",
         vec![plugin("p1", vec![skill("a1"), skill("a2")])],
     ));
-    registry.sources.push(source(
-        "src-b",
-        vec![plugin("p2", vec![skill("b1")])],
-    ));
+    registry
+        .sources
+        .push(source("src-b", vec![plugin("p2", vec![skill("b1")])]));
 
     let all = registry.all_skills();
     assert_eq!(all.len(), 3);
@@ -123,7 +130,9 @@ fn show_skill_detail() {
     let mut registry = Registry::default();
     let mut sk = skill("detailed-skill");
     sk.description = Some("Does important things".to_string());
-    registry.sources.push(source("src", vec![plugin("myplugin", vec![sk])]));
+    registry
+        .sources
+        .push(source("src", vec![plugin("myplugin", vec![sk])]));
 
     let (src_name, plugin_name, found) = registry.find_skill("myplugin/detailed-skill").unwrap();
     assert_eq!(src_name, "src");
@@ -142,7 +151,9 @@ fn show_nonexistent_skill_error() {
 #[test]
 fn find_skill_full_form() {
     let mut registry = Registry::default();
-    registry.sources.push(source("s", vec![plugin("p", vec![skill("sk")])]));
+    registry
+        .sources
+        .push(source("s", vec![plugin("p", vec![skill("sk")])]));
 
     let (src_name, plugin_name, found) = registry.find_skill("s:p/sk").unwrap();
     assert_eq!(src_name, "s");

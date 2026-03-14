@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use anyhow::{bail, Result};
+use std::path::PathBuf;
 
 /// Resolved source URL — local path, git remote, or archive file.
 #[derive(Debug, Clone)]
@@ -27,10 +27,7 @@ impl SourceUrl {
         }
 
         // Git protocols
-        if input.starts_with("git://")
-            || input.starts_with("ssh://")
-            || input.starts_with("git@")
-        {
+        if input.starts_with("git://") || input.starts_with("ssh://") || input.starts_with("git@") {
             return Ok(SourceUrl::Git(input.to_string()));
         }
 
@@ -80,19 +77,15 @@ impl SourceUrl {
     /// Derive a default source name from the URL.
     pub fn default_name(&self) -> String {
         match self {
-            SourceUrl::Local(path) => {
-                path.file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("unnamed")
-                    .to_string()
-            }
+            SourceUrl::Local(path) => path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("unnamed")
+                .to_string(),
             SourceUrl::Git(url) => {
                 // Extract repo name from URL
                 let cleaned = url.trim_end_matches(".git");
-                cleaned.rsplit('/')
-                    .next()
-                    .unwrap_or("unnamed")
-                    .to_string()
+                cleaned.rsplit('/').next().unwrap_or("unnamed").to_string()
             }
             SourceUrl::Archive(path) => {
                 // Filename without extension
@@ -235,8 +228,14 @@ mod tests {
 
     #[test]
     fn source_type_values() {
-        assert_eq!(SourceUrl::Local(PathBuf::from("/tmp")).source_type(), "local");
-        assert_eq!(SourceUrl::Git("https://x.com".to_string()).source_type(), "git");
+        assert_eq!(
+            SourceUrl::Local(PathBuf::from("/tmp")).source_type(),
+            "local"
+        );
+        assert_eq!(
+            SourceUrl::Git("https://x.com".to_string()).source_type(),
+            "git"
+        );
     }
 
     #[test]
@@ -347,7 +346,10 @@ mod tests {
 
     #[test]
     fn source_type_archive() {
-        assert_eq!(SourceUrl::Archive(PathBuf::from("/tmp/x.zip")).source_type(), "archive");
+        assert_eq!(
+            SourceUrl::Archive(PathBuf::from("/tmp/x.zip")).source_type(),
+            "archive"
+        );
     }
 
     #[test]

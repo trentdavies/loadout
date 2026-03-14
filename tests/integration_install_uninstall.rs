@@ -4,14 +4,20 @@ use std::path::PathBuf;
 use tempfile::TempDir;
 
 /// Create a mock skill source directory with N skills.
-fn create_mock_skills(parent: &std::path::Path, names: &[&str]) -> Vec<skittle::registry::RegisteredSkill> {
+fn create_mock_skills(
+    parent: &std::path::Path,
+    names: &[&str],
+) -> Vec<skittle::registry::RegisteredSkill> {
     let mut skills = Vec::new();
     for name in names {
         let skill_dir = parent.join(name);
         fs::create_dir_all(&skill_dir).unwrap();
         fs::write(
             skill_dir.join("SKILL.md"),
-            format!("---\nname: {}\ndescription: Test skill {}\n---\n# {}\n", name, name, name),
+            format!(
+                "---\nname: {}\ndescription: Test skill {}\n---\n# {}\n",
+                name, name, name
+            ),
         )
         .unwrap();
         // Add a scripts/ subdirectory to test copy_dirs
@@ -50,10 +56,15 @@ fn install_single_skill() {
     let skills = create_mock_skills(source_dir.path(), &["my-skill"]);
     let adapter = make_adapter();
 
-    adapter.install_skill(&skills[0], target_dir.path()).unwrap();
+    adapter
+        .install_skill(&skills[0], target_dir.path())
+        .unwrap();
 
     assert!(target_dir.path().join("skills/my-skill/SKILL.md").exists());
-    assert!(target_dir.path().join("skills/my-skill/scripts/run.sh").exists());
+    assert!(target_dir
+        .path()
+        .join("skills/my-skill/scripts/run.sh")
+        .exists());
 }
 
 #[test]
@@ -82,8 +93,12 @@ fn install_idempotent() {
     let adapter = make_adapter();
 
     // Install twice — should not error
-    adapter.install_skill(&skills[0], target_dir.path()).unwrap();
-    adapter.install_skill(&skills[0], target_dir.path()).unwrap();
+    adapter
+        .install_skill(&skills[0], target_dir.path())
+        .unwrap();
+    adapter
+        .install_skill(&skills[0], target_dir.path())
+        .unwrap();
 
     let installed = adapter.installed_skills(target_dir.path()).unwrap();
     assert_eq!(installed.len(), 1);
@@ -97,7 +112,9 @@ fn install_overwrites_existing() {
     let skills = create_mock_skills(source_dir.path(), &["evolve"]);
     let adapter = make_adapter();
 
-    adapter.install_skill(&skills[0], target_dir.path()).unwrap();
+    adapter
+        .install_skill(&skills[0], target_dir.path())
+        .unwrap();
 
     // Modify the source skill
     fs::write(
@@ -107,7 +124,9 @@ fn install_overwrites_existing() {
     .unwrap();
 
     // Re-install
-    adapter.install_skill(&skills[0], target_dir.path()).unwrap();
+    adapter
+        .install_skill(&skills[0], target_dir.path())
+        .unwrap();
 
     let content = fs::read_to_string(target_dir.path().join("skills/evolve/SKILL.md")).unwrap();
     assert!(content.contains("Updated"));
@@ -122,10 +141,14 @@ fn uninstall_single_skill() {
     let skills = create_mock_skills(source_dir.path(), &["removable"]);
     let adapter = make_adapter();
 
-    adapter.install_skill(&skills[0], target_dir.path()).unwrap();
+    adapter
+        .install_skill(&skills[0], target_dir.path())
+        .unwrap();
     assert!(target_dir.path().join("skills/removable/SKILL.md").exists());
 
-    adapter.uninstall_skill("removable", target_dir.path()).unwrap();
+    adapter
+        .uninstall_skill("removable", target_dir.path())
+        .unwrap();
     assert!(!target_dir.path().join("skills/removable").exists());
 }
 
@@ -149,7 +172,9 @@ fn uninstall_selective_keeps_others() {
         adapter.install_skill(s, target_dir.path()).unwrap();
     }
 
-    adapter.uninstall_skill("remove", target_dir.path()).unwrap();
+    adapter
+        .uninstall_skill("remove", target_dir.path())
+        .unwrap();
 
     let installed = adapter.installed_skills(target_dir.path()).unwrap();
     assert_eq!(installed, vec!["keep".to_string()]);
@@ -190,12 +215,15 @@ fn custom_adapter_installs_to_custom_path() {
     let skills = create_mock_skills(source_dir.path(), &["custom-sk"]);
 
     let mut adapters = BTreeMap::new();
-    adapters.insert("my-agent".to_string(), skittle::config::AdapterConfig {
-        skill_dir: "prompts/{name}".to_string(),
-        skill_file: "SKILL.md".to_string(),
-        format: "agentskills".to_string(),
-        copy_dirs: vec!["scripts".to_string()],
-    });
+    adapters.insert(
+        "my-agent".to_string(),
+        skittle::config::AdapterConfig {
+            skill_dir: "prompts/{name}".to_string(),
+            skill_file: "SKILL.md".to_string(),
+            format: "agentskills".to_string(),
+            copy_dirs: vec!["scripts".to_string()],
+        },
+    );
 
     let target = skittle::config::TargetConfig {
         name: "custom".to_string(),
@@ -206,11 +234,19 @@ fn custom_adapter_installs_to_custom_path() {
     };
     let adapter = skittle::target::resolve_adapter(&target, &adapters).unwrap();
 
-    adapter.install_skill(&skills[0], target_dir.path()).unwrap();
+    adapter
+        .install_skill(&skills[0], target_dir.path())
+        .unwrap();
 
     // Should be under prompts/ not skills/
-    assert!(target_dir.path().join("prompts/custom-sk/SKILL.md").exists());
-    assert!(target_dir.path().join("prompts/custom-sk/scripts/run.sh").exists());
+    assert!(target_dir
+        .path()
+        .join("prompts/custom-sk/SKILL.md")
+        .exists());
+    assert!(target_dir
+        .path()
+        .join("prompts/custom-sk/scripts/run.sh")
+        .exists());
 }
 
 // ─── Registry + adapter lifecycle ───────────────────────────────────────
@@ -257,8 +293,12 @@ fn full_install_uninstall_lifecycle() {
     assert!(!installed.contains(&"apply".to_string()));
 
     // Uninstall remaining
-    adapter.uninstall_skill("explore", target_dir.path()).unwrap();
-    adapter.uninstall_skill("verify", target_dir.path()).unwrap();
+    adapter
+        .uninstall_skill("explore", target_dir.path())
+        .unwrap();
+    adapter
+        .uninstall_skill("verify", target_dir.path())
+        .unwrap();
     let installed = adapter.installed_skills(target_dir.path()).unwrap();
     assert!(installed.is_empty());
 }

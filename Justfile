@@ -2,7 +2,7 @@
 
 # Run all Rust tests (unit + integration)
 test:
-    cargo test
+    SKITTLE_NON_INTERACTIVE=1 cargo test
 
 # Build debug binary
 build:
@@ -43,3 +43,8 @@ test-all: test harness
 check:
     cargo fmt -- --check
     cargo clippy -- -D warnings
+
+# Auto-fix formatting and clippy warnings
+fix:
+    cargo fmt
+    cargo clippy --fix --allow-dirty

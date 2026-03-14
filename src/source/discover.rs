@@ -1,6 +1,6 @@
+use anyhow::Result;
 use std::fs;
 use std::path::{Path, PathBuf};
-use anyhow::Result;
 
 use super::detect;
 
@@ -140,7 +140,10 @@ fn scan_skill_dirs(path: &Path) -> Result<Vec<DiscoveredSkill>> {
         // Validate frontmatter: name required
         let parsed_name = detect::parse_skill_name(&skill_md);
         if parsed_name.is_none() {
-            eprintln!("warning: skipping {}: SKILL.md missing required 'name' in frontmatter", dir_name);
+            eprintln!(
+                "warning: skipping {}: SKILL.md missing required 'name' in frontmatter",
+                dir_name
+            );
             continue;
         }
 
@@ -148,7 +151,10 @@ fn scan_skill_dirs(path: &Path) -> Result<Vec<DiscoveredSkill>> {
 
         // Validate kebab-case
         if !detect::is_kebab_case(&skill_name) {
-            eprintln!("warning: skipping {}: skill name '{}' is not kebab-case", dir_name, skill_name);
+            eprintln!(
+                "warning: skipping {}: skill name '{}' is not kebab-case",
+                dir_name, skill_name
+            );
             continue;
         }
 
@@ -171,7 +177,10 @@ fn scan_skill_dirs(path: &Path) -> Result<Vec<DiscoveredSkill>> {
         // Validate frontmatter: description required
         let description = detect::parse_skill_description(&skill_md);
         if description.is_none() {
-            eprintln!("warning: skipping {}: SKILL.md missing required 'description' in frontmatter", dir_name);
+            eprintln!(
+                "warning: skipping {}: SKILL.md missing required 'description' in frontmatter",
+                dir_name
+            );
             continue;
         }
 
@@ -218,9 +227,17 @@ mod tests {
         fs::create_dir_all(&cp1).unwrap();
         fs::write(cp1.join("plugin.json"), r#"{"name": "alpha"}"#).unwrap();
         // also needs skills to be valid
-        make_skill_dir(&p1.join("skills"), "sk-a", "---\nname: sk-a\ndescription: d\n---\n");
+        make_skill_dir(
+            &p1.join("skills"),
+            "sk-a",
+            "---\nname: sk-a\ndescription: d\n---\n",
+        );
         // beta has a skill subdir (implicit plugin)
-        make_skill_dir(&p2, "my-skill", "---\nname: my-skill\ndescription: d\n---\n");
+        make_skill_dir(
+            &p2,
+            "my-skill",
+            "---\nname: my-skill\ndescription: d\n---\n",
+        );
 
         let plugins = discover_plugins(tmp.path()).unwrap();
         assert_eq!(plugins.len(), 2);
@@ -259,7 +276,11 @@ mod tests {
             fs::create_dir_all(&cp).unwrap();
             fs::write(cp.join("plugin.json"), format!(r#"{{"name": "{}"}}"#, name)).unwrap();
             // Need skills for discovery
-            make_skill_dir(&d.join("skills"), "sk", "---\nname: sk\ndescription: d\n---\n");
+            make_skill_dir(
+                &d.join("skills"),
+                "sk",
+                "---\nname: sk\ndescription: d\n---\n",
+            );
         }
         let plugins = discover_plugins(tmp.path()).unwrap();
         let names: Vec<&str> = plugins.iter().map(|p| p.dir_name.as_str()).collect();
@@ -271,8 +292,16 @@ mod tests {
     #[test]
     fn discover_skills_happy_path() {
         let tmp = TempDir::new().unwrap();
-        make_skill_dir(tmp.path(), "skill-a", "---\nname: skill-a\ndescription: A\n---\n");
-        make_skill_dir(tmp.path(), "skill-b", "---\nname: skill-b\ndescription: B\n---\n");
+        make_skill_dir(
+            tmp.path(),
+            "skill-a",
+            "---\nname: skill-a\ndescription: A\n---\n",
+        );
+        make_skill_dir(
+            tmp.path(),
+            "skill-b",
+            "---\nname: skill-b\ndescription: B\n---\n",
+        );
 
         let skills = discover_skills(tmp.path()).unwrap();
         assert_eq!(skills.len(), 2);
@@ -283,7 +312,11 @@ mod tests {
     #[test]
     fn discover_skills_missing_frontmatter_skipped() {
         let tmp = TempDir::new().unwrap();
-        make_skill_dir(tmp.path(), "good", "---\nname: good\ndescription: ok\n---\n");
+        make_skill_dir(
+            tmp.path(),
+            "good",
+            "---\nname: good\ndescription: ok\n---\n",
+        );
         make_skill_dir(tmp.path(), "bad", "no frontmatter here");
 
         let skills = discover_skills(tmp.path()).unwrap();
@@ -310,8 +343,16 @@ mod tests {
     #[test]
     fn discover_skills_sorted() {
         let tmp = TempDir::new().unwrap();
-        make_skill_dir(tmp.path(), "zebra", "---\nname: zebra\ndescription: z\n---\n");
-        make_skill_dir(tmp.path(), "apple", "---\nname: apple\ndescription: a\n---\n");
+        make_skill_dir(
+            tmp.path(),
+            "zebra",
+            "---\nname: zebra\ndescription: z\n---\n",
+        );
+        make_skill_dir(
+            tmp.path(),
+            "apple",
+            "---\nname: apple\ndescription: a\n---\n",
+        );
 
         let skills = discover_skills(tmp.path()).unwrap();
         assert_eq!(skills[0].name, "apple");
@@ -323,7 +364,11 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let skills_dir = tmp.path().join("skills");
         fs::create_dir_all(&skills_dir).unwrap();
-        make_skill_dir(&skills_dir, "inner", "---\nname: inner\ndescription: d\n---\n");
+        make_skill_dir(
+            &skills_dir,
+            "inner",
+            "---\nname: inner\ndescription: d\n---\n",
+        );
 
         let skills = discover_skills(tmp.path()).unwrap();
         assert_eq!(skills.len(), 1);

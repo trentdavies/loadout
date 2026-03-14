@@ -2,7 +2,11 @@ use anyhow::{bail, Result};
 use std::io::IsTerminal;
 
 /// Returns true when stdin is a TTY and interactive prompts can be shown.
+/// Respects `SKITTLE_NON_INTERACTIVE=1` to force non-interactive mode (used in tests).
 pub fn is_interactive() -> bool {
+    if std::env::var("SKITTLE_NON_INTERACTIVE").is_ok() {
+        return false;
+    }
     std::io::stdin().is_terminal()
 }
 
@@ -51,7 +55,11 @@ pub fn prompt_fetch_mode(quiet: bool) -> String {
         .interact()
         .unwrap_or(0);
 
-    if idx == 0 { "symlink".to_string() } else { "copy".to_string() }
+    if idx == 0 {
+        "symlink".to_string()
+    } else {
+        "copy".to_string()
+    }
 }
 
 #[cfg(test)]
@@ -59,8 +67,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn is_interactive_false_in_tests() {
-        // Test runners pipe stdin, so this should always be false.
+    fn is_interactive_false_when_env_set() {
+        std::env::set_var("SKITTLE_NON_INTERACTIVE", "1");
         assert!(!is_interactive());
     }
 

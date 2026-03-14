@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use tempfile::TempDir;
 
-use skittle::config::{Config, TargetConfig, load_from, save_to};
+use skittle::config::{load_from, save_to, Config, TargetConfig};
 use skittle::target::resolve_adapter;
 
 fn make_target(name: &str, agent: &str, path: PathBuf) -> TargetConfig {
@@ -23,7 +23,9 @@ fn add_target_with_agent_and_path() {
     let target_path = tmp.path().join("claude-target");
 
     let mut config = Config::default();
-    config.target.push(make_target("my-claude", "claude", target_path.clone()));
+    config
+        .target
+        .push(make_target("my-claude", "claude", target_path.clone()));
     save_to(&config, &config_path).unwrap();
 
     let reloaded = load_from(&config_path).unwrap();
@@ -59,7 +61,9 @@ fn remove_target() {
     let config_path = tmp.path().join("config.toml");
 
     let mut config = Config::default();
-    config.target.push(make_target("to-remove", "claude", tmp.path().join("t")));
+    config
+        .target
+        .push(make_target("to-remove", "claude", tmp.path().join("t")));
     save_to(&config, &config_path).unwrap();
 
     let mut config = load_from(&config_path).unwrap();
@@ -78,8 +82,12 @@ fn add_duplicate_target_name_detected() {
     let name = "dupe";
 
     let mut config = Config::default();
-    config.target.push(make_target(name, "claude", tmp.path().join("a")));
-    config.target.push(make_target(name, "codex", tmp.path().join("b")));
+    config
+        .target
+        .push(make_target(name, "claude", tmp.path().join("a")));
+    config
+        .target
+        .push(make_target(name, "codex", tmp.path().join("b")));
 
     let count = config.target.iter().filter(|t| t.name == name).count();
     assert!(count > 1, "duplicate target name should be detectable");
@@ -91,9 +99,15 @@ fn list_targets() {
     let config_path = tmp.path().join("config.toml");
 
     let mut config = Config::default();
-    config.target.push(make_target("alpha", "claude", tmp.path().join("a")));
-    config.target.push(make_target("beta", "codex", tmp.path().join("b")));
-    config.target.push(make_target("gamma", "cursor", tmp.path().join("c")));
+    config
+        .target
+        .push(make_target("alpha", "claude", tmp.path().join("a")));
+    config
+        .target
+        .push(make_target("beta", "codex", tmp.path().join("b")));
+    config
+        .target
+        .push(make_target("gamma", "cursor", tmp.path().join("c")));
     save_to(&config, &config_path).unwrap();
 
     let reloaded = load_from(&config_path).unwrap();

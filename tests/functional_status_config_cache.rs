@@ -4,10 +4,10 @@ use std::path::PathBuf;
 use tempfile::TempDir;
 
 use skittle::config::{
-    AdapterConfig, BundleConfig, Config, SourceConfig, TargetConfig, load_from, save_to,
+    load_from, save_to, AdapterConfig, BundleConfig, Config, SourceConfig, TargetConfig,
 };
 use skittle::registry::{
-    RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry, load_registry, save_registry,
+    load_registry, save_registry, RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry,
 };
 use skittle::target::resolve_adapter;
 
@@ -71,7 +71,10 @@ fn create_skill_fixture(parent: &std::path::Path, name: &str) -> PathBuf {
     fs::create_dir_all(&skill_dir).unwrap();
     fs::write(
         skill_dir.join("SKILL.md"),
-        format!("---\nname: {}\ndescription: Test skill {}\n---\n# {}\n", name, name, name),
+        format!(
+            "---\nname: {}\ndescription: Test skill {}\n---\n# {}\n",
+            name, name, name
+        ),
     )
     .unwrap();
     skill_dir
@@ -89,9 +92,11 @@ fn status_with_sources_targets_skills() {
     let mut config = Config::default();
     config.source.push(make_source("src-alpha", "/tmp/alpha"));
     config.source.push(make_source("src-beta", "/tmp/beta"));
-    config
-        .target
-        .push(make_target("my-target", "claude", target_dir.path().to_path_buf()));
+    config.target.push(make_target(
+        "my-target",
+        "claude",
+        target_dir.path().to_path_buf(),
+    ));
 
     assert_eq!(config.source.len(), 2);
     assert_eq!(config.target.len(), 1);
@@ -187,18 +192,32 @@ fn config_show_returns_content() {
 
     let mut config = Config::default();
     config.source.push(make_source("my-source", "/opt/skills"));
-    config
-        .target
-        .push(make_target("my-target", "claude", PathBuf::from("/home/agent")));
+    config.target.push(make_target(
+        "my-target",
+        "claude",
+        PathBuf::from("/home/agent"),
+    ));
 
     save_to(&config, &config_path).unwrap();
 
     let content = fs::read_to_string(&config_path).unwrap();
 
-    assert!(content.contains("name = \"my-source\""), "should contain source name");
-    assert!(content.contains("url = \"/opt/skills\""), "should contain source url");
-    assert!(content.contains("name = \"my-target\""), "should contain target name");
-    assert!(content.contains("agent = \"claude\""), "should contain agent type");
+    assert!(
+        content.contains("name = \"my-source\""),
+        "should contain source name"
+    );
+    assert!(
+        content.contains("url = \"/opt/skills\""),
+        "should contain source url"
+    );
+    assert!(
+        content.contains("name = \"my-target\""),
+        "should contain target name"
+    );
+    assert!(
+        content.contains("agent = \"claude\""),
+        "should contain agent type"
+    );
     assert!(
         content.contains("[[source]]"),
         "should contain TOML source section header"
@@ -224,10 +243,7 @@ fn cache_clean_removes_sources() {
     }
 
     // Verify files exist
-    let entries_before: Vec<_> = fs::read_dir(&cache_path)
-        .unwrap()
-        .flatten()
-        .collect();
+    let entries_before: Vec<_> = fs::read_dir(&cache_path).unwrap().flatten().collect();
     assert_eq!(entries_before.len(), 3);
 
     // Clean: remove all contents and recreate
@@ -235,10 +251,7 @@ fn cache_clean_removes_sources() {
     fs::create_dir_all(&cache_path).unwrap();
 
     // Verify directory is empty
-    let entries_after: Vec<_> = fs::read_dir(&cache_path)
-        .unwrap()
-        .flatten()
-        .collect();
+    let entries_after: Vec<_> = fs::read_dir(&cache_path).unwrap().flatten().collect();
     assert_eq!(entries_after.len(), 0);
     assert!(cache_path.is_dir(), "cache directory should still exist");
 }
@@ -251,16 +264,24 @@ fn config_roundtrip_with_all_sections() {
     let mut config = Config::default();
 
     // Sources
-    config.source.push(make_source("local-skills", "/home/skills"));
-    config.source.push(make_source("remote-skills", "https://github.com/org/repo"));
+    config
+        .source
+        .push(make_source("local-skills", "/home/skills"));
+    config
+        .source
+        .push(make_source("remote-skills", "https://github.com/org/repo"));
 
     // Targets
-    config
-        .target
-        .push(make_target("claude-dev", "claude", PathBuf::from("/home/claude")));
-    config
-        .target
-        .push(make_target("cursor-work", "cursor", PathBuf::from("/home/cursor")));
+    config.target.push(make_target(
+        "claude-dev",
+        "claude",
+        PathBuf::from("/home/claude"),
+    ));
+    config.target.push(make_target(
+        "cursor-work",
+        "cursor",
+        PathBuf::from("/home/cursor"),
+    ));
 
     // Adapters
     config.adapter.insert(
