@@ -7,7 +7,7 @@ use tempfile::TempDir;
 fn create_mock_skills(
     parent: &std::path::Path,
     names: &[&str],
-) -> Vec<skittle::registry::RegisteredSkill> {
+) -> Vec<loadout::registry::RegisteredSkill> {
     let mut skills = Vec::new();
     for name in names {
         let skill_dir = parent.join(name);
@@ -25,7 +25,7 @@ fn create_mock_skills(
         fs::create_dir_all(&scripts_dir).unwrap();
         fs::write(scripts_dir.join("run.sh"), "#!/bin/bash\necho hello\n").unwrap();
 
-        skills.push(skittle::registry::RegisteredSkill {
+        skills.push(loadout::registry::RegisteredSkill {
             name: name.to_string(),
             description: Some(format!("Test skill {}", name)),
             author: None,
@@ -36,15 +36,15 @@ fn create_mock_skills(
     skills
 }
 
-fn make_adapter() -> skittle::target::Adapter {
-    let target = skittle::config::TargetConfig {
+fn make_adapter() -> loadout::target::Adapter {
+    let target = loadout::config::TargetConfig {
         name: "test".to_string(),
         agent: "claude".to_string(),
         path: PathBuf::from("/tmp"),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
     };
-    skittle::target::resolve_adapter(&target, &BTreeMap::new()).unwrap()
+    loadout::target::resolve_adapter(&target, &BTreeMap::new()).unwrap()
 }
 
 // ─── Install ────────────────────────────────────────────────────────────
@@ -217,7 +217,7 @@ fn custom_adapter_installs_to_custom_path() {
     let mut adapters = BTreeMap::new();
     adapters.insert(
         "my-agent".to_string(),
-        skittle::config::AdapterConfig {
+        loadout::config::AdapterConfig {
             skill_dir: "prompts/{name}".to_string(),
             skill_file: "SKILL.md".to_string(),
             format: "agentskills".to_string(),
@@ -225,14 +225,14 @@ fn custom_adapter_installs_to_custom_path() {
         },
     );
 
-    let target = skittle::config::TargetConfig {
+    let target = loadout::config::TargetConfig {
         name: "custom".to_string(),
         agent: "my-agent".to_string(),
         path: target_dir.path().to_path_buf(),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
     };
-    let adapter = skittle::target::resolve_adapter(&target, &adapters).unwrap();
+    let adapter = loadout::target::resolve_adapter(&target, &adapters).unwrap();
 
     adapter
         .install_skill(&skills[0], target_dir.path())
@@ -261,10 +261,10 @@ fn full_install_uninstall_lifecycle() {
     let adapter = make_adapter();
 
     // Build a registry with these skills
-    let mut registry = skittle::registry::Registry::default();
-    registry.sources.push(skittle::registry::RegisteredSource {
+    let mut registry = loadout::registry::Registry::default();
+    registry.sources.push(loadout::registry::RegisteredSource {
         name: "test-src".to_string(),
-        plugins: vec![skittle::registry::RegisteredPlugin {
+        plugins: vec![loadout::registry::RegisteredPlugin {
             name: "test-plugin".to_string(),
             version: Some("1.0.0".to_string()),
             description: Some("Test plugin".to_string()),
@@ -275,8 +275,8 @@ fn full_install_uninstall_lifecycle() {
     });
 
     // Save and reload registry
-    skittle::registry::save_registry(&registry, data_dir.path()).unwrap();
-    let loaded = skittle::registry::load_registry(data_dir.path()).unwrap();
+    loadout::registry::save_registry(&registry, data_dir.path()).unwrap();
+    let loaded = loadout::registry::load_registry(data_dir.path()).unwrap();
     assert_eq!(loaded.sources[0].plugins[0].skills.len(), 3);
 
     // Install all skills

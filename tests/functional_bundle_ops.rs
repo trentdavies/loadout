@@ -3,9 +3,9 @@ use std::path::PathBuf;
 
 use tempfile::TempDir;
 
-use skittle::config::{load_from, save_to, BundleConfig, Config, TargetConfig};
-use skittle::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry};
-use skittle::target::resolve_adapter;
+use loadout::config::{load_from, save_to, BundleConfig, Config, TargetConfig};
+use loadout::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry};
+use loadout::target::resolve_adapter;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 

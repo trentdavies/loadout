@@ -3,8 +3,8 @@ use std::path::PathBuf;
 
 use tempfile::TempDir;
 
-use skittle::config::{load_from, save_to, Config, TargetConfig};
-use skittle::target::resolve_adapter;
+use loadout::config::{load_from, save_to, Config, TargetConfig};
+use loadout::target::resolve_adapter;
 
 fn make_target(name: &str, agent: &str, path: PathBuf) -> TargetConfig {
     TargetConfig {

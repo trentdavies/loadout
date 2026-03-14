@@ -1,9 +1,9 @@
 use std::fs;
 use tempfile::TempDir;
 
-use skittle::config::{BundleConfig, Config, SourceConfig, TargetConfig};
-use skittle::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry};
-use skittle::target::resolve_adapter;
+use loadout::config::{BundleConfig, Config, SourceConfig, TargetConfig};
+use loadout::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry};
+use loadout::target::resolve_adapter;
 
 /// Build a source fixture with a plugin containing 3 skills (skill-a, skill-b,
 /// skill-c), a Registry that references it, and a Config with a claude target

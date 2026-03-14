@@ -2,16 +2,16 @@
 # Suite 03: Apply to Targets — apply skills to mock claude/codex targets
 # Depends on Suite 01+02 having sources populated.
 
-# Helper: extract a non-ambiguous plugin/skill identity from `skittle list --json`.
+# Helper: extract a non-ambiguous plugin/skill identity from `loadout list --json`.
 # Picks skills where plugin != source to avoid the ambiguity bug.
 _first_skill() {
-  "$SKITTLE" list --json 2>/dev/null | jq -r \
+  "$LOADOUT" list --json 2>/dev/null | jq -r \
     '[.[] | select(.plugin != .source)] | .[0] | "\(.plugin)/\(.name)"'
 }
 
 _first_skill_from_source() {
   local source_name="$1"
-  "$SKITTLE" list --json 2>/dev/null | jq -r --arg src "$source_name" \
+  "$LOADOUT" list --json 2>/dev/null | jq -r --arg src "$source_name" \
     '[.[] | select(.source == $src and .plugin != .source)] | .[0] | "\(.plugin)/\(.name)"'
 }
 
@@ -24,7 +24,7 @@ test_01_apply_single_skill() {
     return
   fi
 
-  log_cmd "$SKITTLE" apply --force --skill "$skill" --target sandbox-claude
+  log_cmd "$LOADOUT" apply --force --skill "$skill" --target sandbox-claude
 
   local short_name
   short_name=$(echo "$skill" | awk -F/ '{print $NF}')
@@ -43,7 +43,7 @@ test_01_apply_single_skill() {
 
 test_02_apply_plugin() {
   local plugin_name
-  plugin_name=$("$SKITTLE" list --json 2>/dev/null | jq -r \
+  plugin_name=$("$LOADOUT" list --json 2>/dev/null | jq -r \
     '[.[] | select(.source == "anthropic-skills")] | .[0].plugin // empty')
 
   if [ -z "$plugin_name" ]; then
@@ -51,7 +51,7 @@ test_02_apply_plugin() {
     return
   fi
 
-  log_cmd "$SKITTLE" apply --force --plugin "$plugin_name" --target sandbox-claude
+  log_cmd "$LOADOUT" apply --force --plugin "$plugin_name" --target sandbox-claude
 
   local installed
   installed=$(find "$SANDBOX_TARGET_CLAUDE" -name "SKILL.md" -type f 2>/dev/null | wc -l | tr -d ' ')
@@ -75,8 +75,8 @@ test_03_apply_both_targets() {
     return
   fi
 
-  log_cmd "$SKITTLE" apply --force --skill "$skill" --target sandbox-claude
-  log_cmd "$SKITTLE" apply --force --skill "$skill" --target sandbox-codex
+  log_cmd "$LOADOUT" apply --force --skill "$skill" --target sandbox-claude
+  log_cmd "$LOADOUT" apply --force --skill "$skill" --target sandbox-codex
 
   local short_name
   short_name=$(echo "$skill" | awk -F/ '{print $NF}')
@@ -127,11 +127,11 @@ test_05_uninstall_one_target() {
   short_name=$(echo "$skill" | awk -F/ '{print $NF}')
 
   # Ensure it's in both targets
-  "$SKITTLE" apply --force --skill "$skill" --target sandbox-claude >/dev/null 2>&1
-  "$SKITTLE" apply --force --skill "$skill" --target sandbox-codex >/dev/null 2>&1
+  "$LOADOUT" apply --force --skill "$skill" --target sandbox-claude >/dev/null 2>&1
+  "$LOADOUT" apply --force --skill "$skill" --target sandbox-codex >/dev/null 2>&1
 
   # Uninstall from claude only
-  log_cmd "$SKITTLE" uninstall --skill "$skill" --target sandbox-claude --force
+  log_cmd "$LOADOUT" uninstall --skill "$skill" --target sandbox-claude --force
 
   local claude_found codex_found
   claude_found=$(find "$SANDBOX_TARGET_CLAUDE" -name "SKILL.md" -path "*$short_name*" 2>/dev/null | head -1)
@@ -148,17 +148,17 @@ test_05_uninstall_one_target() {
 }
 
 test_06_status_reflects_state() {
-  log_cmd "$SKITTLE" status
+  log_cmd "$LOADOUT" status
   local output
-  output=$("$SKITTLE" status 2>/dev/null)
+  output=$("$LOADOUT" status 2>/dev/null)
   local exit_code=$?
 
   if [ "$exit_code" -eq 0 ]; then
     _pass "status command succeeds"
-    log_check 1 "skittle status exits cleanly"
+    log_check 1 "loadout status exits cleanly"
   else
     _fail "status command failed" "exit 0" "exit $exit_code"
-    log_check 0 "skittle status exits cleanly"
+    log_check 0 "loadout status exits cleanly"
   fi
 
   if echo "$output" | grep -qiE "claude|codex|skill|target"; then

@@ -1,17 +1,17 @@
 [package]
-name = "skittle"
+name = "loadout"
 version = "0.1.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "Agent skill manager — source, cache, and install skills across coding agents"
-repository = "https://github.com/trentdavies/skittle"
-homepage = "https://github.com/trentdavies/skittle"
+repository = "https://github.com/trentdavies/loadout"
+homepage = "https://github.com/trentdavies/loadout"
 readme = "README.md"
 keywords = ["agent", "skills", "cli", "claude", "codex"]
 categories = ["command-line-utilities", "development-tools"]
 
 [[bin]]
-name = "skittle"
+name = "loadout"
 path = "src/main.rs"
 
 [dependencies]

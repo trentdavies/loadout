@@ -4,7 +4,7 @@
 
 _first_skill_from_source() {
   local source_name="$1"
-  "$SKITTLE" list --json 2>/dev/null | jq -r --arg src "$source_name" \
+  "$LOADOUT" list --json 2>/dev/null | jq -r --arg src "$source_name" \
     '[.[] | select(.source == $src)] | .[0] | "\(.plugin)/\(.name)"'
 }
 
@@ -26,10 +26,10 @@ test_02_add_local_as_source() {
     return
   fi
 
-  log_cmd "$SKITTLE" add "$SANDBOX_LOCAL/skills" --source local-skills
+  log_cmd "$LOADOUT" add "$SANDBOX_LOCAL/skills" --source local-skills
 
   local output
-  output=$("$SKITTLE" list 2>/dev/null)
+  output=$("$LOADOUT" list 2>/dev/null)
   if echo "$output" | grep -qF "local-skills"; then
     _pass "local-skills source added"
     log_check 1 "local-skills appears in source list"
@@ -41,14 +41,14 @@ test_02_add_local_as_source() {
 
 test_03_local_skills_detected() {
   local count
-  count=$("$SKITTLE" list --json 2>/dev/null | jq '[.[] | select(.source == "local-skills")] | length')
+  count=$("$LOADOUT" list --json 2>/dev/null | jq '[.[] | select(.source == "local-skills")] | length')
 
   if [ "$count" -gt 0 ]; then
     _pass "local-skills has $count skill entries detected"
     log_check 1 "local-skills — $count entries detected"
   else
     local output
-    output=$("$SKITTLE" list 2>/dev/null)
+    output=$("$LOADOUT" list 2>/dev/null)
     if echo "$output" | grep -qF "local-skills"; then
       _pass "local-skills source present in list"
       log_check 1 "local-skills present in list"
@@ -61,7 +61,7 @@ test_03_local_skills_detected() {
 
 test_04_apply_from_local() {
   local plugin_name
-  plugin_name=$("$SKITTLE" list --json 2>/dev/null | jq -r \
+  plugin_name=$("$LOADOUT" list --json 2>/dev/null | jq -r \
     '[.[] | select(.source == "local-skills")] | .[0].plugin // empty')
 
   if [ -z "$plugin_name" ]; then
@@ -73,7 +73,7 @@ test_04_apply_from_local() {
   rm -rf "$SANDBOX_TARGET_CODEX/skills"
   mkdir -p "$SANDBOX_TARGET_CODEX"
 
-  log_cmd "$SKITTLE" apply --force --plugin "$plugin_name" --target sandbox-codex
+  log_cmd "$LOADOUT" apply --force --plugin "$plugin_name" --target sandbox-codex
 
   local installed
   installed=$(find "$SANDBOX_TARGET_CODEX" -name "SKILL.md" -type f 2>/dev/null | wc -l | tr -d ' ')
@@ -94,8 +94,8 @@ test_05_bundle_across_sources() {
 
   # Fallback: try any two different skills
   if [ -z "$skill_a" ] || [ "$skill_a" = "null/null" ] || [ -z "$skill_b" ] || [ "$skill_b" = "null/null" ]; then
-    skill_a=$("$SKITTLE" list --json 2>/dev/null | jq -r '.[0] | "\(.plugin)/\(.name)"')
-    skill_b=$("$SKITTLE" list --json 2>/dev/null | jq -r '.[1] | "\(.plugin)/\(.name)"')
+    skill_a=$("$LOADOUT" list --json 2>/dev/null | jq -r '.[0] | "\(.plugin)/\(.name)"')
+    skill_b=$("$LOADOUT" list --json 2>/dev/null | jq -r '.[1] | "\(.plugin)/\(.name)"')
   fi
 
   if [ -z "$skill_a" ] || [ "$skill_a" = "null/null" ] || [ -z "$skill_b" ] || [ "$skill_b" = "null/null" ]; then
@@ -107,9 +107,9 @@ test_05_bundle_across_sources() {
   rm -rf "$SANDBOX_TARGET_CODEX/skills"
   mkdir -p "$SANDBOX_TARGET_CODEX"
 
-  log_cmd "$SKITTLE" bundle create cross-source-bundle
-  log_cmd "$SKITTLE" bundle add cross-source-bundle "$skill_a" "$skill_b"
-  log_cmd "$SKITTLE" apply --force --bundle cross-source-bundle --target sandbox-codex
+  log_cmd "$LOADOUT" bundle create cross-source-bundle
+  log_cmd "$LOADOUT" bundle add cross-source-bundle "$skill_a" "$skill_b"
+  log_cmd "$LOADOUT" apply --force --bundle cross-source-bundle --target sandbox-codex
 
   local short_a short_b
   short_a=$(echo "$skill_a" | awk -F/ '{print $NF}')

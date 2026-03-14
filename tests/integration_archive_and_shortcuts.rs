@@ -59,26 +59,26 @@ fn source_add_zip_end_to_end() {
     );
 
     // Parse as archive
-    let source_url = skittle::source::SourceUrl::parse(zip_path.to_str().unwrap()).unwrap();
+    let source_url = loadout::source::SourceUrl::parse(zip_path.to_str().unwrap()).unwrap();
     assert_eq!(source_url.source_type(), "archive");
     assert_eq!(source_url.default_name(), "my-plugin");
 
     // Fetch (unpack)
     let source_cache = cache_dir.join("my-plugin");
-    skittle::source::fetch::fetch(&source_url, &source_cache, None).unwrap();
+    loadout::source::fetch::fetch(&source_url, &source_cache, None).unwrap();
     assert!(source_cache.join(".claude-plugin/plugin.json").exists());
     assert!(source_cache.join("skill-a/SKILL.md").exists());
 
     // Detect
-    let structure = skittle::source::detect::detect(&source_cache).unwrap();
+    let structure = loadout::source::detect::detect(&source_cache).unwrap();
     assert!(matches!(
         structure,
-        skittle::source::detect::SourceStructure::SinglePlugin
+        loadout::source::detect::SourceStructure::SinglePlugin
     ));
 
     // Normalize
     let registered =
-        skittle::source::normalize::normalize("my-plugin", &source_cache, &structure).unwrap();
+        loadout::source::normalize::normalize("my-plugin", &source_cache, &structure).unwrap();
     assert_eq!(registered.plugins.len(), 1);
     assert_eq!(registered.plugins[0].name, "my-plugin");
     assert_eq!(registered.plugins[0].skills.len(), 2);
@@ -102,18 +102,18 @@ fn source_add_skill_file_end_to_end() {
         )],
     );
 
-    let source_url = skittle::source::SourceUrl::parse(skill_path.to_str().unwrap()).unwrap();
+    let source_url = loadout::source::SourceUrl::parse(skill_path.to_str().unwrap()).unwrap();
     assert_eq!(source_url.source_type(), "archive");
     assert_eq!(source_url.default_name(), "helper");
 
     let source_cache = cache_dir.join("helper");
-    skittle::source::fetch::fetch(&source_url, &source_cache, None).unwrap();
+    loadout::source::fetch::fetch(&source_url, &source_cache, None).unwrap();
     assert!(source_cache.join("SKILL.md").exists());
 
-    let structure = skittle::source::detect::detect(&source_cache).unwrap();
+    let structure = loadout::source::detect::detect(&source_cache).unwrap();
     assert!(matches!(
         structure,
-        skittle::source::detect::SourceStructure::SingleSkillDir { .. }
+        loadout::source::detect::SourceStructure::SingleSkillDir { .. }
     ));
 }
 
@@ -138,29 +138,29 @@ fn source_add_claude_plugin_end_to_end() {
     make_skill_fixture(&plugin_dir, "tool-a");
 
     // Detect
-    let structure = skittle::source::detect::detect(&plugin_dir).unwrap();
+    let structure = loadout::source::detect::detect(&plugin_dir).unwrap();
     assert!(matches!(
         structure,
-        skittle::source::detect::SourceStructure::SinglePlugin
+        loadout::source::detect::SourceStructure::SinglePlugin
     ));
 
     // Normalize — should pick up .claude-plugin metadata
     let registered =
-        skittle::source::normalize::normalize("my-claude-plugin", &plugin_dir, &structure).unwrap();
+        loadout::source::normalize::normalize("my-claude-plugin", &plugin_dir, &structure).unwrap();
     assert_eq!(registered.plugins.len(), 1);
     assert_eq!(registered.plugins[0].name, "claude-tool");
     assert_eq!(registered.plugins[0].version.as_deref(), Some("2.0"));
     assert_eq!(registered.plugins[0].skills.len(), 1);
 }
 
-// ─── Test: skittle add parses correctly ──────────────────────────────────────
+// ─── Test: loadout add parses correctly ──────────────────────────────────────
 
 #[test]
 fn add_parses_correctly() {
     use clap::Parser;
-    let cli = skittle::cli::Cli::try_parse_from(["skittle", "add", "/tmp/my-src"]).unwrap();
+    let cli = loadout::cli::Cli::try_parse_from(["loadout", "add", "/tmp/my-src"]).unwrap();
     match cli.command {
-        skittle::cli::Command::Add { url, name, .. } => {
+        loadout::cli::Command::Add { url, name, .. } => {
             assert_eq!(url, "/tmp/my-src");
             assert!(name.is_none());
         }
@@ -168,29 +168,29 @@ fn add_parses_correctly() {
     }
 }
 
-// ─── Test: skittle list parses correctly ─────────────────────────────────────
+// ─── Test: loadout list parses correctly ─────────────────────────────────────
 
 #[test]
 fn list_parses() {
     use clap::Parser;
-    let cli = skittle::cli::Cli::try_parse_from(["skittle", "list"]).unwrap();
+    let cli = loadout::cli::Cli::try_parse_from(["loadout", "list"]).unwrap();
     match cli.command {
-        skittle::cli::Command::List { patterns, .. } => {
+        loadout::cli::Command::List { patterns, .. } => {
             assert!(patterns.is_empty());
         }
         _ => panic!("expected List command"),
     }
 }
 
-// ─── Test: skittle init with URL ────────────────────────────────────────────
+// ─── Test: loadout init with URL ────────────────────────────────────────────
 
 #[test]
 fn init_with_url_parses() {
     use clap::Parser;
-    let cli = skittle::cli::Cli::try_parse_from(["skittle", "init", "https://github.com/org/repo"])
+    let cli = loadout::cli::Cli::try_parse_from(["loadout", "init", "https://github.com/org/repo"])
         .unwrap();
     match cli.command {
-        skittle::cli::Command::Init { url } => {
+        loadout::cli::Command::Init { url } => {
             assert_eq!(url.as_deref(), Some("https://github.com/org/repo"));
         }
         _ => panic!("expected Init command"),

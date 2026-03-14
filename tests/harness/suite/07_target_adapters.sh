@@ -4,14 +4,14 @@
 
 test_claude_adapter_installs_skill_md() {
   setup_source_and_targets
-  "$SKITTLE" apply --force --skill test-plugin/explore --target test-claude >/dev/null 2>&1
+  "$LOADOUT" apply --force --skill test-plugin/explore --target test-claude >/dev/null 2>&1
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
 }
 
 test_claude_adapter_copies_scripts_dir() {
   setup_source_and_targets
   # apply skill has a scripts/ directory
-  "$SKITTLE" apply --force --skill test-plugin/apply --target test-claude >/dev/null 2>&1
+  "$LOADOUT" apply --force --skill test-plugin/apply --target test-claude >/dev/null 2>&1
   assert_file_exists "$TARGET_CLAUDE/skills/apply/SKILL.md"
   assert_dir_exists "$TARGET_CLAUDE/skills/apply/scripts"
   assert_file_exists "$TARGET_CLAUDE/skills/apply/scripts/run.sh"
@@ -19,7 +19,7 @@ test_claude_adapter_copies_scripts_dir() {
 
 test_claude_adapter_skill_content_matches() {
   setup_source_and_targets
-  "$SKITTLE" apply --force --skill test-plugin/explore --target test-claude >/dev/null 2>&1
+  "$LOADOUT" apply --force --skill test-plugin/explore --target test-claude >/dev/null 2>&1
   # Installed SKILL.md should contain the original frontmatter
   assert_file_contains "$TARGET_CLAUDE/skills/explore/SKILL.md" "name: explore"
   assert_file_contains "$TARGET_CLAUDE/skills/explore/SKILL.md" "description:"
@@ -27,33 +27,33 @@ test_claude_adapter_skill_content_matches() {
 
 test_codex_adapter_installs_skill_md() {
   setup_source_and_targets
-  "$SKITTLE" apply --force --skill test-plugin/explore --target test-codex >/dev/null 2>&1
+  "$LOADOUT" apply --force --skill test-plugin/explore --target test-codex >/dev/null 2>&1
   assert_file_exists "$TARGET_CODEX/skills/explore/SKILL.md"
 }
 
 test_codex_adapter_copies_scripts_dir() {
   setup_source_and_targets
-  "$SKITTLE" apply --force --skill test-plugin/apply --target test-codex >/dev/null 2>&1
+  "$LOADOUT" apply --force --skill test-plugin/apply --target test-codex >/dev/null 2>&1
   assert_file_exists "$TARGET_CODEX/skills/apply/SKILL.md"
   assert_dir_exists "$TARGET_CODEX/skills/apply/scripts"
 }
 
 test_claude_adapter_uninstalls_cleanly() {
   setup_source_and_targets
-  "$SKITTLE" apply --force --skill test-plugin/explore --target test-claude >/dev/null 2>&1
+  "$LOADOUT" apply --force --skill test-plugin/explore --target test-claude >/dev/null 2>&1
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
-  "$SKITTLE" uninstall --skill test-plugin/explore --target test-claude --force >/dev/null 2>&1
+  "$LOADOUT" uninstall --skill test-plugin/explore --target test-claude --force >/dev/null 2>&1
   assert_file_not_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   # The skill directory itself should be removed
   assert_file_not_exists "$TARGET_CLAUDE/skills/explore"
 }
 
 test_custom_toml_adapter() {
-  "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
+  "$LOADOUT" init >/dev/null 2>&1
+  "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
 
   # Define a custom adapter in the config
-  local config_file="$XDG_DATA_HOME/skittle/skittle.toml"
+  local config_file="$XDG_DATA_HOME/loadout/loadout.toml"
   cat >> "$config_file" <<'TOML'
 
 [adapter.custom-agent]
@@ -66,14 +66,14 @@ TOML
   # Add a target using the custom adapter
   local custom_target="/tmp/test-targets/custom"
   mkdir -p "$custom_target"
-  "$SKITTLE" target add custom-agent "$custom_target" --name test-custom >/dev/null 2>&1
-  "$SKITTLE" apply --force --skill test-plugin/explore --target test-custom >/dev/null 2>&1
+  "$LOADOUT" target add custom-agent "$custom_target" --name test-custom >/dev/null 2>&1
+  "$LOADOUT" apply --force --skill test-plugin/explore --target test-custom >/dev/null 2>&1
 
   # Should use the custom path template
   assert_file_exists "$custom_target/prompts/explore/SKILL.md"
 
   # copy_dirs is empty, so scripts should NOT be copied
-  "$SKITTLE" apply --force --skill test-plugin/apply --target test-custom >/dev/null 2>&1
+  "$LOADOUT" apply --force --skill test-plugin/apply --target test-custom >/dev/null 2>&1
   assert_file_exists "$custom_target/prompts/apply/SKILL.md"
   assert_file_not_exists "$custom_target/prompts/apply/scripts"
 
@@ -81,10 +81,10 @@ TOML
 }
 
 test_custom_adapter_unknown_format_error() {
-  "$SKITTLE" init >/dev/null 2>&1
+  "$LOADOUT" init >/dev/null 2>&1
 
   # Define adapter with unsupported format
-  local config_file="$XDG_DATA_HOME/skittle/skittle.toml"
+  local config_file="$XDG_DATA_HOME/loadout/loadout.toml"
   cat >> "$config_file" <<'TOML'
 
 [adapter.bad-format]
@@ -98,11 +98,11 @@ TOML
   mkdir -p "$bad_target"
 
   # Adding the target might succeed, but installing should fail on unknown format
-  "$SKITTLE" target add bad-format "$bad_target" --name test-bad-fmt >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
+  "$LOADOUT" target add bad-format "$bad_target" --name test-bad-fmt >/dev/null 2>&1
+  "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
 
   local output
-  output=$("$SKITTLE" apply --force --skill test-plugin/explore --target test-bad-fmt 2>&1)
+  output=$("$LOADOUT" apply --force --skill test-plugin/explore --target test-bad-fmt 2>&1)
   local exit_code=$?
 
   if [ "$exit_code" -ne 0 ] || echo "$output" | grep -qiE "unknown.*format|unsupported|mdc"; then
@@ -116,9 +116,9 @@ TOML
 
 test_multiple_skills_installed_to_same_target() {
   setup_source_and_targets
-  "$SKITTLE" apply --force --skill test-plugin/explore --target test-claude >/dev/null 2>&1
-  "$SKITTLE" apply --force --skill test-plugin/apply --target test-claude >/dev/null 2>&1
-  "$SKITTLE" apply --force --skill test-plugin/verify --target test-claude >/dev/null 2>&1
+  "$LOADOUT" apply --force --skill test-plugin/explore --target test-claude >/dev/null 2>&1
+  "$LOADOUT" apply --force --skill test-plugin/apply --target test-claude >/dev/null 2>&1
+  "$LOADOUT" apply --force --skill test-plugin/verify --target test-claude >/dev/null 2>&1
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_exists "$TARGET_CLAUDE/skills/apply/SKILL.md"
   assert_file_exists "$TARGET_CLAUDE/skills/verify/SKILL.md"

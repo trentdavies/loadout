@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(
-    name = "skittle",
+    name = "loadout",
     about = "Agent skill manager — add, update, and install skills across coding agents",
     version,
     propagate_version = true,
@@ -36,7 +36,7 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Command {
-    /// Initialize skittle configuration
+    /// Initialize loadout configuration
     Init {
         /// Optional source URL to populate cache (GitHub URL or local path)
         url: Option<String>,
@@ -450,12 +450,12 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             if path.exists() {
                 if url.is_some() && !cli.quiet {
                     println!(
-                        "Config already exists at {}. Use `skittle add` instead.",
+                        "Config already exists at {}. Use `loadout add` instead.",
                         path.display()
                     );
                 } else if !cli.quiet {
                     println!(
-                        "Config already exists at {}. Use `skittle config edit` to modify.",
+                        "Config already exists at {}. Use `loadout config edit` to modify.",
                         path.display()
                     );
                 }
@@ -478,7 +478,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
             }
 
-            // Migrate legacy registry.json to .skittle/
+            // Migrate legacy registry.json to .loadout/
             let legacy_registry = data.join("registry.json");
             let new_registry = crate::config::internal_dir().join("registry.json");
             if legacy_registry.exists() && !new_registry.exists() {
@@ -488,13 +488,13 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             // Write .gitignore
             let gitignore_path = data.join(".gitignore");
             if !gitignore_path.exists() {
-                std::fs::write(&gitignore_path, "external/\n.skittle/\n")?;
+                std::fs::write(&gitignore_path, "external/\n.loadout/\n")?;
             }
 
             let default_config = crate::config::DEFAULT_CONFIG;
             std::fs::write(&path, default_config)?;
             if !cli.quiet {
-                println!("Initialized skittle at {}", data.display());
+                println!("Initialized loadout at {}", data.display());
             }
 
             // If URL provided, fetch into cache and register as source
@@ -538,7 +538,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 true // non-interactive default: yes
             } else {
                 crate::prompt::confirm_or_override(
-                    "Initialize git in skittle data dir? [Y/n]", "Y", cli.quiet,
+                    "Initialize git in loadout data dir? [Y/n]", "Y", cli.quiet,
                 ).to_uppercase() != "N"
             };
             if should_git_init && !data.join(".git").exists() {
@@ -904,7 +904,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 if config_for_list.source.is_empty() {
                     let output =
                         crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
-                    output.info("No sources configured. Use `skittle add` to add one.");
+                    output.info("No sources configured. Use `loadout add` to add one.");
                     return Ok(());
                 }
 
@@ -1048,7 +1048,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
                     if skills.is_empty() {
                         if patterns.is_empty() {
-                            output.info("No skills found. Add a source with `skittle add`");
+                            output.info("No skills found. Add a source with `loadout add`");
                         } else {
                             output.info("No skills matched the given pattern(s)");
                         }
@@ -1100,7 +1100,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             };
 
             if targets.is_empty() {
-                anyhow::bail!("no targets configured. Use `skittle target add` first.");
+                anyhow::bail!("no targets configured. Use `loadout target add` first.");
             }
 
             // Collect skills to apply with provenance: (source, plugin, skill)
@@ -1694,7 +1694,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
             if update_ref.is_some() && name.is_none() {
                 anyhow::bail!(
-                    "--ref requires a source name (e.g., skittle update my-source --ref v2.0)"
+                    "--ref requires a source name (e.g., loadout update my-source --ref v2.0)"
                 );
             }
 
@@ -1979,7 +1979,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     if bundles.is_empty() {
                         if !cli.quiet {
                             if patterns.is_empty() {
-                                println!("No bundles configured. Use `skittle bundle create` to create one.");
+                                println!("No bundles configured. Use `loadout bundle create` to create one.");
                             } else {
                                 println!("No bundles matched the given pattern(s)");
                             }
@@ -2323,7 +2323,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                     if config.target.is_empty() {
                         if !cli.quiet {
-                            println!("No targets configured. Use `skittle target add` to add one.");
+                            println!("No targets configured. Use `loadout target add` to add one.");
                         }
                         return Ok(());
                     }
@@ -2510,7 +2510,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 ConfigCommand::Edit => {
                     let path = crate::config::config_path(cli.config.as_deref());
                     if !path.exists() {
-                        anyhow::bail!("No config found. Run `skittle init` first.");
+                        anyhow::bail!("No config found. Run `loadout init` first.");
                     }
                     let editor = std::env::var("EDITOR")
                         .or_else(|_| std::env::var("VISUAL"))
@@ -2726,7 +2726,7 @@ fn generate_marketplace(data_dir: &std::path::Path) -> anyhow::Result<()> {
     }
 
     let marketplace = serde_json::json!({
-        "name": "skittle-marketplace",
+        "name": "loadout-marketplace",
         "plugins": plugins,
     });
 

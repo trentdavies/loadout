@@ -3,11 +3,11 @@ use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
-fn make_config_with_bundle(bundle_name: &str, skills: &[&str]) -> skittle::config::Config {
-    let mut config = skittle::config::Config::default();
+fn make_config_with_bundle(bundle_name: &str, skills: &[&str]) -> loadout::config::Config {
+    let mut config = loadout::config::Config::default();
     config.bundle.insert(
         bundle_name.to_string(),
-        skittle::config::BundleConfig {
+        loadout::config::BundleConfig {
             skills: skills.iter().map(|s| s.to_string()).collect(),
         },
     );
@@ -17,8 +17,8 @@ fn make_config_with_bundle(bundle_name: &str, skills: &[&str]) -> skittle::confi
 fn make_registry_with_skills(
     skill_names: &[&str],
     source_dir: &std::path::Path,
-) -> skittle::registry::Registry {
-    let skills: Vec<skittle::registry::RegisteredSkill> = skill_names
+) -> loadout::registry::Registry {
+    let skills: Vec<loadout::registry::RegisteredSkill> = skill_names
         .iter()
         .map(|name| {
             let skill_dir = source_dir.join(name);
@@ -31,7 +31,7 @@ fn make_registry_with_skills(
                 ),
             )
             .unwrap();
-            skittle::registry::RegisteredSkill {
+            loadout::registry::RegisteredSkill {
                 name: name.to_string(),
                 description: Some(format!("Test {}", name)),
                 author: None,
@@ -41,10 +41,10 @@ fn make_registry_with_skills(
         })
         .collect();
 
-    let mut registry = skittle::registry::Registry::default();
-    registry.sources.push(skittle::registry::RegisteredSource {
+    let mut registry = loadout::registry::Registry::default();
+    registry.sources.push(loadout::registry::RegisteredSource {
         name: "src".to_string(),
-        plugins: vec![skittle::registry::RegisteredPlugin {
+        plugins: vec![loadout::registry::RegisteredPlugin {
             name: "plug".to_string(),
             version: None,
             description: None,
@@ -56,27 +56,27 @@ fn make_registry_with_skills(
     registry
 }
 
-fn make_adapter() -> skittle::target::Adapter {
-    let target = skittle::config::TargetConfig {
+fn make_adapter() -> loadout::target::Adapter {
+    let target = loadout::config::TargetConfig {
         name: "test".to_string(),
         agent: "claude".to_string(),
         path: PathBuf::from("/tmp"),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
     };
-    skittle::target::resolve_adapter(&target, &BTreeMap::new()).unwrap()
+    loadout::target::resolve_adapter(&target, &BTreeMap::new()).unwrap()
 }
 
 // ─── Bundle Config CRUD ─────────────────────────────────────────────────
 
 #[test]
 fn bundle_create_in_config() {
-    let mut config = skittle::config::Config::default();
+    let mut config = loadout::config::Config::default();
     assert!(!config.bundle.contains_key("dev"));
 
     config.bundle.insert(
         "dev".to_string(),
-        skittle::config::BundleConfig { skills: vec![] },
+        loadout::config::BundleConfig { skills: vec![] },
     );
     assert!(config.bundle.contains_key("dev"));
     assert!(config.bundle["dev"].skills.is_empty());
@@ -124,9 +124,9 @@ fn bundle_config_roundtrip() {
     };
 
     let config = make_config_with_bundle("production", &["core/explore", "core/apply"]);
-    skittle::config::save_to(&config, &config_path).unwrap();
+    loadout::config::save_to(&config, &config_path).unwrap();
 
-    let loaded = skittle::config::load_from(&config_path).unwrap();
+    let loaded = loadout::config::load_from(&config_path).unwrap();
     assert_eq!(loaded.bundle["production"].skills.len(), 2);
     assert!(loaded.bundle["production"]
         .skills
@@ -143,14 +143,14 @@ fn bundle_swap_installs_new_uninstalls_old() {
     let adapter = make_adapter();
 
     // "from" bundle has sk-a, sk-b
-    let from_skills: Vec<&skittle::registry::RegisteredSkill> = registry.sources[0].plugins[0]
+    let from_skills: Vec<&loadout::registry::RegisteredSkill> = registry.sources[0].plugins[0]
         .skills
         .iter()
         .filter(|s| s.name == "sk-a" || s.name == "sk-b")
         .collect();
 
     // "to" bundle has sk-c, sk-d
-    let to_skills: Vec<&skittle::registry::RegisteredSkill> = registry.sources[0].plugins[0]
+    let to_skills: Vec<&loadout::registry::RegisteredSkill> = registry.sources[0].plugins[0]
         .skills
         .iter()
         .filter(|s| s.name == "sk-c" || s.name == "sk-d")

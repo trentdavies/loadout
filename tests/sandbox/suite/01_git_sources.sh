@@ -2,9 +2,9 @@
 # Suite 01: Git Sources — clone real Anthropic repos via network
 
 test_01_add_anthropic_skills() {
-  log_cmd "$SKITTLE" add https://github.com/anthropics/skills.git --source anthropic-skills
+  log_cmd "$LOADOUT" add https://github.com/anthropics/skills.git --source anthropic-skills
   local output
-  output=$("$SKITTLE" list 2>/dev/null)
+  output=$("$LOADOUT" list 2>/dev/null)
   if echo "$output" | grep -qF "anthropic-skills"; then
     _pass "anthropic-skills source added"
     log_check 1 "anthropic-skills appears in source list"
@@ -15,9 +15,9 @@ test_01_add_anthropic_skills() {
 }
 
 test_02_add_knowledge_work() {
-  log_cmd "$SKITTLE" add https://github.com/anthropics/knowledge-work-plugins.git --source knowledge-work
+  log_cmd "$LOADOUT" add https://github.com/anthropics/knowledge-work-plugins.git --source knowledge-work
   local output
-  output=$("$SKITTLE" list 2>/dev/null)
+  output=$("$LOADOUT" list 2>/dev/null)
   if echo "$output" | grep -qF "knowledge-work"; then
     _pass "knowledge-work source added"
     log_check 1 "knowledge-work appears in source list"
@@ -29,7 +29,7 @@ test_02_add_knowledge_work() {
 
 test_02b_knowledge_work_in_json() {
   local count
-  count=$("$SKITTLE" list --json 2>/dev/null | jq '[.[] | select(.source == "knowledge-work")] | length')
+  count=$("$LOADOUT" list --json 2>/dev/null | jq '[.[] | select(.source == "knowledge-work")] | length')
   if [ "$count" -gt 0 ]; then
     _pass "knowledge-work present in JSON output ($count skills)"
     log_check 1 "knowledge-work has $count skills in --json output"
@@ -41,9 +41,9 @@ test_02b_knowledge_work_in_json() {
 
 test_03_add_claude_official() {
   local output exit_code
-  output=$("$SKITTLE" add https://github.com/anthropics/claude-plugins-official.git --source claude-official 2>&1)
+  output=$("$LOADOUT" add https://github.com/anthropics/claude-plugins-official.git --source claude-official 2>&1)
   exit_code=$?
-  printf "  \$ skittle add ... --name claude-official\n" | tee -a "$SANDBOX_LOG"
+  printf "  \$ loadout add ... --name claude-official\n" | tee -a "$SANDBOX_LOG"
   printf "  exit: %d\n" "$exit_code" | tee -a "$SANDBOX_LOG"
   echo "$output" | head -5 | while IFS= read -r line; do
     printf "  %s\n" "$line" | tee -a "$SANDBOX_LOG"
@@ -56,14 +56,14 @@ test_03_add_claude_official() {
   else
     # This repo has a known parse issue — log it but don't block the suite
     _pass "claude-official add failed (known parse issue in repo): $output"
-    log_check 0 "claude-official — skittle could not parse repo (upstream issue)"
+    log_check 0 "claude-official — loadout could not parse repo (upstream issue)"
   fi
 }
 
 test_04_add_financial_services() {
-  log_cmd "$SKITTLE" add https://github.com/anthropics/financial-services-plugins.git --source financial-services
+  log_cmd "$LOADOUT" add https://github.com/anthropics/financial-services-plugins.git --source financial-services
   local output
-  output=$("$SKITTLE" list 2>/dev/null)
+  output=$("$LOADOUT" list 2>/dev/null)
   if echo "$output" | grep -qF "financial-services"; then
     _pass "financial-services source added"
     log_check 1 "financial-services appears in source list"
@@ -75,8 +75,8 @@ test_04_add_financial_services() {
 
 test_05_list_shows_all_sources() {
   local json_output
-  json_output=$("$SKITTLE" list --json 2>/dev/null)
-  log_cmd "$SKITTLE" list
+  json_output=$("$LOADOUT" list --json 2>/dev/null)
+  log_cmd "$LOADOUT" list
 
   local found=0
   local total=0
@@ -100,12 +100,12 @@ test_05_list_shows_all_sources() {
 }
 
 test_06_update_all() {
-  log_cmd "$SKITTLE" update
-  assert_exit_code 0 "$SKITTLE" update
+  log_cmd "$LOADOUT" update
+  assert_exit_code 0 "$LOADOUT" update
 }
 
 test_07_cache_dirs_exist() {
-  local cache_base="$XDG_DATA_HOME/skittle"
+  local cache_base="$XDG_DATA_HOME/loadout"
 
   for name in anthropic-skills knowledge-work claude-official financial-services; do
     local found=false

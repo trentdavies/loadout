@@ -7,25 +7,25 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Resolve the config file path.
-/// Uses `--config` override if provided, otherwise `~/.local/share/skittle/skittle.toml`.
+/// Uses `--config` override if provided, otherwise `~/.local/share/loadout/loadout.toml`.
 pub fn config_path(override_path: Option<&str>) -> PathBuf {
     if let Some(p) = override_path {
         return PathBuf::from(p);
     }
-    data_dir().join("skittle.toml")
+    data_dir().join("loadout.toml")
 }
 
-/// The skittle data directory. Everything lives here — config, registry, cached sources.
-/// Respects `$XDG_DATA_HOME` first, then falls back to `~/.local/share/skittle`.
+/// The loadout data directory. Everything lives here — config, registry, cached sources.
+/// Respects `$XDG_DATA_HOME` first, then falls back to `~/.local/share/loadout`.
 pub fn data_dir() -> PathBuf {
     if let Ok(xdg) = std::env::var("XDG_DATA_HOME") {
-        return PathBuf::from(xdg).join("skittle");
+        return PathBuf::from(xdg).join("loadout");
     }
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("~"))
         .join(".local")
         .join("share")
-        .join("skittle")
+        .join("loadout")
 }
 
 /// The external source cache directory: `<data_dir>/external/`.
@@ -41,9 +41,9 @@ pub fn plugins_dir() -> PathBuf {
     data_dir().join("plugins")
 }
 
-/// The skittle internals directory: `<data_dir>/.skittle/`.
+/// The loadout internals directory: `<data_dir>/.loadout/`.
 pub fn internal_dir() -> PathBuf {
-    data_dir().join(".skittle")
+    data_dir().join(".loadout")
 }
 
 /// Load config from the resolved path.
@@ -83,13 +83,13 @@ pub fn save_to(config: &Config, path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// The default config template written by `skittle init`.
-pub const DEFAULT_CONFIG: &str = r#"# Skittle — Agent Skill Manager
-# This file lives in ~/.local/share/skittle/ alongside your registry and cached sources.
+/// The default config template written by `loadout init`.
+pub const DEFAULT_CONFIG: &str = r#"# Loadout — Agent Skill Manager
+# This file lives in ~/.local/share/loadout/ alongside your registry and cached sources.
 # This directory can be a git repo for versioning your configuration.
 
 # ─── Sources ────────────────────────────────────────────────────────────────
-# Where skills come from. Add with: skittle add <url>
+# Where skills come from. Add with: loadout add <url>
 #
 # [[source]]
 # name = "anthropic-plugins"
@@ -107,8 +107,8 @@ pub const DEFAULT_CONFIG: &str = r#"# Skittle — Agent Skill Manager
 # type = "git"
 
 # ─── Targets ────────────────────────────────────────────────────────────────
-# Where skills get installed. Add with: skittle target add <agent> [path]
-# Targets with sync = "auto" receive skills from `skittle install --all`.
+# Where skills get installed. Add with: loadout target add <agent> [path]
+# Targets with sync = "auto" receive skills from `loadout install --all`.
 #
 # [[target]]
 # name = "claude"
@@ -132,9 +132,9 @@ pub const DEFAULT_CONFIG: &str = r#"# Skittle — Agent Skill Manager
 # sync = "explicit"
 
 # ─── Bundles ────────────────────────────────────────────────────────────────
-# Named groups of skills. Create with: skittle bundle create <name>
-# Install with: skittle install --bundle <name>
-# Swap between bundles: skittle bundle swap <from> <to> --force
+# Named groups of skills. Create with: loadout bundle create <name>
+# Install with: loadout install --bundle <name>
+# Swap between bundles: loadout bundle swap <from> <to> --force
 #
 # [bundle.work]
 # skills = ["legal/contract-review", "legal/compliance", "sales/call-prep"]
@@ -170,8 +170,8 @@ mod tests {
     #[test]
     fn config_path_default() {
         let p = config_path(None);
-        assert!(p.to_string_lossy().contains("skittle"));
-        assert!(p.to_string_lossy().ends_with("skittle.toml"));
+        assert!(p.to_string_lossy().contains("loadout"));
+        assert!(p.to_string_lossy().ends_with("loadout.toml"));
     }
 
     #[test]
@@ -201,7 +201,7 @@ mod tests {
     #[test]
     fn save_to_load_from_roundtrip() {
         let tmp = TempDir::new().unwrap();
-        let path = tmp.path().join("skittle.toml");
+        let path = tmp.path().join("loadout.toml");
 
         let mut config = Config::default();
         config.source.push(SourceConfig {
@@ -230,7 +230,7 @@ mod tests {
     #[test]
     fn save_to_creates_parent_dirs() {
         let tmp = TempDir::new().unwrap();
-        let path = tmp.path().join("deep").join("nested").join("skittle.toml");
+        let path = tmp.path().join("deep").join("nested").join("loadout.toml");
         let config = Config::default();
         save_to(&config, &path).unwrap();
         assert!(path.exists());

@@ -3,7 +3,7 @@
 # Depends on Suite 03 having applied skills to sandbox-claude.
 
 _first_skill() {
-  "$SKITTLE" list --json 2>/dev/null | jq -r \
+  "$LOADOUT" list --json 2>/dev/null | jq -r \
     '[.[] | select(.plugin != .source)] | .[0] | "\(.plugin)/\(.name)"'
 }
 
@@ -28,7 +28,7 @@ test_01_apply_blocks_on_changed_skill() {
   short_name=$(_skill_short_name "$skill")
 
   # Ensure skill is installed first
-  "$SKITTLE" apply --force --skill "$skill" --target sandbox-claude >/dev/null 2>&1
+  "$LOADOUT" apply --force --skill "$skill" --target sandbox-claude >/dev/null 2>&1
 
   local skill_file
   skill_file=$(_find_installed_skill_md "$short_name")
@@ -42,7 +42,7 @@ test_01_apply_blocks_on_changed_skill() {
 
   # Apply WITHOUT --force — should be blocked
   local output exit_code
-  output=$("$SKITTLE" apply --skill "$skill" --target sandbox-claude 2>&1)
+  output=$("$LOADOUT" apply --skill "$skill" --target sandbox-claude 2>&1)
   exit_code=$?
 
   if [ "$exit_code" -ne 0 ]; then
@@ -75,11 +75,11 @@ test_02_unchanged_skill_applies_without_force() {
   short_name=$(_skill_short_name "$skill")
 
   # Force-apply to ensure target matches source exactly
-  "$SKITTLE" apply --force --skill "$skill" --target sandbox-claude >/dev/null 2>&1
+  "$LOADOUT" apply --force --skill "$skill" --target sandbox-claude >/dev/null 2>&1
 
   # Apply again WITHOUT --force — should succeed (UNCHANGED)
   local output exit_code
-  output=$("$SKITTLE" apply --skill "$skill" --target sandbox-claude 2>&1)
+  output=$("$LOADOUT" apply --skill "$skill" --target sandbox-claude 2>&1)
   exit_code=$?
 
   if [ "$exit_code" -eq 0 ]; then
@@ -111,7 +111,7 @@ test_03_new_skill_applies_without_force() {
 
   # Apply WITHOUT --force — should succeed (NEW skill)
   local output exit_code
-  output=$("$SKITTLE" apply --skill "$skill" --target sandbox-claude 2>&1)
+  output=$("$LOADOUT" apply --skill "$skill" --target sandbox-claude 2>&1)
   exit_code=$?
 
   if [ "$exit_code" -eq 0 ]; then
@@ -146,7 +146,7 @@ test_04_force_flag_overwrites_changed() {
   short_name=$(_skill_short_name "$skill")
 
   # Ensure skill is installed cleanly
-  "$SKITTLE" apply --force --skill "$skill" --target sandbox-claude >/dev/null 2>&1
+  "$LOADOUT" apply --force --skill "$skill" --target sandbox-claude >/dev/null 2>&1
 
   local skill_file
   skill_file=$(_find_installed_skill_md "$short_name")
@@ -159,7 +159,7 @@ test_04_force_flag_overwrites_changed() {
   echo "# local edit that should be overwritten" >> "$skill_file"
 
   # Apply WITH --force — should overwrite
-  log_cmd "$SKITTLE" apply --force --skill "$skill" --target sandbox-claude
+  log_cmd "$LOADOUT" apply --force --skill "$skill" --target sandbox-claude
 
   # Verify the local modification is gone (overwritten by source)
   if grep -qF "local edit that should be overwritten" "$skill_file"; then
@@ -183,7 +183,7 @@ test_05_error_suggests_force_or_interactive() {
   short_name=$(_skill_short_name "$skill")
 
   # Ensure skill is installed cleanly, then tamper
-  "$SKITTLE" apply --force --skill "$skill" --target sandbox-claude >/dev/null 2>&1
+  "$LOADOUT" apply --force --skill "$skill" --target sandbox-claude >/dev/null 2>&1
 
   local skill_file
   skill_file=$(_find_installed_skill_md "$short_name")
@@ -195,7 +195,7 @@ test_05_error_suggests_force_or_interactive() {
   echo "# tampered for error message test" >> "$skill_file"
 
   local output
-  output=$("$SKITTLE" apply --skill "$skill" --target sandbox-claude 2>&1)
+  output=$("$LOADOUT" apply --skill "$skill" --target sandbox-claude 2>&1)
 
   local has_force=0 has_interactive=0
   echo "$output" | grep -qF -- "--force" && has_force=1

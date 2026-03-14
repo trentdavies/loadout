@@ -11,12 +11,12 @@ SUITE_DIR="$SANDBOX_DIR/suite"
 source "$SANDBOX_DIR/setup.sh"
 
 # ---------------------------------------------------------------------------
-# Check for skittle binary
+# Check for loadout binary
 # ---------------------------------------------------------------------------
-if [ ! -x "$SKITTLE" ]; then
+if [ ! -x "$LOADOUT" ]; then
   echo ""
   echo "═══════════════════════════════════════════════"
-  printf "\033[31mBUILD FAILED\033[0m — skittle binary not found at: %s\n" "$SKITTLE"
+  printf "\033[31mBUILD FAILED\033[0m — loadout binary not found at: %s\n" "$LOADOUT"
   echo "═══════════════════════════════════════════════"
   exit 2
 fi
@@ -27,10 +27,10 @@ fi
 sandbox_init
 
 echo "" | tee -a "$SANDBOX_LOG"
-echo "Skittle Sandbox — Functional Tests" | tee -a "$SANDBOX_LOG"
+echo "Loadout Sandbox — Functional Tests" | tee -a "$SANDBOX_LOG"
 echo "═══════════════════════════════════════════════" | tee -a "$SANDBOX_LOG"
-echo "Binary:  $SKITTLE" | tee -a "$SANDBOX_LOG"
-echo "Data:    $XDG_DATA_HOME/skittle" | tee -a "$SANDBOX_LOG"
+echo "Binary:  $LOADOUT" | tee -a "$SANDBOX_LOG"
+echo "Data:    $XDG_DATA_HOME/loadout" | tee -a "$SANDBOX_LOG"
 echo "Claude:  $SANDBOX_TARGET_CLAUDE" | tee -a "$SANDBOX_LOG"
 echo "Codex:   $SANDBOX_TARGET_CODEX" | tee -a "$SANDBOX_LOG"
 echo "Log:     $SANDBOX_LOG" | tee -a "$SANDBOX_LOG"

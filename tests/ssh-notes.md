@@ -1,4 +1,4 @@
-# Skittle Sandbox — SSH & Git Setup
+# Loadout Sandbox — SSH & Git Setup
 
 ## Setup (one-time)
 
@@ -20,7 +20,7 @@ macOS Keychain usually handles this automatically if you've used these keys befo
 ```
 
 This:
-1. Builds a Docker image with skittle compiled and on PATH
+1. Builds a Docker image with loadout compiled and on PATH
 2. Mounts `~/.ssh` and `~/.gitconfig` read-only into the container
 3. Starts an SSH server on port 2222
 
@@ -28,7 +28,7 @@ This:
 
 ```bash
 ssh -o StrictHostKeyChecking=no -p 2222 root@localhost
-# password: skittle
+# password: loadout
 ```
 
 ## Inside the container
@@ -38,7 +38,7 @@ Your full SSH config and git config are available, so all your host aliases work
 ```bash
 # Personal repos (github_personal key)
 git clone git@github.com:trentdavies/some-repo.git
-skittle source add git@github.com:trentdavies/some-repo.git
+loadout source add git@github.com:trentdavies/some-repo.git
 
 # Adobe repos (github_adobe key, via URL rewrite in .gitconfig)
 git clone git@github.com:OneAdobe/some-repo.git
@@ -65,7 +65,7 @@ Keys are read-only — nothing inside the container can modify them.
 ## Cleanup
 
 ```bash
-docker rm -f skittle-sandbox
+docker rm -f loadout-sandbox
 ```
 
 ## Custom port

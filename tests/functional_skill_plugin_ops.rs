@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use skittle::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry};
+use loadout::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry};
 
 /// Build a skill with the given name and no description.
 fn skill(name: &str) -> RegisteredSkill {

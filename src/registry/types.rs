@@ -37,7 +37,7 @@ pub struct InstalledSkill {
     pub source: String,
     pub plugin: String,
     pub skill: String,
-    /// Relative path from skittle data dir to the skill's origin.
+    /// Relative path from loadout data dir to the skill's origin.
     pub origin: String,
 }
 
