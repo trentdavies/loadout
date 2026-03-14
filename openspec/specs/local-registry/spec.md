@@ -41,7 +41,7 @@ Source content SHALL be cached in `~/.local/share/skittle/sources/<source-name>/
 The registry SHALL support lookup by any level of the hierarchy: list all sources, list plugins within a source, list skills within a plugin, or look up a skill directly by `plugin/skill` identifier.
 
 #### Scenario: Lookup by plugin/skill
-- **WHEN** a skill is referenced as `openspec/explore` (e.g., via `skittle list openspec/explore`)
+- **WHEN** a skill is referenced as `openspec/explore`
 - **THEN** the registry SHALL resolve it to the cached path and source metadata
 
 #### Scenario: Ambiguous skill identity

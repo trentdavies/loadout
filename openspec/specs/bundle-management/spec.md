@@ -1,5 +1,3 @@
-## ADDED Requirements
-
 ### Requirement: Create bundle
 The CLI SHALL support `skittle bundle create <name>` to create a new empty bundle. Bundle names SHALL follow the same rules as skill names (lowercase, hyphens, no consecutive hyphens).
 
@@ -12,31 +10,23 @@ The CLI SHALL support `skittle bundle create <name>` to create a new empty bundl
 - **THEN** the CLI SHALL exit with an error: "Bundle 'work-dev' already exists"
 
 ### Requirement: Delete bundle
-The CLI SHALL support `skittle bundle delete <name>` to remove a bundle definition.
+The CLI SHALL support `skittle bundle delete <name>` to remove a bundle definition. The `--force` flag SHALL be required to confirm deletion. There is no active-bundle guard since active-bundle state no longer exists.
 
 #### Scenario: Delete existing bundle
-- **WHEN** user runs `skittle bundle delete work-dev`
+- **WHEN** user runs `skittle bundle delete work-dev --force`
 - **THEN** the bundle SHALL be removed from the config
 - **THEN** skills installed by that bundle SHALL NOT be uninstalled from targets (they remain installed)
 
-#### Scenario: Delete active bundle
-- **WHEN** user runs `skittle bundle delete work-dev` and "work-dev" is the active bundle on one or more targets
-- **THEN** the CLI SHALL warn about active usage and require `--force` to proceed
+#### Scenario: Delete without force
+- **WHEN** user runs `skittle bundle delete work-dev` (no --force)
+- **THEN** the CLI SHALL display what would be deleted without making changes
 
 ### Requirement: List bundles
-The CLI SHALL support `skittle bundle list [PATTERN...]` to display bundles. When one or more patterns are provided, only bundles whose name matches any of the patterns SHALL be listed.
+The CLI SHALL support `skittle bundle list` to display all bundles with their skill count. There is no "ACTIVE ON" column.
 
 #### Scenario: List bundles
 - **WHEN** user runs `skittle bundle list`
-- **THEN** the CLI SHALL display each bundle's name, skill count, and active targets
-
-#### Scenario: List bundles with filter
-- **WHEN** user runs `skittle bundle list "dev-*"`
-- **THEN** only bundles whose name matches `dev-*` SHALL be displayed
-
-#### Scenario: List bundles with filter no matches
-- **WHEN** user runs `skittle bundle list "nonexistent-*"`
-- **THEN** no bundles SHALL be displayed and an informational message SHALL be shown
+- **THEN** the CLI SHALL display each bundle's name and skill count
 
 ### Requirement: Show bundle
 The CLI SHALL support `skittle bundle show <name>` to display a bundle's skills.
@@ -84,26 +74,47 @@ The CLI SHALL support `skittle bundle drop <bundle> <skill...>` to remove one or
 - **WHEN** user runs `skittle bundle drop work-dev openspec/explore`
 - **THEN** "openspec/explore" SHALL be removed from the bundle's skill list
 
-### Requirement: Swap bundles
-The CLI SHALL support `skittle bundle swap <from> <to> [--target <name>]` to perform a clean replace: uninstall all skills from bundle `<from>`, then install all skills from bundle `<to>` on the specified targets. If no `--target` is given, the swap applies to all auto-sync targets.
+### Requirement: Activate bundle
+The CLI SHALL support `skittle bundle activate <bundle> <target>` to install all skills from the bundle onto the target. The CLI SHALL also support `--all` in place of a target to install onto all configured targets. Exactly one of `<target>` or `--all` MUST be provided. The operation SHALL be idempotent — skills already installed on the target SHALL be silently skipped. The command SHALL require `--force` to execute; without it, the CLI SHALL display what would be installed (dry run). The global `-n`/`--dry-run` flag SHALL override `--force`.
 
-#### Scenario: Swap bundles on all auto targets
-- **WHEN** user runs `skittle bundle swap work-dev personal-writing`
-- **THEN** all skills from "work-dev" SHALL be uninstalled from auto-sync targets
-- **THEN** all skills from "personal-writing" SHALL be installed to auto-sync targets
-- **THEN** the active bundle on those targets SHALL be updated to "personal-writing"
+#### Scenario: Activate bundle on target
+- **WHEN** user runs `skittle bundle activate work-dev my-claude --force`
+- **THEN** all skills in "work-dev" SHALL be installed on the "my-claude" target
+- **THEN** skills already installed on "my-claude" SHALL be silently skipped
 
-#### Scenario: Swap on specific target
-- **WHEN** user runs `skittle bundle swap work-dev personal-writing --target claude-global`
-- **THEN** the swap SHALL only apply to the "claude-global" target
+#### Scenario: Activate bundle on all targets
+- **WHEN** user runs `skittle bundle activate work-dev --all --force`
+- **THEN** all skills in "work-dev" SHALL be installed on every configured target
 
-#### Scenario: Swap with dry run
-- **WHEN** user runs `skittle bundle swap work-dev personal-writing -n`
-- **THEN** the CLI SHALL display what would be uninstalled and installed without making changes
+#### Scenario: Activate dry run
+- **WHEN** user runs `skittle bundle activate work-dev my-claude` (no --force)
+- **THEN** the CLI SHALL display which skills would be installed without making changes
 
-### Requirement: Active bundle tracking
-The registry SHALL track which bundle is active on each target. This is updated by `install --bundle` and `bundle swap`.
+#### Scenario: Activate with invalid target
+- **WHEN** user runs `skittle bundle activate work-dev nonexistent --force`
+- **THEN** the CLI SHALL exit with an error: "target 'nonexistent' not found"
 
-#### Scenario: Status shows active bundle
-- **WHEN** user runs `skittle status` and targets have active bundles
-- **THEN** the active bundle name SHALL be shown for each target
+#### Scenario: Activate with invalid bundle
+- **WHEN** user runs `skittle bundle activate nonexistent my-claude --force`
+- **THEN** the CLI SHALL exit with an error: "bundle 'nonexistent' not found"
+
+#### Scenario: Activate with neither target nor --all
+- **WHEN** user runs `skittle bundle activate work-dev`
+- **THEN** the CLI SHALL exit with an error indicating a target or --all is required
+
+### Requirement: Deactivate bundle
+The CLI SHALL support `skittle bundle deactivate <bundle> <target>` to uninstall all skills from the bundle from the target. The CLI SHALL also support `--all` in place of a target to uninstall from all configured targets. Exactly one of `<target>` or `--all` MUST be provided. The operation SHALL be idempotent — skills not installed on the target SHALL be silently skipped. The command SHALL require `--force` to execute; without it, the CLI SHALL display what would be uninstalled (dry run).
+
+#### Scenario: Deactivate bundle from target
+- **WHEN** user runs `skittle bundle deactivate work-dev my-claude --force`
+- **THEN** all skills in "work-dev" SHALL be uninstalled from the "my-claude" target
+- **THEN** skills not installed on "my-claude" SHALL be silently skipped
+
+#### Scenario: Deactivate bundle from all targets
+- **WHEN** user runs `skittle bundle deactivate work-dev --all --force`
+- **THEN** all skills in "work-dev" SHALL be uninstalled from every configured target
+
+#### Scenario: Deactivate dry run
+- **WHEN** user runs `skittle bundle deactivate work-dev my-claude` (no --force)
+- **THEN** the CLI SHALL display which skills would be uninstalled without making changes
+

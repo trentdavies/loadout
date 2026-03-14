@@ -1,19 +1,19 @@
 ## ADDED Requirements
 
 ### Requirement: CLI framework tests
-Suite `00_cli_framework.sh` SHALL test: `skittle --help` exits 0 and lists all commands, `skittle -h` exits 0, `skittle help` exits 0, `skittle foobar` exits non-zero with error, `skittle --version` exits 0 (if supported), `skittle install` with no flags exits non-zero and shows help.
+Suite `00_cli_framework.sh` SHALL test: `skittle --help` exits 0 and lists all commands, `skittle -h` exits 0, `skittle help` exits 0, `skittle foobar` exits non-zero with error, `skittle install` with no flags exits non-zero and shows help.
 
 #### Scenario: Help flags work
 - **WHEN** `skittle --help` is run
-- **THEN** exit code SHALL be 0 and stdout SHALL contain "init", "add", "remove", "update", "list", "install", "uninstall", "status", "bundle", "target", "config"
+- **THEN** exit code SHALL be 0 and stdout SHALL contain "install", "uninstall", "add", "remove", "update", "list", "target", "bundle", "status", "config", "init"
 
 #### Scenario: Unknown command errors
 - **WHEN** `skittle foobar` is run
 - **THEN** exit code SHALL be non-zero and stderr SHALL contain "error"
 
 #### Scenario: Subcommand help
-- **WHEN** `skittle add --help` is run
-- **THEN** exit code SHALL be 0 and stdout SHALL contain usage information for the add command
+- **WHEN** `skittle bundle --help` is run
+- **THEN** exit code SHALL be 0 and stdout SHALL contain "create", "delete", "list", "show", "add", "drop", "swap"
 
 #### Scenario: Global flags accepted
 - **WHEN** `skittle status --json` is run
@@ -39,34 +39,26 @@ Suite `01_config.sh` SHALL test: `skittle init` creates config file, `skittle in
 - **THEN** exit code SHALL be 0 and stdout SHALL contain "skittle" or config content
 
 ### Requirement: Source management tests
-Suite `02_source_management.sh` SHALL test: add local source, add git source (@network), remove source, list sources, show source details, update source, add duplicate name errors, remove with --force.
+Suite `02_source_management.sh` SHALL test: add local source, add git source (@network), remove source, update source, add duplicate name errors, remove with --force.
 
 #### Scenario: Add local source
 - **WHEN** `skittle add /fixtures/plugin-source --name test-plugin` is run
-- **THEN** exit code SHALL be 0 and `skittle list` SHALL show "test-plugin"
+- **THEN** exit code SHALL be 0 and `skittle list` SHALL show skills from "test-plugin"
 
 #### Scenario: Add git source
 - **WHEN** `skittle add https://github.com/anthropics/courses.git --name anthropic` is run (requires @network)
-- **THEN** exit code SHALL be 0 and `skittle list` SHALL show "anthropic"
+- **THEN** exit code SHALL be 0 and `skittle list` SHALL show skills from "anthropic"
 
 #### Scenario: Remove source
 - **WHEN** `skittle remove test-plugin` is run
-- **THEN** exit code SHALL be 0 and `skittle list` SHALL NOT show "test-plugin"
-
-#### Scenario: List sources empty
-- **WHEN** `skittle list` is run with no sources
-- **THEN** stdout SHALL indicate no sources registered
-
-#### Scenario: Show source details
-- **WHEN** `skittle list test-plugin` is run after adding
-- **THEN** stdout SHALL contain the plugin name and skill names
+- **THEN** exit code SHALL be 0 and `skittle list` SHALL NOT show skills from "test-plugin"
 
 #### Scenario: Duplicate name error
 - **WHEN** `skittle add /fixtures/plugin-source` is run twice without `--name`
 - **THEN** the second invocation SHALL exit non-zero with an error about duplicate name
 
 ### Requirement: Source detection tests
-Suite `03_source_detection.sh` SHALL test all 5 detection paths: single SKILL.md file, flat directory with skill subdirs, plugin directory with plugin.toml, full source with source.toml, and unrecognizable directory (error case).
+Suite `03_source_detection.sh` SHALL test all 5 detection paths: single SKILL.md file, flat directory with skill subdirs, plugin directory with plugin.json, full source with source.json, and unrecognizable directory (error case).
 
 #### Scenario: Detect single file
 - **WHEN** `skittle add /fixtures/single-skill/SKILL.md` is run
@@ -78,11 +70,11 @@ Suite `03_source_detection.sh` SHALL test all 5 detection paths: single SKILL.md
 
 #### Scenario: Detect plugin directory
 - **WHEN** `skittle add /fixtures/plugin-source/` is run
-- **THEN** `skittle list` SHALL show one plugin with 3 skills
+- **THEN** `skittle list` SHALL show 3 skills
 
 #### Scenario: Detect full source
 - **WHEN** `skittle add /fixtures/full-source/` is run
-- **THEN** `skittle list` SHALL show 2 plugins and 3 skills
+- **THEN** `skittle list` SHALL show 3 skills
 
 #### Scenario: Reject unrecognizable directory
 - **WHEN** `skittle add /fixtures/invalid/empty-dir/` is run
@@ -91,7 +83,7 @@ Suite `03_source_detection.sh` SHALL test all 5 detection paths: single SKILL.md
 ### Requirement: Local registry tests
 Suite `05_local_registry.sh` SHALL test: XDG paths are used correctly, registry.json is created and contains entries, cache directory structure mirrors sources, skill identity resolution (short form and disambiguation).
 
-#### Scenario: Registry created on add
+#### Scenario: Registry created on source add
 - **WHEN** `skittle add` completes
 - **THEN** `$XDG_DATA_HOME/skittle/registry.json` SHALL exist
 
@@ -148,17 +140,13 @@ Suite `07_target_adapters.sh` SHALL test: claude adapter installs SKILL.md + sup
 - **THEN** the skill SHALL appear at `<target>/prompts/<name>/SKILL.md`
 
 ### Requirement: Skill operations tests
-Suite `08_skill_operations.sh` SHALL test: list, list with filters, list <name> for detail, Agent Skills spec validation (skip invalid frontmatter).
+Suite `08_skill_operations.sh` SHALL test: skill list, skill show via `list <name>`, Agent Skills spec validation (skip invalid frontmatter).
 
-#### Scenario: List shows all skills
+#### Scenario: Skill list shows all skills
 - **WHEN** sources are added and `skittle list` is run
 - **THEN** all skills from all sources SHALL be listed
 
-#### Scenario: List filtered by plugin
-- **WHEN** `skittle list --plugin test-plugin` is run
-- **THEN** only skills from "test-plugin" SHALL be listed
-
-#### Scenario: List name displays metadata
+#### Scenario: Skill show displays metadata
 - **WHEN** `skittle list test-plugin/explore` is run
 - **THEN** stdout SHALL contain name, description, and source information
 
@@ -229,7 +217,7 @@ Suite `11_end_to_end.sh` SHALL test the complete workflow: `skittle init` → `s
 
 #### Scenario: Full lifecycle
 - **WHEN** the complete workflow is executed in sequence
-- **THEN** each step SHALL exit 0, intermediate filesystem state SHALL be validated, and final state SHALL be clean (no installed skills, empty cache)
+- **THEN** each step SHALL exit 0, intermediate filesystem state SHALL be validated, and final state SHALL be clean (no installed skills, no sources)
 
 #### Scenario: Status reflects state at each step
 - **WHEN** `skittle status --json` is run after each workflow step
