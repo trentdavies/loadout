@@ -78,7 +78,7 @@ test_source_duplicate_name_error() {
 
 test_source_remove_with_installed_skills_warns() {
   setup_source_and_targets
-  "$SKITTLE" install --skill test-plugin/explore --target test-claude >/dev/null 2>&1
+  "$SKITTLE" apply --force --skill test-plugin/explore --target test-claude >/dev/null 2>&1
   # Without --force, should preview and warn about installed skills
   local output
   output=$("$SKITTLE" remove test-plugin 2>&1)

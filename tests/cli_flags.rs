@@ -16,7 +16,7 @@ fn parse_help_flag() {
 
 #[test]
 fn parse_dry_run_flag() {
-    let cli = Cli::try_parse_from(["skittle", "-n", "install", "--all"]).unwrap();
+    let cli = Cli::try_parse_from(["skittle", "-n", "apply", "--all"]).unwrap();
     assert!(cli.dry_run);
 }
 
@@ -51,9 +51,9 @@ fn parse_config_override() {
 }
 
 #[test]
-fn parse_install_requires_flag() {
-    // install with no flags should parse OK at clap level (error is in run())
-    let result = Cli::try_parse_from(["skittle", "install"]);
+fn parse_apply_requires_flag() {
+    // apply with no flags should parse OK at clap level (error is in run())
+    let result = Cli::try_parse_from(["skittle", "apply"]);
     assert!(result.is_ok());
 }
 

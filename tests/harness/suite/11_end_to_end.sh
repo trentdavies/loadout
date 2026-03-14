@@ -22,7 +22,7 @@ test_full_lifecycle() {
   assert_exit_code 0 "$SKITTLE" bundle add lifecycle-bundle test-plugin/explore test-plugin/apply
 
   # 6. Install --bundle
-  assert_exit_code 0 "$SKITTLE" install --bundle lifecycle-bundle --target lifecycle-target
+  assert_exit_code 0 "$SKITTLE" apply --force --bundle lifecycle-bundle --target lifecycle-target
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_exists "$TARGET_CLAUDE/skills/apply/SKILL.md"
 
@@ -69,8 +69,8 @@ test_multi_source_lifecycle() {
   assert_stdout_contains "skill-one" "$SKITTLE" list
 
   # Install from different sources
-  assert_exit_code 0 "$SKITTLE" install --skill test-plugin/explore --target tgt
-  assert_exit_code 0 "$SKITTLE" install --skill test-plugin-a/skill-one --target tgt
+  assert_exit_code 0 "$SKITTLE" apply --force --skill test-plugin/explore --target tgt
+  assert_exit_code 0 "$SKITTLE" apply --force --skill test-plugin-a/skill-one --target tgt
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_exists "$TARGET_CLAUDE/skills/skill-one/SKILL.md"
 
@@ -91,8 +91,8 @@ test_multi_target_lifecycle() {
   "$SKITTLE" target add codex "$TARGET_CODEX" --name tgt-codex --scope machine --sync auto >/dev/null 2>&1
 
   # Install same skill to both targets
-  "$SKITTLE" install --skill test-plugin/explore --target tgt-claude >/dev/null 2>&1
-  "$SKITTLE" install --skill test-plugin/explore --target tgt-codex >/dev/null 2>&1
+  "$SKITTLE" apply --force --skill test-plugin/explore --target tgt-claude >/dev/null 2>&1
+  "$SKITTLE" apply --force --skill test-plugin/explore --target tgt-codex >/dev/null 2>&1
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_exists "$TARGET_CODEX/skills/explore/SKILL.md"
 
@@ -118,7 +118,7 @@ test_bundle_swap_lifecycle() {
   "$SKITTLE" bundle add prod-bundle test-plugin/verify >/dev/null 2>&1
 
   # Install dev
-  "$SKITTLE" install --bundle dev-bundle --target tgt >/dev/null 2>&1
+  "$SKITTLE" apply --force --bundle dev-bundle --target tgt >/dev/null 2>&1
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_exists "$TARGET_CLAUDE/skills/apply/SKILL.md"
   assert_file_not_exists "$TARGET_CLAUDE/skills/verify/SKILL.md"
@@ -149,8 +149,8 @@ test_idempotent_operations_lifecycle() {
   "$SKITTLE" target add claude "$TARGET_CLAUDE" --name tgt --scope machine --sync auto >/dev/null 2>&1
 
   # Install same skill twice — should succeed both times
-  "$SKITTLE" install --skill test-plugin/explore --target tgt >/dev/null 2>&1
-  assert_exit_code 0 "$SKITTLE" install --skill test-plugin/explore --target tgt
+  "$SKITTLE" apply --force --skill test-plugin/explore --target tgt >/dev/null 2>&1
+  assert_exit_code 0 "$SKITTLE" apply --force --skill test-plugin/explore --target tgt
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
 
   # Uninstall twice — second should not error (preview mode)
@@ -177,12 +177,12 @@ test_dry_run_lifecycle() {
   "$SKITTLE" bundle add dry-b test-plugin/explore test-plugin/apply >/dev/null 2>&1
 
   # Dry run install — nothing should be written
-  assert_exit_code 0 "$SKITTLE" install --bundle dry-b --target tgt -n
+  assert_exit_code 0 "$SKITTLE" apply --force --bundle dry-b --target tgt -n
   assert_file_not_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_not_exists "$TARGET_CLAUDE/skills/apply/SKILL.md"
 
   # Real install
-  "$SKITTLE" install --bundle dry-b --target tgt >/dev/null 2>&1
+  "$SKITTLE" apply --force --bundle dry-b --target tgt >/dev/null 2>&1
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
 
   # Uninstall without --force defaults to preview — files should remain
@@ -204,8 +204,8 @@ test_cleanup_lifecycle() {
   "$SKITTLE" target add claude "$TARGET_CLAUDE" --name tgt --scope machine --sync auto >/dev/null 2>&1
 
   # Install some skills
-  "$SKITTLE" install --skill test-plugin/explore --target tgt >/dev/null 2>&1
-  "$SKITTLE" install --skill test-plugin/apply --target tgt >/dev/null 2>&1
+  "$SKITTLE" apply --force --skill test-plugin/explore --target tgt >/dev/null 2>&1
+  "$SKITTLE" apply --force --skill test-plugin/apply --target tgt >/dev/null 2>&1
 
   # Uninstall everything (--force required)
   "$SKITTLE" uninstall --skill test-plugin/explore --target tgt --force >/dev/null 2>&1
@@ -244,7 +244,7 @@ test_error_recovery_lifecycle() {
 
   # Try installing a nonexistent skill — should fail
   local output
-  output=$("$SKITTLE" install --skill test-plugin/nonexistent --target tgt 2>&1)
+  output=$("$SKITTLE" apply --force --skill test-plugin/nonexistent --target tgt 2>&1)
   local exit_code=$?
   if [ "$exit_code" -ne 0 ]; then
     _pass "nonexistent skill install fails"
@@ -253,7 +253,7 @@ test_error_recovery_lifecycle() {
   fi
 
   # After an error, valid operations should still work
-  assert_exit_code 0 "$SKITTLE" install --skill test-plugin/explore --target tgt
+  assert_exit_code 0 "$SKITTLE" apply --force --skill test-plugin/explore --target tgt
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
 
   _pass "error recovery lifecycle completed"

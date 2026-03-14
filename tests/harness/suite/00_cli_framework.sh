@@ -4,7 +4,7 @@
 
 test_help_long_flag() {
   assert_exit_code 0 "$SKITTLE" --help
-  assert_stdout_contains "install" "$SKITTLE" --help
+  assert_stdout_contains "apply" "$SKITTLE" --help
   assert_stdout_contains "uninstall" "$SKITTLE" --help
   assert_stdout_contains "add" "$SKITTLE" --help
   assert_stdout_contains "remove" "$SKITTLE" --help
@@ -56,9 +56,9 @@ test_config_subcommand_help() {
   assert_stdout_contains "edit" "$SKITTLE" config --help
 }
 
-test_install_no_flags_errors() {
-  # install with no flags should show help and exit non-zero
-  assert_exit_code 2 "$SKITTLE" install
+test_apply_no_flags_errors() {
+  # apply with no flags should show help and exit non-zero
+  assert_exit_code 2 "$SKITTLE" apply
 }
 
 test_uninstall_no_flags_errors() {
@@ -82,9 +82,9 @@ test_global_json_flag() {
 }
 
 test_global_dry_run_flag() {
-  # install --all -n should succeed without writing files
+  # apply --all -n should succeed without writing files
   setup_source_and_targets
-  assert_exit_code 0 "$SKITTLE" install --all -n
+  assert_exit_code 0 "$SKITTLE" apply --all -n
   # Verify no skills were actually installed
   assert_file_not_exists "$TARGET_CLAUDE/skills"
 }

@@ -144,7 +144,7 @@ test_bundle_swap() {
   "$SKITTLE" bundle add bundle-b test-plugin/verify >/dev/null 2>&1
 
   # Install bundle-a
-  "$SKITTLE" install --bundle bundle-a --target test-claude >/dev/null 2>&1
+  "$SKITTLE" apply --force --bundle bundle-a --target test-claude >/dev/null 2>&1
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_exists "$TARGET_CLAUDE/skills/apply/SKILL.md"
 
@@ -164,7 +164,7 @@ test_bundle_swap_preview_default() {
   "$SKITTLE" bundle create bb >/dev/null 2>&1
   "$SKITTLE" bundle add bb test-plugin/verify >/dev/null 2>&1
 
-  "$SKITTLE" install --bundle ba --target test-claude >/dev/null 2>&1
+  "$SKITTLE" apply --force --bundle ba --target test-claude >/dev/null 2>&1
   # Without --force, swap should preview only
   local output
   output=$("$SKITTLE" bundle swap ba bb --target test-claude 2>&1)
@@ -185,7 +185,7 @@ test_bundle_swap_updates_active() {
   "$SKITTLE" bundle create bb >/dev/null 2>&1
   "$SKITTLE" bundle add bb test-plugin/verify >/dev/null 2>&1
 
-  "$SKITTLE" install --bundle ba --target test-claude >/dev/null 2>&1
+  "$SKITTLE" apply --force --bundle ba --target test-claude >/dev/null 2>&1
   "$SKITTLE" bundle swap ba bb --target test-claude --force >/dev/null 2>&1
 
   # Active bundle should now be bb
@@ -205,7 +205,7 @@ test_bundle_swap_dry_run_with_force() {
   "$SKITTLE" bundle create bb >/dev/null 2>&1
   "$SKITTLE" bundle add bb test-plugin/verify >/dev/null 2>&1
 
-  "$SKITTLE" install --bundle ba --target test-claude >/dev/null 2>&1
+  "$SKITTLE" apply --force --bundle ba --target test-claude >/dev/null 2>&1
   # --dry-run wins over --force
   assert_exit_code 0 "$SKITTLE" bundle swap ba bb --target test-claude --force -n
   # Dry run: explore should still be there, verify should not
@@ -217,7 +217,7 @@ test_bundle_delete_active_requires_force() {
   setup_source_and_targets
   "$SKITTLE" bundle create active-b >/dev/null 2>&1
   "$SKITTLE" bundle add active-b test-plugin/explore >/dev/null 2>&1
-  "$SKITTLE" install --bundle active-b --target test-claude >/dev/null 2>&1
+  "$SKITTLE" apply --force --bundle active-b --target test-claude >/dev/null 2>&1
 
   # Without --force, should preview and warn about active status
   local output

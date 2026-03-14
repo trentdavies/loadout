@@ -78,27 +78,35 @@ pub enum Command {
         name: Option<String>,
     },
 
-    /// Install skills to targets
-    Install {
-        /// Install all configured skills
+    /// Apply skills to targets
+    Apply {
+        /// Apply all configured skills
         #[arg(long)]
         all: bool,
 
-        /// Install a specific skill (plugin/skill)
+        /// Apply a specific skill (plugin/skill)
         #[arg(long, value_name = "SKILL")]
         skill: Option<String>,
 
-        /// Install all skills from a plugin
+        /// Apply all skills from a plugin
         #[arg(long, value_name = "PLUGIN")]
         plugin: Option<String>,
 
-        /// Install a bundle of skills
+        /// Apply a bundle of skills
         #[arg(long, value_name = "BUNDLE")]
         bundle: Option<String>,
 
-        /// Target to install to
+        /// Target to apply to
         #[arg(long, value_name = "TARGET")]
         target: Option<String>,
+
+        /// Force overwrite of changed skills without prompting
+        #[arg(short, long)]
+        force: bool,
+
+        /// Interactively resolve conflicts for changed skills
+        #[arg(short, long)]
+        interactive: bool,
     },
 
     /// Uninstall skills from targets
@@ -484,9 +492,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
             Ok(())
         }
-        Command::Install { all, skill, plugin, bundle, target } => {
+        Command::Apply { all, skill, plugin, bundle, target, force, interactive } => {
             if !all && skill.is_none() && plugin.is_none() && bundle.is_none() {
-                eprintln!("error: install requires --all, --skill, --plugin, or --bundle");
+                eprintln!("error: apply requires --all, --skill, --plugin, or --bundle");
                 std::process::exit(2);
             }
 
@@ -495,14 +503,13 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             let data_dir = crate::config::data_dir();
             let registry = crate::registry::load_registry(&data_dir)?;
 
-            // Determine which targets to install to
+            // Determine which targets to apply to
             let targets: Vec<&crate::config::TargetConfig> = if let Some(ref t) = target {
                 let tc = config.target.iter()
                     .find(|tc| tc.name == *t)
                     .ok_or_else(|| anyhow::anyhow!("target '{}' not found", t))?;
                 vec![tc]
             } else {
-                // Install to auto-sync targets
                 config.target.iter().filter(|t| t.sync == "auto").collect()
             };
 
@@ -510,14 +517,14 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 anyhow::bail!("no targets configured. Use `skittle target add` first.");
             }
 
-            // Collect skills to install with provenance: (source, plugin, skill)
-            let mut skills_to_install: Vec<(&str, &str, &crate::registry::RegisteredSkill)> = Vec::new();
+            // Collect skills to apply with provenance: (source, plugin, skill)
+            let mut skills_to_apply: Vec<(&str, &str, &crate::registry::RegisteredSkill)> = Vec::new();
 
             if all {
                 for src in &registry.sources {
                     for p in &src.plugins {
                         for s in &p.skills {
-                            skills_to_install.push((&src.name, &p.name, s));
+                            skills_to_apply.push((&src.name, &p.name, s));
                         }
                     }
                 }
@@ -525,14 +532,14 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
             if let Some(ref skill_id) = skill {
                 let (src, plug, s) = registry.find_skill(skill_id)?;
-                skills_to_install.push((src, plug, s));
+                skills_to_apply.push((src, plug, s));
             }
 
             if let Some(ref plugin_name) = plugin {
                 let (src_name, p) = registry.find_plugin(plugin_name)
                     .ok_or_else(|| anyhow::anyhow!("plugin '{}' not found", plugin_name))?;
                 for s in &p.skills {
-                    skills_to_install.push((src_name, &p.name, s));
+                    skills_to_apply.push((src_name, &p.name, s));
                 }
             }
 
@@ -541,39 +548,103 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", bundle_name))?;
                 for skill_id in &bundle_cfg.skills {
                     let (src, plug, s) = registry.find_skill(skill_id)?;
-                    skills_to_install.push((src, plug, s));
+                    skills_to_apply.push((src, plug, s));
                 }
             }
 
-            // Install to each target and record provenance
-            let mut installed_count = 0;
+            // Apply to each target with conflict detection
+            let mut new_count: usize = 0;
+            let mut updated_count: usize = 0;
+            let mut unchanged_count: usize = 0;
+            let mut conflict_skipped: usize = 0;
+            let mut force_remaining = force;
             let mut reg = registry.clone();
+
             for tc in &targets {
                 let adapter = crate::target::resolve_adapter(tc, &config.adapter)?;
-                for (src_name, plug_name, s) in &skills_to_install {
+
+                // First pass: detect conflicts in default mode (no --force, no -i)
+                if !force && !interactive && !cli.dry_run {
+                    let mut conflicts = Vec::new();
+                    for (_, _, s) in &skills_to_apply {
+                        let status = adapter.compare_skill(s, &tc.path)?;
+                        if status == crate::target::SkillStatus::Changed {
+                            conflicts.push(s.name.clone());
+                        }
+                    }
+                    if !conflicts.is_empty() {
+                        eprintln!("error: {} skill(s) have changed at target '{}':", conflicts.len(), tc.name);
+                        for name in &conflicts {
+                            eprintln!("  - {}", name);
+                        }
+                        eprintln!();
+                        eprintln!("Use --force to overwrite, or -i for interactive resolution.");
+                        std::process::exit(1);
+                    }
+                }
+
+                for (src_name, plug_name, s) in &skills_to_apply {
+                    let status = adapter.compare_skill(s, &tc.path)?;
+
                     if cli.dry_run {
                         if !cli.quiet {
-                            println!("  (dry run) {} → {}", s.name, tc.name);
+                            let label = match status {
+                                crate::target::SkillStatus::New => "new",
+                                crate::target::SkillStatus::Unchanged => "unchanged",
+                                crate::target::SkillStatus::Changed => "changed",
+                            };
+                            println!("  (dry run) {} → {} [{}]", s.name, tc.name, label);
                         }
-                    } else {
-                        adapter.install_skill(s, &tc.path)?;
-                        // Record provenance
-                        let origin = s.path.strip_prefix(&data_dir)
-                            .map(|p| p.to_string_lossy().to_string())
-                            .unwrap_or_else(|_| s.path.display().to_string());
-                        let target_map = reg.installed.entry(tc.name.clone()).or_default();
-                        target_map.insert(s.name.clone(), crate::registry::InstalledSkill {
-                            source: src_name.to_string(),
-                            plugin: plug_name.to_string(),
-                            skill: s.name.clone(),
-                            origin,
-                        });
+                        continue;
                     }
-                    installed_count += 1;
+
+                    match status {
+                        crate::target::SkillStatus::Unchanged => {
+                            unchanged_count += 1;
+                            continue;
+                        }
+                        crate::target::SkillStatus::New => {
+                            adapter.install_skill(s, &tc.path)?;
+                            record_provenance(&mut reg, &data_dir, tc, src_name, plug_name, s);
+                            new_count += 1;
+                        }
+                        crate::target::SkillStatus::Changed => {
+                            if force_remaining {
+                                adapter.install_skill(s, &tc.path)?;
+                                record_provenance(&mut reg, &data_dir, tc, src_name, plug_name, s);
+                                updated_count += 1;
+                            } else if interactive {
+                                let action = prompt_conflict(s, &adapter, &tc.path)?;
+                                match action {
+                                    ConflictAction::Skip => {
+                                        conflict_skipped += 1;
+                                    }
+                                    ConflictAction::Overwrite => {
+                                        adapter.install_skill(s, &tc.path)?;
+                                        record_provenance(&mut reg, &data_dir, tc, src_name, plug_name, s);
+                                        updated_count += 1;
+                                    }
+                                    ConflictAction::ForceAll => {
+                                        adapter.install_skill(s, &tc.path)?;
+                                        record_provenance(&mut reg, &data_dir, tc, src_name, plug_name, s);
+                                        updated_count += 1;
+                                        force_remaining = true;
+                                    }
+                                    ConflictAction::Quit => {
+                                        // Save what we have so far and exit
+                                        crate::registry::save_registry(&reg, &data_dir)?;
+                                        print_apply_summary(new_count, updated_count, unchanged_count, conflict_skipped, cli.quiet);
+                                        return Ok(());
+                                    }
+                                }
+                            }
+                            // Default mode with conflicts is handled above (exits before this loop)
+                        }
+                    }
                 }
             }
 
-            // Track active bundle if installing a bundle
+            // Track active bundle
             if let Some(ref bundle_name) = bundle {
                 if !cli.dry_run {
                     for tc in &targets {
@@ -586,8 +657,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 crate::registry::save_registry(&reg, &data_dir)?;
             }
 
-            if !cli.quiet {
-                println!("Installed {} skill(s) to {} target(s)", installed_count / targets.len().max(1), targets.len());
+            if !cli.quiet && !cli.dry_run {
+                print_apply_summary(new_count, updated_count, unchanged_count, conflict_skipped, cli.quiet);
             }
             Ok(())
         }
@@ -1613,6 +1684,131 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 }
 
 /// Recursively copy a directory's contents.
+/// Record provenance for an applied skill.
+fn record_provenance(
+    reg: &mut crate::registry::Registry,
+    data_dir: &std::path::Path,
+    tc: &crate::config::TargetConfig,
+    src_name: &str,
+    plug_name: &str,
+    s: &crate::registry::RegisteredSkill,
+) {
+    let origin = s.path.strip_prefix(data_dir)
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| s.path.display().to_string());
+    let target_map = reg.installed.entry(tc.name.clone()).or_default();
+    target_map.insert(s.name.clone(), crate::registry::InstalledSkill {
+        source: src_name.to_string(),
+        plugin: plug_name.to_string(),
+        skill: s.name.clone(),
+        origin,
+    });
+}
+
+/// Action chosen by user in interactive conflict resolution.
+enum ConflictAction {
+    Skip,
+    Overwrite,
+    ForceAll,
+    Quit,
+}
+
+/// Prompt the user to resolve a conflict for a changed skill.
+fn prompt_conflict(
+    skill: &crate::registry::RegisteredSkill,
+    adapter: &crate::target::Adapter,
+    target_path: &std::path::Path,
+) -> anyhow::Result<ConflictAction> {
+    eprintln!();
+    eprintln!("  {} — CHANGED", skill.name);
+    eprintln!();
+    eprint!("    [s]kip  [o]verwrite  [d]iff  [f]orce-all  [q]uit: ");
+
+    loop {
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input)?;
+        let choice = input.trim().to_lowercase();
+
+        match choice.as_str() {
+            "s" => return Ok(ConflictAction::Skip),
+            "o" => return Ok(ConflictAction::Overwrite),
+            "f" => return Ok(ConflictAction::ForceAll),
+            "q" => return Ok(ConflictAction::Quit),
+            "d" => {
+                show_skill_diff(skill, adapter, target_path)?;
+                eprintln!();
+                eprint!("    [s]kip  [o]verwrite  [q]uit: ");
+                // After diff, loop again for s/o/q only
+                let mut input2 = String::new();
+                std::io::stdin().read_line(&mut input2)?;
+                let choice2 = input2.trim().to_lowercase();
+                match choice2.as_str() {
+                    "s" => return Ok(ConflictAction::Skip),
+                    "o" => return Ok(ConflictAction::Overwrite),
+                    "q" => return Ok(ConflictAction::Quit),
+                    _ => {
+                        eprint!("    Invalid choice. [s]kip  [o]verwrite  [q]uit: ");
+                        continue;
+                    }
+                }
+            }
+            _ => {
+                eprint!("    Invalid choice. [s]kip  [o]verwrite  [d]iff  [f]orce-all  [q]uit: ");
+                continue;
+            }
+        }
+    }
+}
+
+/// Display a unified diff of all files in a skill directory.
+fn show_skill_diff(
+    skill: &crate::registry::RegisteredSkill,
+    adapter: &crate::target::Adapter,
+    target_path: &std::path::Path,
+) -> anyhow::Result<()> {
+    let pairs = adapter.skill_file_pairs(skill, target_path)?;
+
+    for (label, src_path, dst_path) in &pairs {
+        let src_content = if src_path.exists() {
+            std::fs::read_to_string(src_path).unwrap_or_default()
+        } else {
+            String::new()
+        };
+        let dst_content = if dst_path.exists() {
+            std::fs::read_to_string(dst_path).unwrap_or_default()
+        } else {
+            String::new()
+        };
+
+        if src_content == dst_content {
+            continue;
+        }
+
+        eprintln!();
+        eprintln!("    === {} ===", label);
+
+        let diff = similar::TextDiff::from_lines(&dst_content, &src_content);
+        for hunk in diff.unified_diff().header("installed", "source").iter_hunks() {
+            eprint!("    {}", hunk);
+        }
+    }
+
+    Ok(())
+}
+
+/// Print the apply summary line.
+fn print_apply_summary(new_count: usize, updated_count: usize, unchanged_count: usize, conflict_skipped: usize, quiet: bool) {
+    if quiet {
+        return;
+    }
+    let applied = new_count + updated_count;
+    let mut msg = format!("Applied {} skill(s) ({} new, {} updated), skipped {} unchanged.", applied, new_count, updated_count, unchanged_count);
+    if conflict_skipped > 0 {
+        msg.push_str(&format!(" {} conflict skipped.", conflict_skipped));
+    }
+    println!("{}", msg);
+}
+
 fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> anyhow::Result<()> {
     std::fs::create_dir_all(dst)?;
     for entry in std::fs::read_dir(src)? {

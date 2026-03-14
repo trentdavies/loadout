@@ -87,7 +87,7 @@ test_target_show() {
 
 test_target_show_with_installed_skills() {
   setup_source_and_targets
-  "$SKITTLE" install --skill test-plugin/explore --target test-claude >/dev/null 2>&1
+  "$SKITTLE" apply --force --skill test-plugin/explore --target test-claude >/dev/null 2>&1
   # Show should list installed skills
   assert_stdout_contains "explore" "$SKITTLE" target show test-claude
 }
