@@ -717,10 +717,68 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 return Ok(());
             }
 
-            if patterns.len() == 1 && !crate::registry::is_glob(&patterns[0]) {
-                // Show details for a single exact skill
-                let identity = &patterns[0];
-                let (source_name, plugin_name, skill) = registry.find_skill(identity)?;
+            // Collect matching skills from patterns
+            let skills: Vec<(
+                &str,
+                &crate::registry::RegisteredPlugin,
+                &crate::registry::RegisteredSkill,
+            )> = if patterns.is_empty() {
+                registry.all_skills()
+            } else {
+                let mut seen = std::collections::HashSet::new();
+                let mut result = Vec::new();
+                for pat in &patterns {
+                    if crate::registry::is_glob(pat) {
+                        for triple in registry.match_skills(pat) {
+                            let id = crate::output::plain_identity(
+                                triple.0,
+                                &triple.1.name,
+                                &triple.2.name,
+                            );
+                            if seen.insert(id) {
+                                result.push(triple);
+                            }
+                        }
+                    } else {
+                        match registry.find_skill(pat) {
+                            Ok((src, plug, sk)) => {
+                                let id = crate::output::plain_identity(src, plug, &sk.name);
+                                if seen.insert(id) {
+                                    result.push((
+                                        src,
+                                        registry
+                                            .sources
+                                            .iter()
+                                            .flat_map(|s| s.plugins.iter())
+                                            .find(|p| p.name == plug)
+                                            .unwrap(),
+                                        sk,
+                                    ));
+                                }
+                            }
+                            Err(_) => {
+                                // No exact match — fall back to contains search
+                                for triple in registry.match_skills(pat) {
+                                    let id = crate::output::plain_identity(
+                                        triple.0,
+                                        &triple.1.name,
+                                        &triple.2.name,
+                                    );
+                                    if seen.insert(id) {
+                                        result.push(triple);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                result
+            };
+
+            // Single result → show detail view
+            if skills.len() == 1 {
+                let (source_name, plugin, skill) = skills[0];
+                let plugin_name = &plugin.name;
 
                 if cli.json {
                     let json = serde_json::json!({
@@ -748,51 +806,6 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     out.status("Path", &skill.path.display().to_string());
                 }
             } else {
-                // List skills: all (no patterns), or filtered by glob/exact patterns
-                let skills: Vec<(
-                    &str,
-                    &crate::registry::RegisteredPlugin,
-                    &crate::registry::RegisteredSkill,
-                )> = if patterns.is_empty() {
-                    registry.all_skills()
-                } else {
-                    let mut seen = std::collections::HashSet::new();
-                    let mut result = Vec::new();
-                    for pat in &patterns {
-                        if crate::registry::is_glob(pat) {
-                            for triple in registry.match_skills(pat) {
-                                let id = crate::output::plain_identity(
-                                    triple.0,
-                                    &triple.1.name,
-                                    &triple.2.name,
-                                );
-                                if seen.insert(id) {
-                                    result.push(triple);
-                                }
-                            }
-                        } else {
-                            match registry.find_skill(pat) {
-                                Ok((src, plug, sk)) => {
-                                    let id = crate::output::plain_identity(src, plug, &sk.name);
-                                    if seen.insert(id) {
-                                        result.push((
-                                            src,
-                                            registry
-                                                .sources
-                                                .iter()
-                                                .flat_map(|s| s.plugins.iter())
-                                                .find(|p| p.name == plug)
-                                                .unwrap(),
-                                            sk,
-                                        ));
-                                    }
-                                }
-                                Err(e) => anyhow::bail!("{}", e),
-                            }
-                        }
-                    }
-                    result
-                };
 
                 if cli.json {
                     let entries: Vec<serde_json::Value> = skills.iter()
@@ -1725,7 +1738,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                         if crate::registry::is_glob(pat) {
                                             glob_match::glob_match(pat, name)
                                         } else {
-                                            *name == pat
+                                            *name == pat || name.contains(pat.as_str())
                                         }
                                     })
                                 })

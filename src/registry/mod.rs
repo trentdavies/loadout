@@ -536,6 +536,24 @@ mod tests {
     }
 
     #[test]
+    fn match_skills_freeform_contains() {
+        // A bare word without glob chars should match as a contains search
+        let reg = test_registry();
+        // "compl" is not a glob, not a plugin/skill identity — should match "compliance"
+        let matches = reg.match_skills("compl");
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].2.name, "compliance");
+    }
+
+    #[test]
+    fn match_skills_freeform_contains_multi() {
+        let reg = test_registry();
+        // "al" matches source "alpha", plugin "legal", and skill "call-prep"
+        let matches = reg.match_skills("al");
+        assert_eq!(matches.len(), 3); // 2 from alpha source + call-prep
+    }
+
+    #[test]
     fn find_skill_success() {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
