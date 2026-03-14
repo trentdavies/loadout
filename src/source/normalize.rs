@@ -5,17 +5,49 @@ use super::detect::{self, SourceStructure};
 use super::{discover, manifest};
 use crate::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource};
 
+/// Optional overrides for names inferred during normalization.
+#[derive(Default)]
+pub struct Overrides<'a> {
+    pub plugin: Option<&'a str>,
+    pub skill: Option<&'a str>,
+}
+
 /// Normalize a detected source into the canonical Source > Plugin > Skill hierarchy.
 pub fn normalize(
     source_name: &str,
     cache_path: &Path,
     structure: &SourceStructure,
 ) -> Result<RegisteredSource> {
+    normalize_with(source_name, cache_path, structure, &Overrides::default())
+}
+
+/// Normalize with optional name overrides for plugin and skill.
+pub fn normalize_with(
+    source_name: &str,
+    cache_path: &Path,
+    structure: &SourceStructure,
+    overrides: &Overrides,
+) -> Result<RegisteredSource> {
+    if let Some(p) = overrides.plugin {
+        if !detect::is_kebab_case(p) {
+            anyhow::bail!("plugin name '{}' is not valid kebab-case", p);
+        }
+    }
+    if let Some(s) = overrides.skill {
+        if !detect::is_kebab_case(s) {
+            anyhow::bail!("skill name '{}' is not valid kebab-case", s);
+        }
+    }
+
     let plugins = match structure {
         SourceStructure::SingleFile { skill_name } => {
-            let skill = scan_single_file_skill(skill_name, cache_path)?;
+            let mut skill = scan_single_file_skill(skill_name, cache_path)?;
+            if let Some(sk) = overrides.skill {
+                skill.name = sk.to_string();
+            }
+            let plugin_name = overrides.plugin.unwrap_or(source_name);
             vec![RegisteredPlugin {
-                name: source_name.to_string(),
+                name: plugin_name.to_string(),
                 version: None,
                 description: None,
                 skills: vec![skill],
@@ -28,7 +60,15 @@ pub fn normalize(
         }
 
         SourceStructure::SinglePlugin => {
-            let plugin = scan_plugin_dir(cache_path)?;
+            let mut plugin = scan_plugin_dir(cache_path)?;
+            if let Some(p) = overrides.plugin {
+                plugin.name = p.to_string();
+            }
+            if let Some(sk) = overrides.skill {
+                if plugin.skills.len() == 1 {
+                    plugin.skills[0].name = sk.to_string();
+                }
+            }
             vec![plugin]
         }
 
@@ -36,6 +76,7 @@ pub fn normalize(
             let dir_name = cache_path.file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or(source_name);
+            let plugin_name = overrides.plugin.unwrap_or(dir_name);
             let discovered = discover::discover_skills(cache_path)?;
             let skills = discovered.into_iter().map(|ds| RegisteredSkill {
                 name: ds.name,
@@ -45,7 +86,7 @@ pub fn normalize(
                 path: ds.path,
             }).collect();
             vec![RegisteredPlugin {
-                name: dir_name.to_string(),
+                name: plugin_name.to_string(),
                 version: None,
                 description: None,
                 skills,
@@ -54,9 +95,13 @@ pub fn normalize(
         }
 
         SourceStructure::SingleSkillDir { skill_name } => {
-            let skill = scan_skill_dir(skill_name, cache_path)?;
+            let mut skill = scan_skill_dir(skill_name, cache_path)?;
+            if let Some(sk) = overrides.skill {
+                skill.name = sk.to_string();
+            }
+            let plugin_name = overrides.plugin.unwrap_or(source_name);
             vec![RegisteredPlugin {
-                name: source_name.to_string(),
+                name: plugin_name.to_string(),
                 version: None,
                 description: None,
                 skills: vec![skill],

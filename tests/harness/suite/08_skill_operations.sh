@@ -4,8 +4,8 @@
 
 test_skill_list_all() {
   "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name src-a >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/full-source" --name src-b >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source src-a >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/full-source" --source src-b >/dev/null 2>&1
   assert_exit_code 0 "$SKITTLE" list
   # Should list all 6 skills across both sources
   assert_stdout_contains "explore" "$SKITTLE" list
@@ -30,7 +30,7 @@ test_skill_list_empty_registry() {
 
 test_skill_show() {
   "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name src >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source src >/dev/null 2>&1
   assert_exit_code 0 "$SKITTLE" list test-plugin/explore
   assert_stdout_contains "explore" "$SKITTLE" list test-plugin/explore
   assert_stdout_contains "description" "$SKITTLE" list test-plugin/explore
@@ -38,7 +38,7 @@ test_skill_show() {
 
 test_skill_show_displays_source_info() {
   "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name src >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source src >/dev/null 2>&1
   local output
   output=$("$SKITTLE" list test-plugin/explore 2>/dev/null)
   # Should show source and plugin context
@@ -51,7 +51,7 @@ test_skill_show_displays_source_info() {
 
 test_skill_show_nonexistent() {
   "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name src >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source src >/dev/null 2>&1
   assert_exit_code 1 "$SKITTLE" list test-plugin/nonexistent
 }
 
@@ -65,7 +65,7 @@ test_skill_invalid_no_frontmatter_skipped() {
   cp "$FIXTURES_DIR/invalid/no-frontmatter/SKILL.md" "$temp_source/no-frontmatter/SKILL.md"
 
   local output
-  output=$("$SKITTLE" add "$temp_source" --name mixed 2>&1)
+  output=$("$SKITTLE" add "$temp_source" --source mixed 2>&1)
   # Should warn about no-frontmatter
   if echo "$output" | grep -qiE "warn|skip|invalid|frontmatter"; then
     _pass "invalid skill produces warning"
@@ -94,7 +94,7 @@ test_skill_invalid_bad_name_skipped() {
   cp "$FIXTURES_DIR/invalid/bad-name/SKILL.md" "$temp_source/bad-name/SKILL.md"
 
   local output
-  output=$("$SKITTLE" add "$temp_source" --name badmix 2>&1)
+  output=$("$SKITTLE" add "$temp_source" --source badmix 2>&1)
   if echo "$output" | grep -qiE "warn|skip|mismatch|name"; then
     _pass "name mismatch produces warning"
   else

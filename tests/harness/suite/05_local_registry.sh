@@ -5,19 +5,19 @@
 
 test_registry_json_created_on_source_add() {
   "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name tp >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
   assert_file_exists "$XDG_DATA_HOME/skittle/.skittle/registry.json"
 }
 
 test_registry_json_contains_source() {
   "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name tp >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
   assert_file_contains "$XDG_DATA_HOME/skittle/.skittle/registry.json" "tp"
 }
 
 test_registry_json_contains_skills() {
   "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name tp >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
   assert_file_contains "$XDG_DATA_HOME/skittle/.skittle/registry.json" "explore"
   assert_file_contains "$XDG_DATA_HOME/skittle/.skittle/registry.json" "apply"
   assert_file_contains "$XDG_DATA_HOME/skittle/.skittle/registry.json" "verify"
@@ -25,13 +25,13 @@ test_registry_json_contains_skills() {
 
 test_cache_dir_mirrors_source() {
   "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name tp >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
   assert_dir_exists "$XDG_DATA_HOME/skittle/external/tp"
 }
 
 test_cache_contains_skill_files() {
   "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name tp >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
   # Cached source should contain the skill files
   local cache_dir="$XDG_DATA_HOME/skittle/external/tp"
   # Look for SKILL.md somewhere in the cache
@@ -46,14 +46,14 @@ test_cache_contains_skill_files() {
 
 test_skill_identity_short_form() {
   "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name tp >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
   # Should be able to look up by plugin/skill
   assert_exit_code 0 "$SKITTLE" list test-plugin/explore
 }
 
 test_skill_identity_full_form() {
   "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name tp >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
   # Full form: source:plugin/skill
   assert_exit_code 0 "$SKITTLE" list tp:test-plugin/explore
 }
@@ -62,8 +62,8 @@ test_skill_identity_ambiguous_error() {
   "$SKITTLE" init >/dev/null 2>&1
   # Add the same plugin name from two different sources to create ambiguity
   # We'll use plugin-source twice with different source names
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name src-one >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name src-two >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source src-one >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source src-two >/dev/null 2>&1
   # Short form should be ambiguous now
   local output
   output=$("$SKITTLE" list test-plugin/explore 2>&1)
@@ -83,7 +83,7 @@ test_skill_identity_ambiguous_error() {
 
 test_registry_cleared_on_source_remove() {
   "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name tp >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
   "$SKITTLE" remove tp --force >/dev/null 2>&1
   # Registry should no longer contain this source's entries
   if [ -f "$XDG_DATA_HOME/skittle/.skittle/registry.json" ]; then
@@ -104,7 +104,7 @@ test_xdg_override_respected() {
   local custom_data="/tmp/test-custom-xdg"
   rm -rf "$custom_data"
   XDG_DATA_HOME="$custom_data" "$SKITTLE" init >/dev/null 2>&1
-  XDG_DATA_HOME="$custom_data" "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name tp >/dev/null 2>&1
+  XDG_DATA_HOME="$custom_data" "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
   if [ -d "$custom_data/skittle" ]; then
     _pass "custom XDG_DATA_HOME respected"
   else

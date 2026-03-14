@@ -4,26 +4,26 @@
 
 test_source_add_local() {
   "$SKITTLE" init >/dev/null 2>&1
-  assert_exit_code 0 "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name test-plugin
+  assert_exit_code 0 "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source test-plugin
   assert_stdout_contains "test-plugin" "$SKITTLE" list
 }
 
 test_source_add_local_full_source() {
   "$SKITTLE" init >/dev/null 2>&1
-  assert_exit_code 0 "$SKITTLE" add "$FIXTURES_DIR/full-source" --name test-source
+  assert_exit_code 0 "$SKITTLE" add "$FIXTURES_DIR/full-source" --source test-source
   assert_stdout_contains "test-source" "$SKITTLE" list
 }
 
 test_source_add_git() {
   skip_if_no_network && return
   "$SKITTLE" init >/dev/null 2>&1
-  assert_exit_code 0 "$SKITTLE" add https://github.com/anthropics/courses.git --name anthropic
+  assert_exit_code 0 "$SKITTLE" add https://github.com/anthropics/courses.git --source anthropic
   assert_stdout_contains "anthropic" "$SKITTLE" list
 }
 
 test_source_remove() {
   "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name test-plugin >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source test-plugin >/dev/null 2>&1
   assert_exit_code 0 "$SKITTLE" remove test-plugin --force
   # Should no longer appear in list
   local output
@@ -37,7 +37,7 @@ test_source_remove() {
 
 test_source_remove_preview_default() {
   "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name test-plugin >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source test-plugin >/dev/null 2>&1
   # Without --force, should preview
   local output
   output=$("$SKITTLE" remove test-plugin 2>&1)
@@ -52,22 +52,22 @@ test_source_remove_preview_default() {
 
 test_source_update() {
   "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name test-plugin >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source test-plugin >/dev/null 2>&1
   assert_exit_code 0 "$SKITTLE" update test-plugin
 }
 
 test_source_update_all() {
   "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name test-plugin >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source test-plugin >/dev/null 2>&1
   assert_exit_code 0 "$SKITTLE" update
 }
 
 test_source_duplicate_name_error() {
   "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name dupe >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source dupe >/dev/null 2>&1
   # Adding with the same name again should error
   local output
-  output=$("$SKITTLE" add "$FIXTURES_DIR/flat-skills" --name dupe 2>&1)
+  output=$("$SKITTLE" add "$FIXTURES_DIR/flat-skills" --source dupe 2>&1)
   local exit_code=$?
   if [ "$exit_code" -ne 0 ]; then
     _pass "duplicate source name rejected (exit $exit_code)"

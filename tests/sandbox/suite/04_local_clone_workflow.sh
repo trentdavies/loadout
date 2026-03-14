@@ -26,7 +26,7 @@ test_02_add_local_as_source() {
     return
   fi
 
-  log_cmd "$SKITTLE" add "$SANDBOX_LOCAL/skills" --name local-skills
+  log_cmd "$SKITTLE" add "$SANDBOX_LOCAL/skills" --source local-skills
 
   local output
   output=$("$SKITTLE" list 2>/dev/null)

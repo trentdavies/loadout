@@ -10,7 +10,7 @@ test_full_lifecycle() {
   assert_exit_code 0 "$SKITTLE" init
 
   # 2. Add source
-  assert_exit_code 0 "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name lifecycle-src
+  assert_exit_code 0 "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source lifecycle-src
 
   # 3. Target add
   assert_exit_code 0 "$SKITTLE" target add claude "$TARGET_CLAUDE" --name lifecycle-target --scope machine --sync auto
@@ -60,8 +60,8 @@ test_multi_source_lifecycle() {
   "$SKITTLE" init >/dev/null 2>&1
 
   # Add both sources
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name src-a >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/full-source" --name src-b >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source src-a >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/full-source" --source src-b >/dev/null 2>&1
   "$SKITTLE" target add claude "$TARGET_CLAUDE" --name tgt --scope machine --sync auto >/dev/null 2>&1
 
   # List skills from both sources
@@ -86,7 +86,7 @@ test_multi_target_lifecycle() {
   reset_environment
   "$SKITTLE" init >/dev/null 2>&1
 
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name src >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source src >/dev/null 2>&1
   "$SKITTLE" target add claude "$TARGET_CLAUDE" --name tgt-claude --scope machine --sync auto >/dev/null 2>&1
   "$SKITTLE" target add codex "$TARGET_CODEX" --name tgt-codex --scope machine --sync auto >/dev/null 2>&1
 
@@ -108,7 +108,7 @@ test_bundle_swap_lifecycle() {
   reset_environment
   "$SKITTLE" init >/dev/null 2>&1
 
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name src >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source src >/dev/null 2>&1
   "$SKITTLE" target add claude "$TARGET_CLAUDE" --name tgt --scope machine --sync auto >/dev/null 2>&1
 
   # Create bundles
@@ -145,7 +145,7 @@ test_idempotent_operations_lifecycle() {
   # Init is idempotent
   assert_exit_code 0 "$SKITTLE" init
 
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name src >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source src >/dev/null 2>&1
   "$SKITTLE" target add claude "$TARGET_CLAUDE" --name tgt --scope machine --sync auto >/dev/null 2>&1
 
   # Install same skill twice — should succeed both times
@@ -171,7 +171,7 @@ test_dry_run_lifecycle() {
   reset_environment
   "$SKITTLE" init >/dev/null 2>&1
 
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name src >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source src >/dev/null 2>&1
   "$SKITTLE" target add claude "$TARGET_CLAUDE" --name tgt --scope machine --sync auto >/dev/null 2>&1
   "$SKITTLE" bundle create dry-b >/dev/null 2>&1
   "$SKITTLE" bundle add dry-b test-plugin/explore test-plugin/apply >/dev/null 2>&1
@@ -200,7 +200,7 @@ test_cleanup_lifecycle() {
   reset_environment
   "$SKITTLE" init >/dev/null 2>&1
 
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name src >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source src >/dev/null 2>&1
   "$SKITTLE" target add claude "$TARGET_CLAUDE" --name tgt --scope machine --sync auto >/dev/null 2>&1
 
   # Install some skills
@@ -239,7 +239,7 @@ test_error_recovery_lifecycle() {
   reset_environment
   "$SKITTLE" init >/dev/null 2>&1
 
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name src >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source src >/dev/null 2>&1
   "$SKITTLE" target add claude "$TARGET_CLAUDE" --name tgt --scope machine --sync auto >/dev/null 2>&1
 
   # Try installing a nonexistent skill — should fail

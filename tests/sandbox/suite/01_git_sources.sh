@@ -2,7 +2,7 @@
 # Suite 01: Git Sources — clone real Anthropic repos via network
 
 test_01_add_anthropic_skills() {
-  log_cmd "$SKITTLE" add https://github.com/anthropics/skills.git --name anthropic-skills
+  log_cmd "$SKITTLE" add https://github.com/anthropics/skills.git --source anthropic-skills
   local output
   output=$("$SKITTLE" list 2>/dev/null)
   if echo "$output" | grep -qF "anthropic-skills"; then
@@ -15,7 +15,7 @@ test_01_add_anthropic_skills() {
 }
 
 test_02_add_knowledge_work() {
-  log_cmd "$SKITTLE" add https://github.com/anthropics/knowledge-work-plugins.git --name knowledge-work
+  log_cmd "$SKITTLE" add https://github.com/anthropics/knowledge-work-plugins.git --source knowledge-work
   local output
   output=$("$SKITTLE" list 2>/dev/null)
   if echo "$output" | grep -qF "knowledge-work"; then
@@ -41,7 +41,7 @@ test_02b_knowledge_work_in_json() {
 
 test_03_add_claude_official() {
   local output exit_code
-  output=$("$SKITTLE" add https://github.com/anthropics/claude-plugins-official.git --name claude-official 2>&1)
+  output=$("$SKITTLE" add https://github.com/anthropics/claude-plugins-official.git --source claude-official 2>&1)
   exit_code=$?
   printf "  \$ skittle add ... --name claude-official\n" | tee -a "$SANDBOX_LOG"
   printf "  exit: %d\n" "$exit_code" | tee -a "$SANDBOX_LOG"
@@ -61,7 +61,7 @@ test_03_add_claude_official() {
 }
 
 test_04_add_financial_services() {
-  log_cmd "$SKITTLE" add https://github.com/anthropics/financial-services-plugins.git --name financial-services
+  log_cmd "$SKITTLE" add https://github.com/anthropics/financial-services-plugins.git --source financial-services
   local output
   output=$("$SKITTLE" list 2>/dev/null)
   if echo "$output" | grep -qF "financial-services"; then

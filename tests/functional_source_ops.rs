@@ -440,3 +440,68 @@ fn update_source_re_detects() {
         "newly added skill should be detected"
     );
 }
+
+#[test]
+fn normalize_with_overrides_uses_custom_names() {
+    let env_dir = TempDir::new().unwrap();
+    let (_config_path, _data_dir, cache_dir) = setup_env(env_dir.path());
+
+    let source_dir = TempDir::new().unwrap();
+    make_source_with_skills(source_dir.path(), &["original"]);
+
+    let source_url = skittle::source::SourceUrl::parse(
+        source_dir.path().to_str().unwrap(),
+    ).unwrap();
+    let cached = cache_dir.join("test-src");
+    skittle::source::fetch::fetch(&source_url, &cached).unwrap();
+
+    let structure = skittle::source::detect::detect(&cached).unwrap();
+    let overrides = skittle::source::normalize::Overrides {
+        plugin: Some("custom-plug"),
+        skill: None,
+    };
+    let registered = skittle::source::normalize::normalize_with(
+        "test-src", &cached, &structure, &overrides,
+    ).unwrap();
+
+    assert_eq!(registered.plugins[0].name, "custom-plug");
+}
+
+#[test]
+fn normalize_with_overrides_rejects_invalid_kebab() {
+    let env_dir = TempDir::new().unwrap();
+    let (_config_path, _data_dir, cache_dir) = setup_env(env_dir.path());
+
+    let source_dir = TempDir::new().unwrap();
+    make_source_with_skills(source_dir.path(), &["original"]);
+
+    let source_url = skittle::source::SourceUrl::parse(
+        source_dir.path().to_str().unwrap(),
+    ).unwrap();
+    let cached = cache_dir.join("test-src");
+    skittle::source::fetch::fetch(&source_url, &cached).unwrap();
+
+    let structure = skittle::source::detect::detect(&cached).unwrap();
+    let overrides = skittle::source::normalize::Overrides {
+        plugin: Some("NotKebab"),
+        skill: None,
+    };
+    let result = skittle::source::normalize::normalize_with(
+        "test-src", &cached, &structure, &overrides,
+    );
+    assert!(result.is_err());
+}
+
+#[test]
+fn prompt_confirm_uses_default_non_interactive() {
+    // In test harness, stdin is not a TTY, so confirm_or_override returns the default
+    let result = skittle::prompt::confirm_or_override("Source", "inferred-name", false);
+    assert_eq!(result, "inferred-name");
+}
+
+#[test]
+fn prompt_select_errors_non_interactive() {
+    let options = vec!["alpha".to_string(), "beta".to_string()];
+    let result = skittle::prompt::select_from("Source", &options, false);
+    assert!(result.is_err(), "select_from should error when not interactive");
+}

@@ -5,7 +5,7 @@
 
 test_detect_single_file() {
   "$SKITTLE" init >/dev/null 2>&1
-  assert_exit_code 0 "$SKITTLE" add "$FIXTURES_DIR/single-skill/SKILL.md" --name single
+  assert_exit_code 0 "$SKITTLE" add "$FIXTURES_DIR/single-skill/SKILL.md" --source single
   # Should result in one skill
   local output
   output=$("$SKITTLE" list 2>/dev/null)
@@ -18,7 +18,7 @@ test_detect_single_file() {
 
 test_detect_flat_directory() {
   "$SKITTLE" init >/dev/null 2>&1
-  assert_exit_code 0 "$SKITTLE" add "$FIXTURES_DIR/flat-skills" --name flat
+  assert_exit_code 0 "$SKITTLE" add "$FIXTURES_DIR/flat-skills" --source flat
   # Should detect 2 skills: explore and apply
   assert_stdout_contains "explore" "$SKITTLE" list
   assert_stdout_contains "apply" "$SKITTLE" list
@@ -26,7 +26,7 @@ test_detect_flat_directory() {
 
 test_detect_plugin_directory() {
   "$SKITTLE" init >/dev/null 2>&1
-  assert_exit_code 0 "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name plugged
+  assert_exit_code 0 "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source plugged
   # Should detect plugin with 3 skills
   assert_stdout_contains "test-plugin" "$SKITTLE" list
   assert_stdout_contains "explore" "$SKITTLE" list
@@ -36,7 +36,7 @@ test_detect_plugin_directory() {
 
 test_detect_full_source() {
   "$SKITTLE" init >/dev/null 2>&1
-  assert_exit_code 0 "$SKITTLE" add "$FIXTURES_DIR/full-source" --name full
+  assert_exit_code 0 "$SKITTLE" add "$FIXTURES_DIR/full-source" --source full
   # Should detect 2 plugins (visible in list table columns)
   assert_stdout_contains "test-plugin-a" "$SKITTLE" list
   assert_stdout_contains "test-plugin-b" "$SKITTLE" list
@@ -49,15 +49,15 @@ test_detect_full_source() {
 test_detect_unrecognizable_directory() {
   "$SKITTLE" init >/dev/null 2>&1
   # empty-dir has no SKILL.md, no toml — should fail
-  assert_exit_code 1 "$SKITTLE" add "$FIXTURES_DIR/invalid/empty-dir" --name bad
-  assert_stderr_contains "error" "$SKITTLE" add "$FIXTURES_DIR/invalid/empty-dir" --name bad
+  assert_exit_code 1 "$SKITTLE" add "$FIXTURES_DIR/invalid/empty-dir" --source bad
+  assert_stderr_contains "error" "$SKITTLE" add "$FIXTURES_DIR/invalid/empty-dir" --source bad
 }
 
 test_detect_invalid_no_frontmatter_warns() {
   "$SKITTLE" init >/dev/null 2>&1
   # Adding a source that contains no-frontmatter skill should warn and skip it
   local output
-  output=$("$SKITTLE" add "$FIXTURES_DIR/invalid/no-frontmatter/SKILL.md" --name nofm 2>&1)
+  output=$("$SKITTLE" add "$FIXTURES_DIR/invalid/no-frontmatter/SKILL.md" --source nofm 2>&1)
   local exit_code=$?
   if [ "$exit_code" -ne 0 ] || echo "$output" | grep -qiE "warn|skip|invalid|frontmatter"; then
     _pass "no-frontmatter skill triggers warning or rejection"
@@ -70,7 +70,7 @@ test_detect_invalid_bad_name_warns() {
   "$SKITTLE" init >/dev/null 2>&1
   # bad-name fixture: frontmatter name != directory name
   local output
-  output=$("$SKITTLE" add "$FIXTURES_DIR/invalid/bad-name/SKILL.md" --name badname 2>&1)
+  output=$("$SKITTLE" add "$FIXTURES_DIR/invalid/bad-name/SKILL.md" --source badname 2>&1)
   local exit_code=$?
   if [ "$exit_code" -ne 0 ] || echo "$output" | grep -qiE "warn|skip|mismatch|name"; then
     _pass "bad-name skill triggers warning or rejection"
@@ -88,7 +88,7 @@ test_detect_name_derived_from_directory() {
 
 test_detect_plugin_json_metadata() {
   "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name meta-test >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source meta-test >/dev/null 2>&1
   # list <skill> should reflect metadata from plugin.json
   local output
   output=$("$SKITTLE" list test-plugin/explore 2>/dev/null)

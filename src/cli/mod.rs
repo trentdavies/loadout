@@ -47,8 +47,20 @@ pub enum Command {
         /// URL or path to the source
         url: String,
 
-        /// Name for this source
+        /// Override the inferred source name
         #[arg(long)]
+        source: Option<String>,
+
+        /// Override the inferred plugin name
+        #[arg(long)]
+        plugin: Option<String>,
+
+        /// Override the inferred skill name (single-skill sources only)
+        #[arg(long)]
+        skill: Option<String>,
+
+        /// Deprecated: renamed to --source
+        #[arg(long, hide = true)]
         name: Option<String>,
 
         /// Pin to a specific git ref (tag, branch, or commit SHA)
@@ -64,8 +76,8 @@ pub enum Command {
 
     /// Remove a skill source
     Remove {
-        /// Source name
-        name: String,
+        /// Source name (omit to select interactively)
+        name: Option<String>,
 
         /// Force removal even if skills are installed
         #[arg(long)]
@@ -372,17 +384,27 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
             Ok(())
         }
-        Command::Add { url, name, r#ref } => {
+        Command::Add { url, source, plugin, skill, name, r#ref } => {
+            // Backward-compat: error on deprecated --name
+            if name.is_some() {
+                anyhow::bail!("`--name` has been renamed to `--source`");
+            }
+
             let config_path_str = cli.config.as_deref();
             let mut config = crate::config::load(config_path_str)?;
             let data_dir = crate::config::data_dir();
 
             let source_url = crate::source::SourceUrl::parse(&url)?;
-            let source_name = name.unwrap_or_else(|| source_url.default_name());
+            let default_source = source_url.default_name();
+            let source_name = if let Some(s) = source {
+                s
+            } else {
+                crate::prompt::confirm_or_override("Source name", &default_source, cli.quiet)
+            };
 
             if config.source.iter().any(|s| s.name == source_name) {
                 anyhow::bail!(
-                    "source '{}' already exists. Use --name to choose a different alias.",
+                    "source '{}' already exists. Use --source to choose a different alias.",
                     source_name
                 );
             }
@@ -406,9 +428,90 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
 
                 let structure = crate::source::detect::detect(&cache_path)?;
-                let registered = crate::source::normalize::normalize(
-                    &source_name, &cache_path, &structure,
+
+                // Determine default plugin/skill names from structure for prompting
+                let overrides = {
+                    use crate::source::detect::SourceStructure;
+
+                    let plugin_override: Option<String> = if plugin.is_some() {
+                        plugin
+                    } else {
+                        // Prompt only when the inferred plugin differs from source
+                        let default_plugin = match &structure {
+                            SourceStructure::SingleFile { .. } | SourceStructure::SingleSkillDir { .. } => {
+                                // plugin = source_name, no point prompting
+                                None
+                            }
+                            SourceStructure::FlatSkills => {
+                                let dir = cache_path.file_name()
+                                    .and_then(|n| n.to_str())
+                                    .unwrap_or(&source_name);
+                                if dir == source_name { None } else { Some(dir.to_string()) }
+                            }
+                            SourceStructure::SinglePlugin => {
+                                let plugin_json = cache_path.join(".claude-plugin/plugin.json");
+                                if plugin_json.exists() {
+                                    let m = crate::source::manifest::load_plugin_manifest(&plugin_json)?;
+                                    if m.name == source_name { None } else { Some(m.name) }
+                                } else {
+                                    let n = cache_path.file_name()
+                                        .and_then(|n| n.to_str())
+                                        .unwrap_or("unnamed")
+                                        .to_string();
+                                    if n == source_name { None } else { Some(n) }
+                                }
+                            }
+                            SourceStructure::Marketplace => None,
+                        };
+                        if let Some(ref dp) = default_plugin {
+                            let confirmed = crate::prompt::confirm_or_override("Plugin name", dp, cli.quiet);
+                            // Leak the confirmed string into the overrides
+                            if confirmed != *dp {
+                                Some(confirmed)
+                            } else {
+                                None // use the natural inference
+                            }
+                        } else {
+                            None
+                        }
+                    };
+
+                    let skill_override: Option<String> = if skill.is_some() {
+                        skill
+                    } else {
+                        match &structure {
+                            SourceStructure::SingleFile { skill_name } => {
+                                let confirmed = crate::prompt::confirm_or_override("Skill name", skill_name, cli.quiet);
+                                if confirmed != *skill_name { Some(confirmed) } else { None }
+                            }
+                            SourceStructure::SingleSkillDir { skill_name } => {
+                                let confirmed = crate::prompt::confirm_or_override("Skill name", skill_name, cli.quiet);
+                                if confirmed != *skill_name { Some(confirmed) } else { None }
+                            }
+                            _ => None,
+                        }
+                    };
+
+                    (plugin_override, skill_override)
+                };
+
+                let norm_overrides = crate::source::normalize::Overrides {
+                    plugin: overrides.0.as_deref(),
+                    skill: overrides.1.as_deref(),
+                };
+
+                let registered = crate::source::normalize::normalize_with(
+                    &source_name, &cache_path, &structure, &norm_overrides,
                 )?;
+
+                // In non-interactive/quiet mode, show what was resolved
+                if !cli.quiet && !crate::prompt::is_interactive() {
+                    for p in &registered.plugins {
+                        for s in &p.skills {
+                            eprintln!("resolved: {}", crate::output::plain_identity(&source_name, &p.name, &s.name));
+                        }
+                    }
+                }
 
                 let mut registry = crate::registry::load_registry(&data_dir)?;
                 registry.sources.retain(|s| s.name != source_name);
@@ -926,6 +1029,19 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             let config_path_str = cli.config.as_deref();
             let mut config = crate::config::load(config_path_str)?;
             let data_dir = crate::config::data_dir();
+
+            let name = match name {
+                Some(n) => n,
+                None => {
+                    let source_names: Vec<String> = config.source.iter()
+                        .map(|s| s.name.clone())
+                        .collect();
+                    if source_names.is_empty() {
+                        anyhow::bail!("no sources configured");
+                    }
+                    crate::prompt::select_from("Select source to remove", &source_names, cli.quiet)?
+                }
+            };
 
             if !config.source.iter().any(|s| s.name == name) {
                 anyhow::bail!("source '{}' not found", name);

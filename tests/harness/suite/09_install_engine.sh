@@ -28,7 +28,7 @@ test_install_all() {
 
 test_install_all_to_auto_targets_only() {
   "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --name tp >/dev/null 2>&1
+  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
   "$SKITTLE" target add claude "$TARGET_CLAUDE" --name auto-t --scope machine --sync auto >/dev/null 2>&1
   local explicit_target="/tmp/test-targets/explicit"
   mkdir -p "$explicit_target"

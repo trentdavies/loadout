@@ -81,13 +81,52 @@ fn parse_target_add() {
 
 #[test]
 fn parse_add() {
+    let cli = Cli::try_parse_from(["skittle", "add", "/tmp/src", "--source", "my-src"]).unwrap();
+    match cli.command {
+        skittle::cli::Command::Add { url, source, .. } => {
+            assert_eq!(url, "/tmp/src");
+            assert_eq!(source, Some("my-src".to_string()));
+        }
+        _ => panic!("expected Add"),
+    }
+}
+
+#[test]
+fn parse_add_deprecated_name_flag() {
+    // --name still parses (hidden flag) but the handler will bail with deprecation error
     let cli = Cli::try_parse_from(["skittle", "add", "/tmp/src", "--name", "my-src"]).unwrap();
     match cli.command {
-        skittle::cli::Command::Add { url, name, .. } => {
-            assert_eq!(url, "/tmp/src");
+        skittle::cli::Command::Add { name, .. } => {
             assert_eq!(name, Some("my-src".to_string()));
         }
         _ => panic!("expected Add"),
+    }
+}
+
+#[test]
+fn parse_add_with_plugin_and_skill_flags() {
+    let cli = Cli::try_parse_from([
+        "skittle", "add", "/tmp/src", "--source", "s", "--plugin", "p", "--skill", "sk"
+    ]).unwrap();
+    match cli.command {
+        skittle::cli::Command::Add { source, plugin, skill, .. } => {
+            assert_eq!(source, Some("s".to_string()));
+            assert_eq!(plugin, Some("p".to_string()));
+            assert_eq!(skill, Some("sk".to_string()));
+        }
+        _ => panic!("expected Add"),
+    }
+}
+
+#[test]
+fn parse_remove_without_name() {
+    let cli = Cli::try_parse_from(["skittle", "remove"]).unwrap();
+    match cli.command {
+        skittle::cli::Command::Remove { name, force } => {
+            assert!(name.is_none());
+            assert!(!force);
+        }
+        _ => panic!("expected Remove"),
     }
 }
 
@@ -118,7 +157,7 @@ fn parse_remove() {
     let cli = Cli::try_parse_from(["skittle", "remove", "my-source", "--force"]).unwrap();
     match cli.command {
         skittle::cli::Command::Remove { name, force } => {
-            assert_eq!(name, "my-source");
+            assert_eq!(name, Some("my-source".to_string()));
             assert!(force);
         }
         _ => panic!("expected Remove"),
