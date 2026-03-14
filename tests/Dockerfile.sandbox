@@ -1,6 +1,18 @@
-FROM rust:latest
+# ── Build stage ──────────────────────────────────────────────
+FROM rust:latest AS builder
 
-# Tools for interactive use
+WORKDIR /build
+
+# Cache dependency build: copy manifests first, build a dummy, then copy real src
+COPY Cargo.toml Cargo.loc[k] ./
+RUN mkdir src && echo 'fn main() {}' > src/main.rs && cargo build --release 2>/dev/null; rm -rf src
+
+COPY src/ ./src/
+RUN cargo build --release
+
+# ── Runtime stage ────────────────────────────────────────────
+FROM debian:bookworm-slim
+
 RUN apt-get update && apt-get install -y \
     openssh-server jq tree vim less git \
     && rm -rf /var/lib/apt/lists/*
@@ -12,15 +24,8 @@ RUN mkdir -p /run/sshd \
     && sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config \
     && sed -i 's/#AllowAgentForwarding.*/AllowAgentForwarding yes/' /etc/ssh/sshd_config
 
-WORKDIR /build
-
-# Build skittle
-COPY Cargo.toml Cargo.loc[k] ./
-COPY src/ ./src/
-RUN cargo build --release && cp target/release/skittle /usr/local/bin/skittle
-
-# Clean build dir to save space
-RUN rm -rf /build/target
+# Copy just the binary from builder
+COPY --from=builder /build/target/release/skittle /usr/local/bin/skittle
 
 # Set up a realistic home directory
 ENV HOME=/root
