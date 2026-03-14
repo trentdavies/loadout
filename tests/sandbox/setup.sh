@@ -8,20 +8,22 @@
 source /tests/harness/lib.sh
 
 # ---------------------------------------------------------------------------
-# Path configuration
+# Path configuration — mirrors a real user's filesystem
 # ---------------------------------------------------------------------------
-export SKITTLE="${SKITTLE:-/usr/local/bin/skittle}"
-export XDG_DATA_HOME="${XDG_DATA_HOME:-/tmp/sandbox-data}"
+export SKITTLE="${SKITTLE:-$HOME/.local/bin/skittle}"
+export NO_COLOR=1
+export XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 
-export SANDBOX_TARGET_CLAUDE="/tmp/sandbox-targets/claude"
-export SANDBOX_TARGET_CODEX="/tmp/sandbox-targets/codex"
-export SANDBOX_LOCAL="/tmp/sandbox-local"
-export SANDBOX_LOG="${XDG_DATA_HOME}/sandbox.log"
+export SANDBOX_TARGET_CLAUDE="$HOME/.claude"
+export SANDBOX_TARGET_CODEX="$HOME/.codex"
+export SANDBOX_LOCAL="$HOME/repos"
+export SANDBOX_LOG="$XDG_DATA_HOME/skittle/sandbox.log"
 
 # ---------------------------------------------------------------------------
 # sandbox_init — init skittle + register both mock targets (idempotent)
 # ---------------------------------------------------------------------------
 sandbox_init() {
+  mkdir -p "$SANDBOX_LOCAL"
   "$SKITTLE" init >/dev/null 2>&1
   "$SKITTLE" target add claude "$SANDBOX_TARGET_CLAUDE" --name sandbox-claude --scope machine --sync auto >/dev/null 2>&1
   "$SKITTLE" target add codex "$SANDBOX_TARGET_CODEX" --name sandbox-codex --scope machine --sync auto >/dev/null 2>&1

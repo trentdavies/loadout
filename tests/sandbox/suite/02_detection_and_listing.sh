@@ -61,21 +61,16 @@ test_03_list_json_valid() {
 }
 
 test_04_skill_detail() {
-  # Parse the columnar output: "Skill  Plugin  Source" — build plugin/skill
-  local list_output
-  list_output=$("$SKITTLE" list 2>/dev/null)
+  # Use JSON output to reliably get a non-ambiguous plugin/skill identity
+  local qualified
+  qualified=$("$SKITTLE" list --json 2>/dev/null | jq -r \
+    '[.[] | select(.plugin != .source)] | .[0] | "\(.plugin)/\(.name)"')
 
-  # Skip header lines (first 2), prefer rows where plugin != source to avoid ambiguity bug
-  local skill_name plugin_name
-  skill_name=$(echo "$list_output" | tail -n +3 | awk '$2 != $3 && NF>=3 {print $1; exit}')
-  plugin_name=$(echo "$list_output" | tail -n +3 | awk '$2 != $3 && NF>=3 {print $2; exit}')
-
-  if [ -z "$skill_name" ] || [ -z "$plugin_name" ]; then
-    _fail "could not parse skill/plugin from list output" "parseable rows" "empty"
+  if [ -z "$qualified" ] || [ "$qualified" = "null/null" ]; then
+    _fail "could not get a skill from list --json" "valid identity" "empty"
     return
   fi
 
-  local qualified="${plugin_name}/${skill_name}"
   log_cmd "$SKITTLE" list "$qualified"
 
   local detail_output

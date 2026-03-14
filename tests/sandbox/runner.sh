@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 # Sandbox test runner — cumulative, no reset between tests.
 # Suites build on each other: 01 adds sources, 02 checks detection, etc.
-# After all suites, keeps the container alive for exploration.
 
 set -uo pipefail
 
-SANDBOX_DIR="$(cd "$(dirname "$0")" && pwd)"
+SANDBOX_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 SUITE_DIR="$SANDBOX_DIR/suite"
 
 # Source setup (which also sources lib.sh)
@@ -31,8 +30,9 @@ echo "" | tee -a "$SANDBOX_LOG"
 echo "Skittle Sandbox — Functional Tests" | tee -a "$SANDBOX_LOG"
 echo "═══════════════════════════════════════════════" | tee -a "$SANDBOX_LOG"
 echo "Binary:  $SKITTLE" | tee -a "$SANDBOX_LOG"
-echo "Data:    $XDG_DATA_HOME" | tee -a "$SANDBOX_LOG"
-echo "Targets: $SANDBOX_TARGET_CLAUDE, $SANDBOX_TARGET_CODEX" | tee -a "$SANDBOX_LOG"
+echo "Data:    $XDG_DATA_HOME/skittle" | tee -a "$SANDBOX_LOG"
+echo "Claude:  $SANDBOX_TARGET_CLAUDE" | tee -a "$SANDBOX_LOG"
+echo "Codex:   $SANDBOX_TARGET_CODEX" | tee -a "$SANDBOX_LOG"
 echo "Log:     $SANDBOX_LOG" | tee -a "$SANDBOX_LOG"
 echo "═══════════════════════════════════════════════" | tee -a "$SANDBOX_LOG"
 
@@ -80,11 +80,8 @@ print_summary
 
 echo "" | tee -a "$SANDBOX_LOG"
 echo "Full log: $SANDBOX_LOG" | tee -a "$SANDBOX_LOG"
-echo "Container will stay alive for exploration." | tee -a "$SANDBOX_LOG"
-echo "  cat $SANDBOX_LOG" | tee -a "$SANDBOX_LOG"
-echo "  tree $XDG_DATA_HOME/skittle/" | tee -a "$SANDBOX_LOG"
-echo "  skittle list" | tee -a "$SANDBOX_LOG"
-echo "  skittle status" | tee -a "$SANDBOX_LOG"
 
-# Keep container alive for exploration
-exec sleep infinity
+# Exit with failure if any tests failed
+if [ "$FAIL_COUNT" -gt 0 ]; then
+  exit 1
+fi

@@ -1,5 +1,4 @@
 use clap::{Parser, Subcommand};
-use colored::Colorize;
 
 #[derive(Parser)]
 #[command(

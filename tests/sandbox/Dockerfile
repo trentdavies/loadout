@@ -14,19 +14,27 @@ COPY Cargo.toml Cargo.loc[k] ./
 COPY src/ ./src/
 
 # Build skittle
-RUN cargo build --release && cp target/release/skittle /usr/local/bin/skittle
+RUN mkdir -p /root/.local/bin \
+    && cargo build --release && cp target/release/skittle /root/.local/bin/skittle
 
 # Clean build dir to save space
 RUN rm -rf /build/target
 
-# XDG path — no SKIP_NETWORK, these tests hit the network
-ENV XDG_DATA_HOME=/tmp/sandbox-data
+# Set up realistic home directory layout
+ENV HOME=/root
+WORKDIR /root
 
-# Create mock target directories
-RUN mkdir -p /tmp/sandbox-targets/claude /tmp/sandbox-targets/codex
+# skittle on PATH via ~/.local/bin
+ENV PATH="/root/.local/bin:${PATH}"
 
-# Create local clone workspace
-RUN mkdir -p /tmp/sandbox-local
+# XDG — mirrors real ~/.local/share/skittle
+ENV XDG_DATA_HOME=/root/.local/share
+
+# Simulate agent config directories
+RUN mkdir -p ~/.claude ~/.codex ~/.cursor
+
+# Mock install targets that mirror real locations
+RUN mkdir -p ~/.claude/skills ~/.codex/skills
 
 # Copy test harness lib (assertions)
 COPY tests/harness/lib.sh /tests/harness/lib.sh
@@ -34,11 +42,16 @@ COPY tests/harness/lib.sh /tests/harness/lib.sh
 # Copy sandbox test suite
 COPY tests/sandbox/ /tests/sandbox/
 
-# Copy fixtures (used by harness lib reference, may be useful for exploration)
+# Copy fixtures
 COPY tests/fixtures/ /tests/fixtures/
+
+# Place runner and setup in home directory for easy access
+RUN ln -s /tests/sandbox/runner.sh ~/run-tests \
+    && ln -s /tests/sandbox/setup.sh ~/setup.sh
 
 # Make scripts executable
 RUN chmod +x /tests/sandbox/run /tests/sandbox/runner.sh /tests/sandbox/setup.sh \
     && chmod +x /tests/sandbox/suite/*.sh
 
-CMD ["/tests/sandbox/runner.sh"]
+# Default: interactive shell, not the test runner
+CMD ["bash"]

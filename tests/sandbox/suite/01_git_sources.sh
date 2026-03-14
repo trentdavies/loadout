@@ -22,8 +22,20 @@ test_02_add_knowledge_work() {
     _pass "knowledge-work source added"
     log_check 1 "knowledge-work appears in source list"
   else
-    _fail "knowledge-work not in list" "present" "not found"
+    _fail "knowledge-work not in plain text list output" "present" "not found (grep -qF on list output)"
     log_check 0 "knowledge-work appears in source list"
+  fi
+}
+
+test_02b_knowledge_work_in_json() {
+  local count
+  count=$("$SKITTLE" list --json 2>/dev/null | jq '[.[] | select(.source == "knowledge-work")] | length')
+  if [ "$count" -gt 0 ]; then
+    _pass "knowledge-work present in JSON output ($count skills)"
+    log_check 1 "knowledge-work has $count skills in --json output"
+  else
+    _fail "knowledge-work not in JSON output" "skills present" "0"
+    log_check 0 "knowledge-work in --json output"
   fi
 }
 
@@ -62,16 +74,18 @@ test_04_add_financial_services() {
 }
 
 test_05_list_shows_all_sources() {
-  local output
-  output=$("$SKITTLE" list 2>/dev/null)
+  local json_output
+  json_output=$("$SKITTLE" list --json 2>/dev/null)
   log_cmd "$SKITTLE" list
 
   local found=0
   local total=0
   for name in anthropic-skills knowledge-work claude-official financial-services; do
     total=$((total + 1))
-    if echo "$output" | grep -qF "$name"; then
-      log_check 1 "$name in list"
+    local count
+    count=$(echo "$json_output" | jq --arg src "$name" '[.[] | select(.source == $src)] | length')
+    if [ "$count" -gt 0 ]; then
+      log_check 1 "$name in list ($count skills)"
       found=$((found + 1))
     else
       log_check 0 "$name in list"

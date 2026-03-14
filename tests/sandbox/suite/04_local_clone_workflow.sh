@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
 # Suite 04: Local Clone Workflow — local sources and cross-source bundles
 # Depends on Suite 01 sources being present (for cross-source bundles).
-#
-# Note: local-skills is the same repo as anthropic-skills, so plugin == source
-# and --skill hits the ambiguity bug. We use --plugin for local source installs.
 
-# Helper: non-ambiguous skill (plugin != source)
-_unambiguous_skill_from_source() {
+_first_skill_from_source() {
   local source_name="$1"
-  "$SKITTLE" list 2>/dev/null | tail -n +3 | awk -v src="$source_name" '$NF == src && $2 != $3 && NF>=3 {print $2 "/" $1; exit}'
+  "$SKITTLE" list --json 2>/dev/null | jq -r --arg src "$source_name" \
+    '[.[] | select(.source == $src)] | .[0] | "\(.plugin)/\(.name)"'
 }
 
 test_01_git_clone_locally() {
@@ -43,16 +40,15 @@ test_02_add_local_as_source() {
 }
 
 test_03_local_skills_detected() {
-  local output
-  output=$("$SKITTLE" list 2>/dev/null)
-
   local count
-  count=$(echo "$output" | tail -n +3 | awk '$NF == "local-skills"' | wc -l | tr -d ' ')
+  count=$("$SKITTLE" list --json 2>/dev/null | jq '[.[] | select(.source == "local-skills")] | length')
 
   if [ "$count" -gt 0 ]; then
     _pass "local-skills has $count skill entries detected"
     log_check 1 "local-skills — $count entries detected"
   else
+    local output
+    output=$("$SKITTLE" list 2>/dev/null)
     if echo "$output" | grep -qF "local-skills"; then
       _pass "local-skills source present in list"
       log_check 1 "local-skills present in list"
@@ -63,51 +59,47 @@ test_03_local_skills_detected() {
   fi
 }
 
-test_04_install_from_local() {
-  # local-skills has plugin == source name, so use --plugin to install
+test_04_apply_from_local() {
   local plugin_name
-  plugin_name=$("$SKITTLE" list 2>/dev/null | tail -n +3 | awk '$NF == "local-skills" {print $2; exit}')
+  plugin_name=$("$SKITTLE" list --json 2>/dev/null | jq -r \
+    '[.[] | select(.source == "local-skills")] | .[0].plugin // empty')
 
   if [ -z "$plugin_name" ]; then
     _fail "no plugin found from local-skills" "plugin name" "empty"
     return
   fi
 
-  # Clean codex target first so we can verify the install
+  # Clean codex target first so we can verify the apply
   rm -rf "$SANDBOX_TARGET_CODEX/skills"
   mkdir -p "$SANDBOX_TARGET_CODEX"
 
-  log_cmd "$SKITTLE" install --plugin "$plugin_name" --target sandbox-codex
+  log_cmd "$SKITTLE" apply --force --plugin "$plugin_name" --target sandbox-codex
 
   local installed
   installed=$(find "$SANDBOX_TARGET_CODEX" -name "SKILL.md" -type f 2>/dev/null | wc -l | tr -d ' ')
 
   if [ "$installed" -gt 0 ]; then
-    _pass "installed $installed skills from local source plugin $plugin_name"
-    log_check 1 "local source install — $installed skills to codex via --plugin"
+    _pass "applied $installed skills from local source plugin $plugin_name"
+    log_check 1 "local source apply — $installed skills to codex via --plugin"
   else
-    _fail "install from local source produced 0 skills" "at least 1" "0"
-    log_check 0 "install from local source"
+    _fail "apply from local source produced 0 skills" "at least 1" "0"
+    log_check 0 "apply from local source"
   fi
 }
 
 test_05_bundle_across_sources() {
-  # Use non-ambiguous skills from knowledge-work (git) and financial-services (git)
-  # since local-skills has the ambiguity issue
   local skill_a skill_b
-  skill_a=$(_unambiguous_skill_from_source "knowledge-work")
-  skill_b=$(_unambiguous_skill_from_source "financial-services")
+  skill_a=$(_first_skill_from_source "knowledge-work")
+  skill_b=$(_first_skill_from_source "financial-services")
 
-  # Fallback: try any two different non-ambiguous skills
-  if [ -z "$skill_a" ] || [ -z "$skill_b" ]; then
-    local all_skills
-    all_skills=$("$SKITTLE" list 2>/dev/null | tail -n +3 | awk '$2 != $3 && NF>=3 {print $2 "/" $1}' | sort -u)
-    skill_a=$(echo "$all_skills" | head -1)
-    skill_b=$(echo "$all_skills" | sed -n '2p')
+  # Fallback: try any two different skills
+  if [ -z "$skill_a" ] || [ "$skill_a" = "null/null" ] || [ -z "$skill_b" ] || [ "$skill_b" = "null/null" ]; then
+    skill_a=$("$SKITTLE" list --json 2>/dev/null | jq -r '.[0] | "\(.plugin)/\(.name)"')
+    skill_b=$("$SKITTLE" list --json 2>/dev/null | jq -r '.[1] | "\(.plugin)/\(.name)"')
   fi
 
-  if [ -z "$skill_a" ] || [ -z "$skill_b" ]; then
-    _fail "need two non-ambiguous skills for cross-source bundle" "two skills" "a='$skill_a' b='$skill_b'"
+  if [ -z "$skill_a" ] || [ "$skill_a" = "null/null" ] || [ -z "$skill_b" ] || [ "$skill_b" = "null/null" ]; then
+    _fail "need two skills for cross-source bundle" "two skills" "a='$skill_a' b='$skill_b'"
     return
   fi
 
@@ -117,7 +109,7 @@ test_05_bundle_across_sources() {
 
   log_cmd "$SKITTLE" bundle create cross-source-bundle
   log_cmd "$SKITTLE" bundle add cross-source-bundle "$skill_a" "$skill_b"
-  log_cmd "$SKITTLE" install --bundle cross-source-bundle --target sandbox-codex
+  log_cmd "$SKITTLE" apply --force --bundle cross-source-bundle --target sandbox-codex
 
   local short_a short_b
   short_a=$(echo "$skill_a" | awk -F/ '{print $NF}')
@@ -128,13 +120,13 @@ test_05_bundle_across_sources() {
   found_b=$(find "$SANDBOX_TARGET_CODEX" -name "SKILL.md" -path "*$short_b*" 2>/dev/null | head -1)
 
   if [ -n "$found_a" ] && [ -n "$found_b" ]; then
-    _pass "cross-source bundle installed — $short_a and $short_b present in codex"
+    _pass "cross-source bundle applied — $short_a and $short_b present in codex"
     log_check 1 "bundle cross-source-bundle — both skills in codex"
   elif [ -n "$found_a" ] || [ -n "$found_b" ]; then
-    _pass "cross-source bundle partially installed (one skill present)"
-    log_check 1 "bundle cross-source-bundle — at least one skill installed"
+    _pass "cross-source bundle partially applied (one skill present)"
+    log_check 1 "bundle cross-source-bundle — at least one skill applied"
   else
-    _fail "cross-source bundle install failed" "skills in codex" "none found"
-    log_check 0 "bundle cross-source-bundle install"
+    _fail "cross-source bundle apply failed" "skills in codex" "none found"
+    log_check 0 "bundle cross-source-bundle apply"
   fi
 }
