@@ -89,6 +89,7 @@ fn add_source(
         url: source_dir.display().to_string(),
         source_type: "local".to_string(),
         r#ref: None,
+        mode: None,
     });
     skittle::config::save_to(&config, config_path).unwrap();
 
@@ -504,4 +505,71 @@ fn prompt_select_errors_non_interactive() {
     let options = vec!["alpha".to_string(), "beta".to_string()];
     let result = skittle::prompt::select_from("Source", &options, false);
     assert!(result.is_err(), "select_from should error when not interactive");
+}
+
+#[test]
+fn fetch_local_symlink_creates_symlink() {
+    let source_dir = TempDir::new().unwrap();
+    make_source_with_skills(source_dir.path(), &["alpha"]);
+
+    let cache_dir = TempDir::new().unwrap();
+    let cached = cache_dir.path().join("linked-src");
+
+    let source_url = skittle::source::SourceUrl::parse(
+        source_dir.path().to_str().unwrap(),
+    ).unwrap();
+
+    skittle::source::fetch::fetch_with_mode(&source_url, &cached, None, true).unwrap();
+
+    // Cache path should be a symlink
+    assert!(cached.symlink_metadata().unwrap().file_type().is_symlink());
+    // And it should resolve to the original source
+    assert!(cached.join("skills").exists() || cached.join("SKILL.md").exists());
+}
+
+#[test]
+fn fetch_local_copy_creates_real_dir() {
+    let source_dir = TempDir::new().unwrap();
+    make_source_with_skills(source_dir.path(), &["beta"]);
+
+    let cache_dir = TempDir::new().unwrap();
+    let cached = cache_dir.path().join("copied-src");
+
+    let source_url = skittle::source::SourceUrl::parse(
+        source_dir.path().to_str().unwrap(),
+    ).unwrap();
+
+    skittle::source::fetch::fetch_with_mode(&source_url, &cached, None, false).unwrap();
+
+    // Cache path should be a real directory, not a symlink
+    assert!(cached.is_dir());
+    assert!(!cached.symlink_metadata().unwrap().file_type().is_symlink());
+}
+
+#[test]
+fn fetch_local_single_file_always_copies() {
+    let source_dir = TempDir::new().unwrap();
+    let skill_file = source_dir.path().join("SKILL.md");
+    fs::write(&skill_file, "---\nname: x\ndescription: d\n---\n").unwrap();
+
+    let cache_dir = TempDir::new().unwrap();
+    let cached = cache_dir.path().join("file-src");
+
+    let source_url = skittle::source::SourceUrl::parse(
+        skill_file.to_str().unwrap(),
+    ).unwrap();
+
+    // Even with symlink=true, single file should be copied
+    skittle::source::fetch::fetch_with_mode(&source_url, &cached, None, true).unwrap();
+
+    assert!(cached.is_dir());
+    assert!(cached.join("SKILL.md").exists());
+    // The cache dir itself should not be a symlink
+    assert!(!cached.symlink_metadata().unwrap().file_type().is_symlink());
+}
+
+#[test]
+fn prompt_fetch_mode_returns_symlink_non_interactive() {
+    let result = skittle::prompt::prompt_fetch_mode(false);
+    assert_eq!(result, "symlink");
 }

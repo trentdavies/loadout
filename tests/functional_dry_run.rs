@@ -41,6 +41,7 @@ fn setup_env() -> (TempDir, TempDir, TempDir, PathBuf, PathBuf) {
         url: source_dir.path().display().to_string(),
         source_type: "local".to_string(),
         r#ref: None,
+        mode: None,
     });
     config.target.push(skittle::config::TargetConfig {
         name: "test-target".to_string(),

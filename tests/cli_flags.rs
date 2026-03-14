@@ -119,6 +119,36 @@ fn parse_add_with_plugin_and_skill_flags() {
 }
 
 #[test]
+fn parse_add_symlink_flag() {
+    let cli = Cli::try_parse_from(["skittle", "add", "/tmp/src", "--symlink"]).unwrap();
+    match cli.command {
+        skittle::cli::Command::Add { symlink, copy, .. } => {
+            assert!(symlink);
+            assert!(!copy);
+        }
+        _ => panic!("expected Add"),
+    }
+}
+
+#[test]
+fn parse_add_copy_flag() {
+    let cli = Cli::try_parse_from(["skittle", "add", "/tmp/src", "--copy"]).unwrap();
+    match cli.command {
+        skittle::cli::Command::Add { symlink, copy, .. } => {
+            assert!(!symlink);
+            assert!(copy);
+        }
+        _ => panic!("expected Add"),
+    }
+}
+
+#[test]
+fn parse_add_symlink_copy_conflict() {
+    let result = Cli::try_parse_from(["skittle", "add", "/tmp/src", "--symlink", "--copy"]);
+    assert!(result.is_err(), "--symlink and --copy should conflict");
+}
+
+#[test]
 fn parse_remove_without_name() {
     let cli = Cli::try_parse_from(["skittle", "remove"]).unwrap();
     match cli.command {

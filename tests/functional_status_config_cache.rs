@@ -19,6 +19,7 @@ fn make_source(name: &str, url: &str) -> SourceConfig {
         url: url.to_string(),
         source_type: "local".to_string(),
         r#ref: None,
+        mode: None,
     }
 }
 

@@ -210,6 +210,7 @@ mod tests {
             url: "/tmp/skills".to_string(),
             source_type: "local".to_string(),
             r#ref: None,
+            mode: None,
         });
         config.target.push(TargetConfig {
             name: "test-tgt".to_string(),

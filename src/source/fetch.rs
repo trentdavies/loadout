@@ -7,21 +7,29 @@ use super::SourceUrl;
 /// Fetch a source into the local cache directory.
 /// Returns the path to the cached source content.
 pub fn fetch(source_url: &SourceUrl, cache_dir: &Path, git_ref: Option<&str>) -> Result<PathBuf> {
+    fetch_with_mode(source_url, cache_dir, git_ref, false)
+}
+
+/// Fetch a source with an explicit symlink mode.
+/// When `symlink` is true and the source is a local directory, create a symlink
+/// instead of copying. SingleFile sources always copy regardless of mode.
+pub fn fetch_with_mode(source_url: &SourceUrl, cache_dir: &Path, git_ref: Option<&str>, symlink: bool) -> Result<PathBuf> {
     match source_url {
-        SourceUrl::Local(path) => fetch_local(path, cache_dir),
+        SourceUrl::Local(path) => fetch_local(path, cache_dir, symlink),
         SourceUrl::Git(url) => fetch_git(url, cache_dir, git_ref),
         SourceUrl::Archive(path) => fetch_archive(path, cache_dir),
     }
 }
 
-/// Copy a local directory into the cache.
-fn fetch_local(source_path: &Path, cache_dir: &Path) -> Result<PathBuf> {
+/// Fetch a local source into the cache. When `symlink` is true and the source
+/// is a directory, create a symlink instead of copying. Files always copy.
+fn fetch_local(source_path: &Path, cache_dir: &Path, symlink: bool) -> Result<PathBuf> {
     if !source_path.exists() {
         anyhow::bail!("source path does not exist: {}", source_path.display());
     }
 
     if source_path.is_file() {
-        // Single file source — copy it into the cache dir
+        // Single file source — always copy regardless of symlink mode
         fs::create_dir_all(cache_dir)
             .with_context(|| format!("failed to create cache dir: {}", cache_dir.display()))?;
         let file_name = source_path.file_name()
@@ -32,7 +40,40 @@ fn fetch_local(source_path: &Path, cache_dir: &Path) -> Result<PathBuf> {
         return Ok(cache_dir.to_path_buf());
     }
 
+    if symlink {
+        return fetch_local_symlink(source_path, cache_dir);
+    }
+
     // Directory source — recursive copy
+    copy_dir_recursive(source_path, cache_dir)
+        .with_context(|| format!(
+            "failed to copy source {} to {}",
+            source_path.display(),
+            cache_dir.display()
+        ))?;
+
+    Ok(cache_dir.to_path_buf())
+}
+
+/// Create a symlink from cache_dir to source_path.
+/// Falls back to copy if symlink creation fails (e.g., cross-device).
+fn fetch_local_symlink(source_path: &Path, cache_dir: &Path) -> Result<PathBuf> {
+    // Ensure parent of cache_dir exists
+    if let Some(parent) = cache_dir.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    #[cfg(unix)]
+    {
+        match std::os::unix::fs::symlink(source_path, cache_dir) {
+            Ok(()) => return Ok(cache_dir.to_path_buf()),
+            Err(e) => {
+                eprintln!("warning: symlink failed ({}), falling back to copy", e);
+            }
+        }
+    }
+
+    // Fallback: copy
     copy_dir_recursive(source_path, cache_dir)
         .with_context(|| format!(
             "failed to copy source {} to {}",

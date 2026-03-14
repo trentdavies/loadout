@@ -36,6 +36,24 @@ pub fn select_from(label: &str, options: &[String], quiet: bool) -> Result<Strin
     Ok(options[idx].clone())
 }
 
+/// Prompt for local source fetch mode: symlink (default) or copy.
+/// Returns "symlink" or "copy". In non-interactive/quiet mode, returns "symlink".
+pub fn prompt_fetch_mode(quiet: bool) -> String {
+    if quiet || !is_interactive() {
+        return "symlink".to_string();
+    }
+
+    let options = &["symlink (live edits)", "copy (snapshot)"];
+    let idx = dialoguer::Select::new()
+        .with_prompt("Fetch mode")
+        .items(options)
+        .default(0)
+        .interact()
+        .unwrap_or(0);
+
+    if idx == 0 { "symlink".to_string() } else { "copy".to_string() }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -63,6 +81,18 @@ mod tests {
         let options = vec!["alpha".to_string(), "beta".to_string()];
         let result = select_from("Source", &options, false);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn fetch_mode_returns_symlink_non_interactive() {
+        let result = prompt_fetch_mode(false);
+        assert_eq!(result, "symlink");
+    }
+
+    #[test]
+    fn fetch_mode_returns_symlink_quiet() {
+        let result = prompt_fetch_mode(true);
+        assert_eq!(result, "symlink");
     }
 
     #[test]

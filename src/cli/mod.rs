@@ -66,6 +66,14 @@ pub enum Command {
         /// Pin to a specific git ref (tag, branch, or commit SHA)
         #[arg(long, value_name = "REF")]
         r#ref: Option<String>,
+
+        /// Symlink local directory sources instead of copying (default for local dirs)
+        #[arg(long, conflicts_with = "copy")]
+        symlink: bool,
+
+        /// Copy local directory sources instead of symlinking
+        #[arg(long, conflicts_with = "symlink")]
+        copy: bool,
     },
 
     /// List skills, or show details for one
@@ -378,6 +386,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     url: source_url.url_string(),
                     source_type: source_url.source_type().to_string(),
                     r#ref: None,
+                    mode: None,
                 });
                 crate::config::save(&config, cli.config.as_deref())?;
 
@@ -388,7 +397,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
             Ok(())
         }
-        Command::Add { url, source, plugin, skill, name, r#ref } => {
+        Command::Add { url, source, plugin, skill, name, r#ref, symlink, copy } => {
             // Backward-compat: error on deprecated --name
             if name.is_some() {
                 anyhow::bail!("`--name` has been renamed to `--source`");
@@ -415,8 +424,22 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
             let cache_path = crate::config::cache_dir().join(&source_name);
 
+            // Determine fetch mode for local directory sources
+            let use_symlink = match &source_url {
+                crate::source::SourceUrl::Local(path) if path.is_dir() => {
+                    if symlink {
+                        true
+                    } else if copy {
+                        false
+                    } else {
+                        crate::prompt::prompt_fetch_mode(cli.quiet) == "symlink"
+                    }
+                }
+                _ => false, // non-local or single-file: always copy
+            };
+
             if !cli.dry_run {
-                crate::source::fetch::fetch(&source_url, &cache_path, r#ref.as_deref())?;
+                crate::source::fetch::fetch_with_mode(&source_url, &cache_path, r#ref.as_deref(), use_symlink)?;
 
                 let structure = crate::source::detect::detect(&cache_path)?;
 
@@ -514,6 +537,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     url: source_url.url_string(),
                     source_type: source_url.source_type().to_string(),
                     r#ref: r#ref.clone(),
+                    mode: if use_symlink { Some("symlink".to_string()) } else { None },
                 });
                 crate::config::save(&config, config_path_str)?;
             }
@@ -1171,16 +1195,25 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
                 };
 
-                // For local sources, remove cache and re-copy
+                // For symlinked local sources, skip re-fetch — just re-detect
+                // For copied local sources, remove cache and re-copy
                 // For git sources, update with ref awareness
+                let is_symlinked = src.mode.as_deref() == Some("symlink");
                 match &source_url {
                     crate::source::SourceUrl::Local(path) => {
-                        if cache_path.exists() {
-                            std::fs::remove_dir_all(&cache_path)?;
-                        }
-                        if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path, None) {
-                            errors.push(format!("{}: {}", src.name, e));
-                            continue;
+                        if is_symlinked {
+                            if !cli.quiet {
+                                println!("  (symlinked, re-detecting)");
+                            }
+                            // Symlink points to live source — skip re-fetch
+                        } else {
+                            if cache_path.exists() {
+                                std::fs::remove_dir_all(&cache_path)?;
+                            }
+                            if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path, None) {
+                                errors.push(format!("{}: {}", src.name, e));
+                                continue;
+                            }
                         }
                         let _ = path; // used via source_url
                     }
