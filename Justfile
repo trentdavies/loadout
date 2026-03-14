@@ -48,3 +48,23 @@ check:
 fix:
     cargo fmt
     cargo clippy --fix --allow-dirty
+
+# Tag a release (bumps version in Cargo.toml, commits, and tags)
+tag version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    current=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+    if [ "{{version}}" = "$current" ]; then
+        echo "Version is already $current"
+        exit 1
+    fi
+    sed -i '' "s/^version = \"$current\"/version = \"{{version}}\"/" Cargo.toml
+    cargo check --quiet
+    git add Cargo.toml Cargo.lock
+    git commit -m "release v{{version}}"
+    git tag -a "v{{version}}" -m "v{{version}}"
+    echo "Tagged v{{version}}. Push with: git push && git push --tags"
+
+# Publish to crates.io (run `just tag <version>` first)
+publish:
+    cargo publish
