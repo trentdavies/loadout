@@ -123,6 +123,39 @@ impl Registry {
     pub fn clear_active_bundle(&mut self, target_name: &str) {
         self.active_bundles.remove(target_name);
     }
+
+    /// Match skills whose full identity (`source:plugin/skill`) matches a glob pattern.
+    /// The pattern is matched against the full identity string using `glob_match`.
+    pub fn match_skills(&self, pattern: &str) -> Vec<(&str, &RegisteredPlugin, &RegisteredSkill)> {
+        let expanded = expand_pattern(pattern);
+        let mut result = Vec::new();
+        for src in &self.sources {
+            for plugin in &src.plugins {
+                for skill in &plugin.skills {
+                    let identity = format!("{}:{}/{}", src.name, plugin.name, skill.name);
+                    if glob_match::glob_match(&expanded, &identity) {
+                        result.push((src.name.as_str(), plugin, skill));
+                    }
+                }
+            }
+        }
+        result
+    }
+}
+
+/// Returns true if the input contains glob metacharacters (`*`, `?`, or `[`).
+pub fn is_glob(input: &str) -> bool {
+    input.contains('*') || input.contains('?') || input.contains('[')
+}
+
+/// Expands a short-form pattern by prepending `*:` if no `:` is present.
+/// This is consistent with how short-form identities imply "any source."
+pub fn expand_pattern(input: &str) -> String {
+    if input.contains(':') {
+        input.to_string()
+    } else {
+        format!("*:{}", input)
+    }
 }
 
 /// Parse a skill identity string into (optional_source, plugin, skill).
@@ -323,6 +356,98 @@ mod tests {
             }
             Err(_) => {} // Also acceptable
         }
+    }
+
+    #[test]
+    fn is_glob_detects_metacharacters() {
+        assert!(is_glob("legal/*"));
+        assert!(is_glob("*:legal/*"));
+        assert!(is_glob("legal/code-?"));
+        assert!(is_glob("legal/[abc]"));
+        assert!(!is_glob("legal/contract-review"));
+        assert!(!is_glob("src:legal/contract-review"));
+    }
+
+    #[test]
+    fn expand_pattern_prepends_star_colon() {
+        assert_eq!(expand_pattern("legal/*"), "*:legal/*");
+        assert_eq!(expand_pattern("*/code-*"), "*:*/code-*");
+    }
+
+    #[test]
+    fn expand_pattern_preserves_qualified() {
+        assert_eq!(expand_pattern("src:legal/*"), "src:legal/*");
+        assert_eq!(expand_pattern("*:*/*"), "*:*/*");
+    }
+
+    fn test_registry() -> Registry {
+        let mut registry = Registry::default();
+        registry.sources.push(RegisteredSource {
+            name: "alpha".to_string(),
+            plugins: vec![RegisteredPlugin {
+                name: "legal".to_string(),
+                version: None,
+                description: None,
+                skills: vec![
+                    RegisteredSkill { name: "contract-review".to_string(), description: None, author: None, version: None, path: std::path::PathBuf::from("/tmp") },
+                    RegisteredSkill { name: "compliance".to_string(), description: None, author: None, version: None, path: std::path::PathBuf::from("/tmp") },
+                ],
+                path: std::path::PathBuf::from("/tmp"),
+            }],
+            cache_path: std::path::PathBuf::from("/tmp"),
+        });
+        registry.sources.push(RegisteredSource {
+            name: "beta".to_string(),
+            plugins: vec![RegisteredPlugin {
+                name: "sales".to_string(),
+                version: None,
+                description: None,
+                skills: vec![
+                    RegisteredSkill { name: "call-prep".to_string(), description: None, author: None, version: None, path: std::path::PathBuf::from("/tmp") },
+                ],
+                path: std::path::PathBuf::from("/tmp"),
+            }],
+            cache_path: std::path::PathBuf::from("/tmp"),
+        });
+        registry
+    }
+
+    #[test]
+    fn match_skills_by_source() {
+        let reg = test_registry();
+        let matches = reg.match_skills("alpha:*/*");
+        assert_eq!(matches.len(), 2);
+        assert!(matches.iter().all(|(s, _, _)| *s == "alpha"));
+    }
+
+    #[test]
+    fn match_skills_by_plugin_short_form() {
+        let reg = test_registry();
+        let matches = reg.match_skills("legal/*");
+        assert_eq!(matches.len(), 2);
+    }
+
+    #[test]
+    fn match_skills_by_name_prefix() {
+        let reg = test_registry();
+        let matches = reg.match_skills("*/c*");
+        // contract-review, compliance, call-prep
+        assert_eq!(matches.len(), 3);
+    }
+
+    #[test]
+    fn match_skills_no_match() {
+        let reg = test_registry();
+        let matches = reg.match_skills("nonexistent/*");
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn match_skills_exact_qualified() {
+        let reg = test_registry();
+        let matches = reg.match_skills("alpha:legal/compliance");
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].2.name, "compliance");
     }
 
     #[test]

@@ -78,8 +78,8 @@ pub enum Command {
 
     /// List skills, or show details for one
     List {
-        /// Skill identity (plugin/skill or source:plugin/skill)
-        name: Option<String>,
+        /// Skill identity or glob pattern (plugin/skill, source:plugin/skill, or glob like "legal/*")
+        patterns: Vec<String>,
     },
 
     /// Remove a skill source
@@ -217,8 +217,11 @@ pub enum BundleCommand {
         #[arg(long)]
         force: bool,
     },
-    /// List all bundles
-    List,
+    /// List all bundles, optionally filtered by name pattern
+    List {
+        /// Name patterns to filter by (glob supported)
+        patterns: Vec<String>,
+    },
     /// Show bundle details
     Show {
         /// Bundle name
@@ -547,14 +550,15 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
             Ok(())
         }
-        Command::List { name } => {
+        Command::List { patterns } => {
             let data_dir = crate::config::data_dir();
             let config_for_list = crate::config::load(cli.config.as_deref())?;
             let registry = crate::registry::load_registry(&data_dir)?;
 
-            if let Some(identity) = name {
-                // Show details for a single skill
-                let (source_name, plugin_name, skill) = registry.find_skill(&identity)?;
+            if patterns.len() == 1 && !crate::registry::is_glob(&patterns[0]) {
+                // Show details for a single exact skill
+                let identity = &patterns[0];
+                let (source_name, plugin_name, skill) = registry.find_skill(identity)?;
 
                 if cli.json {
                     let json = serde_json::json!({
@@ -578,44 +582,68 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     out.status("Path", &skill.path.display().to_string());
                 }
             } else {
-                // List all skills
-                if cli.json {
-                    let entries: Vec<serde_json::Value> = registry.sources.iter()
-                        .flat_map(|s| {
-                            let source_ref = config_for_list.source.iter()
-                                .find(|cs| cs.name == s.name)
-                                .and_then(|cs| cs.r#ref.clone());
-                            s.plugins.iter().flat_map(move |p| {
-                                let sr = source_ref.clone();
-                                p.skills.iter().map(move |sk| {
-                                    let mut entry = serde_json::json!({
-                                        "identity": crate::output::plain_identity(&s.name, &p.name, &sk.name),
-                                        "name": sk.name,
-                                        "plugin": p.name,
-                                        "source": s.name,
-                                    });
-                                    if let Some(ref r) = sr {
-                                        entry["ref"] = serde_json::Value::String(r.clone());
+                // List skills: all (no patterns), or filtered by glob/exact patterns
+                let skills: Vec<(&str, &crate::registry::RegisteredPlugin, &crate::registry::RegisteredSkill)> = if patterns.is_empty() {
+                    registry.all_skills()
+                } else {
+                    let mut seen = std::collections::HashSet::new();
+                    let mut result = Vec::new();
+                    for pat in &patterns {
+                        if crate::registry::is_glob(pat) {
+                            for triple in registry.match_skills(pat) {
+                                let id = crate::output::plain_identity(triple.0, &triple.1.name, &triple.2.name);
+                                if seen.insert(id) {
+                                    result.push(triple);
+                                }
+                            }
+                        } else {
+                            match registry.find_skill(pat) {
+                                Ok((src, plug, sk)) => {
+                                    let id = crate::output::plain_identity(src, plug, &sk.name);
+                                    if seen.insert(id) {
+                                        result.push((src, registry.sources.iter()
+                                            .flat_map(|s| s.plugins.iter())
+                                            .find(|p| p.name == plug).unwrap(), sk));
                                     }
-                                    entry
-                                })
-                            })
+                                }
+                                Err(e) => anyhow::bail!("{}", e),
+                            }
+                        }
+                    }
+                    result
+                };
+
+                if cli.json {
+                    let entries: Vec<serde_json::Value> = skills.iter()
+                        .map(|(source_name, plugin, skill)| {
+                            let source_ref = config_for_list.source.iter()
+                                .find(|cs| cs.name == *source_name)
+                                .and_then(|cs| cs.r#ref.clone());
+                            let mut entry = serde_json::json!({
+                                "identity": crate::output::plain_identity(source_name, &plugin.name, &skill.name),
+                                "name": skill.name,
+                                "plugin": plugin.name,
+                                "source": source_name,
+                            });
+                            if let Some(ref r) = source_ref {
+                                entry["ref"] = serde_json::Value::String(r.clone());
+                            }
+                            entry
                         })
                         .collect();
                     println!("{}", serde_json::to_string_pretty(&entries)?);
                 } else {
                     let output = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
-                    let mut found = false;
-                    for s in &registry.sources {
-                        for p in &s.plugins {
-                            for sk in &p.skills {
-                                found = true;
-                                println!("{}", crate::output::format_identity(&s.name, &p.name, &sk.name));
-                            }
+                    if skills.is_empty() {
+                        if patterns.is_empty() {
+                            output.info("No skills found. Add a source with `skittle add`");
+                        } else {
+                            output.info("No skills matched the given pattern(s)");
                         }
-                    }
-                    if !found {
-                        output.info("No skills found. Add a source with `skittle add`");
+                    } else {
+                        for (source_name, plugin, skill) in &skills {
+                            println!("{}", crate::output::format_identity(source_name, &plugin.name, &skill.name));
+                        }
                     }
                 }
             }
@@ -1376,13 +1404,27 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
                     Ok(())
                 }
-                BundleCommand::List => {
+                BundleCommand::List { patterns } => {
                     let registry = crate::registry::load_registry(&data_dir)?;
 
+                    let bundles: Vec<(&String, &crate::config::BundleConfig)> = if patterns.is_empty() {
+                        config.bundle.iter().collect()
+                    } else {
+                        config.bundle.iter().filter(|(name, _)| {
+                            patterns.iter().any(|pat| {
+                                if crate::registry::is_glob(pat) {
+                                    glob_match::glob_match(pat, name)
+                                } else {
+                                    *name == pat
+                                }
+                            })
+                        }).collect()
+                    };
+
                     if cli.json {
-                        let entries: Vec<serde_json::Value> = config.bundle.iter().map(|(name, b)| {
+                        let entries: Vec<serde_json::Value> = bundles.iter().map(|(name, b)| {
                             let active_targets: Vec<&str> = registry.active_bundles.iter()
-                                .filter(|(_, v)| v.as_str() == name)
+                                .filter(|(_, v)| v.as_str() == name.as_str())
                                 .map(|(k, _)| k.as_str())
                                 .collect();
                             serde_json::json!({
@@ -1395,20 +1437,24 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         return Ok(());
                     }
 
-                    if config.bundle.is_empty() {
+                    if bundles.is_empty() {
                         if !cli.quiet {
-                            println!("No bundles configured. Use `skittle bundle create` to create one.");
+                            if patterns.is_empty() {
+                                println!("No bundles configured. Use `skittle bundle create` to create one.");
+                            } else {
+                                println!("No bundles matched the given pattern(s)");
+                            }
                         }
                         return Ok(());
                     }
 
-                    let rows: Vec<Vec<String>> = config.bundle.iter().map(|(name, b)| {
+                    let rows: Vec<Vec<String>> = bundles.iter().map(|(name, b)| {
                         let active: Vec<&str> = registry.active_bundles.iter()
-                            .filter(|(_, v)| v.as_str() == name)
+                            .filter(|(_, v)| v.as_str() == name.as_str())
                             .map(|(k, _)| k.as_str())
                             .collect();
                         vec![
-                            name.clone(),
+                            (*name).clone(),
                             b.skills.len().to_string(),
                             if active.is_empty() { String::new() } else { active.join(", ") },
                         ]
@@ -1455,18 +1501,34 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                     let registry = crate::registry::load_registry(&data_dir)?;
 
+                    let mut added = 0usize;
                     for skill_id in &skills {
-                        // Validate skill exists
-                        registry.find_skill(skill_id)?;
-                        // Add if not already present
-                        if !bundle.skills.contains(skill_id) {
-                            bundle.skills.push(skill_id.clone());
+                        if crate::registry::is_glob(skill_id) {
+                            let matches = registry.match_skills(skill_id);
+                            if matches.is_empty() {
+                                anyhow::bail!("no skills matched pattern '{}'", skill_id);
+                            }
+                            for (src, plugin, skill) in &matches {
+                                let fq = crate::output::plain_identity(src, &plugin.name, &skill.name);
+                                if !bundle.skills.contains(&fq) {
+                                    bundle.skills.push(fq);
+                                    added += 1;
+                                }
+                            }
+                        } else {
+                            // Validate skill exists and resolve to fully qualified
+                            let (src, plug, sk) = registry.find_skill(skill_id)?;
+                            let fq = crate::output::plain_identity(src, plug, &sk.name);
+                            if !bundle.skills.contains(&fq) {
+                                bundle.skills.push(fq);
+                                added += 1;
+                            }
                         }
                     }
 
                     crate::config::save(&config, config_path_str)?;
                     if !cli.quiet {
-                        println!("Added {} skill(s) to bundle '{}'", skills.len(), name);
+                        println!("Added {} skill(s) to bundle '{}'", added, name);
                     }
                     Ok(())
                 }
