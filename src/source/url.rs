@@ -357,4 +357,50 @@ mod tests {
         let url = SourceUrl::Archive(PathBuf::from("/tmp/x.zip"));
         assert_eq!(url.url_string(), "/tmp/x.zip");
     }
+
+    // -----------------------------------------------------------------------
+    // default_name — tree URL tests (target behavior for subpath support)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn default_name_repo_only() {
+        let url = SourceUrl::Git("https://github.com/anthropics/skills".to_string());
+        assert_eq!(url.default_name(), "skills");
+    }
+
+    #[test]
+    fn default_name_tree_ref_only() {
+        // /tree/main with no subpath → repo name
+        let url =
+            SourceUrl::Git("https://github.com/anthropics/skills/tree/main".to_string());
+        assert_eq!(url.default_name(), "skills");
+    }
+
+    #[test]
+    fn default_name_tree_with_subpath() {
+        // /tree/main/skills/claude-api → leaf dir name
+        let url = SourceUrl::Git(
+            "https://github.com/anthropics/skills/tree/main/skills/claude-api".to_string(),
+        );
+        assert_eq!(url.default_name(), "claude-api");
+    }
+
+    #[test]
+    fn default_name_tree_hidden_dir() {
+        // /tree/main/skills/.curated → strip leading dot
+        let url = SourceUrl::Git(
+            "https://github.com/openai/skills/tree/main/skills/.curated".to_string(),
+        );
+        assert_eq!(url.default_name(), "curated");
+    }
+
+    #[test]
+    fn default_name_tree_subpath_single_dir() {
+        // /tree/main/productivity → leaf dir name
+        let url = SourceUrl::Git(
+            "https://github.com/anthropics/knowledge-work-plugins/tree/main/productivity"
+                .to_string(),
+        );
+        assert_eq!(url.default_name(), "productivity");
+    }
 }
