@@ -355,3 +355,28 @@ fn parse_bundle_swap_no_longer_exists() {
         "bundle swap should no longer be a valid subcommand"
     );
 }
+
+#[test]
+fn known_marketplaces_non_empty() {
+    assert!(!skittle::marketplace::KNOWN_MARKETPLACES.is_empty());
+    for (name, url) in skittle::marketplace::KNOWN_MARKETPLACES {
+        assert!(!name.is_empty(), "marketplace name should not be empty");
+        assert!(!url.is_empty(), "marketplace URL should not be empty");
+        assert!(url.starts_with("https://"), "marketplace URL should be https: {}", url);
+    }
+}
+
+#[test]
+fn multi_select_returns_empty_non_interactive() {
+    let result = skittle::prompt::multi_select("Pick", &["a", "b"], &[true, true], false);
+    assert!(result.is_empty());
+}
+
+#[test]
+fn detect_agent_targets_returns_vec() {
+    // In a tempdir with no agent dirs, should return empty
+    let result = skittle::cli::detect_agent_targets();
+    // Can't assert empty because the test runner's home may have agents
+    // Just verify it returns without error
+    let _ = result;
+}

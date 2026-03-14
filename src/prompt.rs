@@ -40,6 +40,21 @@ pub fn select_from(label: &str, options: &[String], quiet: bool) -> Result<Strin
     Ok(options[idx].clone())
 }
 
+/// Present a multi-select list. Returns indices of selected items.
+/// In non-interactive or quiet mode, returns an empty vec.
+pub fn multi_select(label: &str, options: &[&str], defaults: &[bool], quiet: bool) -> Vec<usize> {
+    if quiet || !is_interactive() {
+        return Vec::new();
+    }
+
+    dialoguer::MultiSelect::new()
+        .with_prompt(label)
+        .items(options)
+        .defaults(defaults)
+        .interact()
+        .unwrap_or_default()
+}
+
 /// Prompt for local source fetch mode: symlink (default) or copy.
 /// Returns "symlink" or "copy". In non-interactive/quiet mode, returns "symlink".
 pub fn prompt_fetch_mode(quiet: bool) -> String {
@@ -82,6 +97,18 @@ mod tests {
     fn confirm_or_override_returns_default_quiet() {
         let result = confirm_or_override("Source", "my-skills", true);
         assert_eq!(result, "my-skills");
+    }
+
+    #[test]
+    fn multi_select_returns_empty_non_interactive() {
+        let result = multi_select("Pick", &["a", "b"], &[true, true], false);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn multi_select_returns_empty_quiet() {
+        let result = multi_select("Pick", &["a", "b"], &[true, true], true);
+        assert!(result.is_empty());
     }
 
     #[test]

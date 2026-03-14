@@ -356,6 +356,93 @@ fn extract_domain(url: &str) -> String {
     String::new()
 }
 
+const AGENT_PREFIXES: &[(&str, &str)] = &[
+    ("claude", ".claude"),
+    ("codex", ".codex"),
+    ("cursor", ".cursor"),
+];
+
+/// Scan home and cwd for agent installation directories.
+/// Returns (agent_type, path) for each found candidate.
+pub fn detect_agent_targets() -> Vec<(String, std::path::PathBuf)> {
+    let home = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|_| dirs::home_dir().ok_or(()))
+        .unwrap_or_else(|_| std::path::PathBuf::from("~"));
+
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let dirs_to_scan: Vec<&std::path::Path> = if cwd == home {
+        vec![&home]
+    } else {
+        vec![&home, &cwd]
+    };
+
+    let mut candidates: Vec<(String, std::path::PathBuf)> = Vec::new();
+    for scan_dir in &dirs_to_scan {
+        if let Ok(entries) = std::fs::read_dir(scan_dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name();
+                let name_str = name.to_string_lossy();
+                if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                    continue;
+                }
+                for (agent, prefix) in AGENT_PREFIXES {
+                    if name_str == *prefix
+                        || name_str.starts_with(&format!("{}-", prefix))
+                    {
+                        let path = entry.path();
+                        if !candidates.iter().any(|(_, p)| *p == path) {
+                            candidates.push((agent.to_string(), path));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    candidates.sort_by(|a, b| a.1.cmp(&b.1));
+    candidates
+}
+
+/// Add all detected agent targets to config (auto-add, no per-target prompt).
+/// Returns count of targets added.
+pub fn add_detected_targets(
+    config: &mut crate::config::Config,
+    quiet: bool,
+) -> usize {
+    let home = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|_| dirs::home_dir().ok_or(()))
+        .unwrap_or_else(|_| std::path::PathBuf::from("~"));
+
+    let candidates = detect_agent_targets();
+    let mut added = 0;
+    for (agent, path) in &candidates {
+        if config.target.iter().any(|t| t.path == *path) {
+            continue;
+        }
+        let target_name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(agent)
+            .trim_start_matches('.')
+            .to_string();
+        let scope = if path.starts_with(&home) { "machine" } else { "repo" };
+        let sync = if scope == "repo" { "explicit" } else { "auto" };
+        config.target.push(crate::config::TargetConfig {
+            name: target_name.clone(),
+            agent: agent.to_string(),
+            path: path.clone(),
+            scope: scope.to_string(),
+            sync: sync.to_string(),
+        });
+        if !quiet {
+            println!("  Added target '{}'", target_name);
+        }
+        added += 1;
+    }
+    added
+}
+
 pub fn run(cli: Cli) -> anyhow::Result<()> {
     match cli.command {
         Command::Init { url } => {
@@ -439,6 +526,136 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                 if !cli.quiet {
                     println!("Added source '{}' from {}", source_name, url_str);
+                }
+            }
+
+            // --- Interactive wizard steps ---
+
+            // Step 1: git init the data dir
+            let should_git_init = if data.join(".git").exists() {
+                false // already a git repo
+            } else if cli.quiet || !crate::prompt::is_interactive() {
+                true // non-interactive default: yes
+            } else {
+                crate::prompt::confirm_or_override(
+                    "Initialize git in skittle data dir? [Y/n]", "Y", cli.quiet,
+                ).to_uppercase() != "N"
+            };
+            if should_git_init && !data.join(".git").exists() {
+                let result = std::process::Command::new("git")
+                    .args(["init"])
+                    .current_dir(&data)
+                    .output();
+                match result {
+                    Ok(o) if o.status.success() => {
+                        if !cli.quiet {
+                            println!("Initialized git in {}", data.display());
+                        }
+                    }
+                    Ok(o) => {
+                        if cli.verbose {
+                            eprintln!("warning: git init failed: {}", String::from_utf8_lossy(&o.stderr).trim());
+                        }
+                    }
+                    Err(_) => {
+                        if cli.verbose {
+                            eprintln!("warning: git not found, skipping git init");
+                        }
+                    }
+                }
+            }
+
+            // Step 2: detect and add targets
+            let should_detect = if cli.quiet || !crate::prompt::is_interactive() {
+                true
+            } else {
+                crate::prompt::confirm_or_override(
+                    "Detect and add agent targets? [Y/n]", "Y", cli.quiet,
+                ).to_uppercase() != "N"
+            };
+            if should_detect {
+                let mut config = crate::config::load(cli.config.as_deref())?;
+                let added = add_detected_targets(&mut config, cli.quiet);
+                if added > 0 {
+                    crate::config::save(&config, cli.config.as_deref())?;
+                    if !cli.quiet {
+                        println!("Added {} target(s)", added);
+                    }
+                } else if !cli.quiet {
+                    println!("No agent targets found");
+                }
+            }
+
+            // Step 3: offer popular marketplaces (skip if URL was provided)
+            if url.is_none() && crate::prompt::is_interactive() && !cli.quiet {
+                let names: Vec<&str> = crate::marketplace::KNOWN_MARKETPLACES
+                    .iter()
+                    .map(|(name, _)| *name)
+                    .collect();
+                let defaults: Vec<bool> = vec![true; names.len()];
+                let selected = crate::prompt::multi_select(
+                    "Add popular skill sources?",
+                    &names,
+                    &defaults,
+                    cli.quiet,
+                );
+
+                if !selected.is_empty() {
+                    let mut config = crate::config::load(cli.config.as_deref())?;
+                    let data_dir = crate::config::data_dir();
+                    let mut registry = crate::registry::load_registry(&data_dir)?;
+
+                    for idx in selected {
+                        let (name, url) = crate::marketplace::KNOWN_MARKETPLACES[idx];
+                        if config.source.iter().any(|s| s.url == url) {
+                            continue;
+                        }
+                        let source_url = match crate::source::SourceUrl::parse(url) {
+                            Ok(u) => u,
+                            Err(e) => {
+                                eprintln!("warning: failed to parse '{}': {}", name, e);
+                                continue;
+                            }
+                        };
+                        let source_name = source_url.default_name();
+                        let cache_path = crate::config::cache_dir().join(&source_name);
+
+                        if !cli.quiet {
+                            println!("Adding '{}'...", name);
+                        }
+                        match crate::source::fetch::fetch(&source_url, &cache_path, None) {
+                            Ok(_) => {}
+                            Err(e) => {
+                                eprintln!("warning: failed to fetch '{}': {}", name, e);
+                                continue;
+                            }
+                        }
+                        match crate::source::detect::detect(&cache_path) {
+                            Ok(structure) => {
+                                match crate::source::normalize::normalize(&source_name, &cache_path, &structure) {
+                                    Ok(registered) => {
+                                        registry.sources.retain(|s| s.name != source_name);
+                                        registry.sources.push(registered);
+                                        config.source.push(crate::config::SourceConfig {
+                                            name: source_name.clone(),
+                                            url: url.to_string(),
+                                            source_type: "git".to_string(),
+                                            r#ref: None,
+                                            mode: None,
+                                        });
+                                        if !cli.quiet {
+                                            println!("  Added source '{}'", source_name);
+                                        }
+                                    }
+                                    Err(e) => eprintln!("warning: failed to normalize '{}': {}", name, e),
+                                }
+                            }
+                            Err(e) => eprintln!("warning: failed to detect '{}': {}", name, e),
+                        }
+                    }
+
+                    crate::registry::save_registry(&registry, &data_dir)?;
+                    crate::config::save(&config, cli.config.as_deref())?;
                 }
             }
 
@@ -2181,57 +2398,12 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     Ok(())
                 }
                 TargetCommand::Detect { force } => {
-                    let home = std::env::var("HOME")
-                        .map(std::path::PathBuf::from)
-                        .or_else(|_| dirs::home_dir().ok_or(()))
-                        .unwrap_or_else(|_| std::path::PathBuf::from("~"));
+                    let candidates = detect_agent_targets();
 
-                    const AGENT_PREFIXES: &[(&str, &str)] = &[
-                        ("claude", ".claude"),
-                        ("codex", ".codex"),
-                        ("cursor", ".cursor"),
-                    ];
-
-                    let mut candidates: Vec<(&str, std::path::PathBuf)> = Vec::new();
-
-                    // Scan home and cwd for directories matching agent prefixes
-                    let cwd = std::env::current_dir().unwrap_or_default();
-                    let dirs_to_scan: Vec<&std::path::Path> = if cwd == home {
-                        vec![&home]
-                    } else {
-                        vec![&home, &cwd]
-                    };
-
-                    for scan_dir in &dirs_to_scan {
-                        if let Ok(entries) = std::fs::read_dir(scan_dir) {
-                            for entry in entries.flatten() {
-                                let name = entry.file_name();
-                                let name_str = name.to_string_lossy();
-                                if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                                    continue;
-                                }
-                                for (agent, prefix) in AGENT_PREFIXES {
-                                    if name_str == *prefix
-                                        || name_str.starts_with(&format!("{}-", prefix))
-                                    {
-                                        let path = entry.path();
-                                        if !candidates.iter().any(|(_, p)| *p == path) {
-                                            candidates.push((agent, path));
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    candidates.sort_by(|a, b| a.1.cmp(&b.1));
-
-                    let mut found = Vec::new();
+                    let mut found: Vec<(String, std::path::PathBuf, bool)> = Vec::new();
                     for (agent, path) in &candidates {
-                        if path.is_dir() {
-                            let already = config.target.iter().any(|t| t.path == *path);
-                            found.push((agent.to_string(), path.clone(), already));
-                        }
+                        let already = config.target.iter().any(|t| t.path == *path);
+                        found.push((agent.clone(), path.clone(), already));
                     }
 
                     if cli.json {
@@ -2256,62 +2428,48 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         return Ok(());
                     }
 
-                    let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
-
-                    let mut added = 0;
-                    for (agent, path, registered) in &found {
-                        if *registered {
-                            out.info(&format!(
-                                "{} at {} (already registered)",
-                                agent,
-                                path.display()
-                            ));
-                            continue;
+                    if force {
+                        let added = add_detected_targets(&mut config, cli.quiet);
+                        if added > 0 {
+                            crate::config::save(&config, config_path_str)?;
                         }
-
-                        let target_name = path
-                            .file_name()
-                            .and_then(|n| n.to_str())
-                            .unwrap_or(agent)
-                            .trim_start_matches('.')
-                            .to_string();
-                        let scope = if path.starts_with(&home) {
-                            "machine"
-                        } else {
-                            "repo"
-                        };
-
-                        let should_add = if force {
-                            true
-                        } else {
-                            // Prompt user
-                            eprint!(
-                                "Add {} at {} as target '{}'? [y/N] ",
-                                agent,
-                                path.display(),
-                                target_name
-                            );
+                    } else {
+                        let home = std::env::var("HOME")
+                            .map(std::path::PathBuf::from)
+                            .or_else(|_| dirs::home_dir().ok_or(()))
+                            .unwrap_or_else(|_| std::path::PathBuf::from("~"));
+                        let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
+                        let mut added = 0;
+                        for (agent, path, registered) in &found {
+                            if *registered {
+                                out.info(&format!("{} at {} (already registered)", agent, path.display()));
+                                continue;
+                            }
+                            let target_name = path.file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or(agent)
+                                .trim_start_matches('.')
+                                .to_string();
+                            eprint!("Add {} at {} as target '{}'? [y/N] ", agent, path.display(), target_name);
                             let mut input = String::new();
                             std::io::stdin().read_line(&mut input).unwrap_or(0);
-                            input.trim().eq_ignore_ascii_case("y")
-                        };
-
-                        if should_add {
-                            let sync = if scope == "repo" { "explicit" } else { "auto" };
-                            config.target.push(crate::config::TargetConfig {
-                                name: target_name.clone(),
-                                agent: agent.to_string(),
-                                path: path.clone(),
-                                scope: scope.to_string(),
-                                sync: sync.to_string(),
-                            });
-                            out.success(&format!("Added target '{}'", target_name));
-                            added += 1;
+                            if input.trim().eq_ignore_ascii_case("y") {
+                                let scope = if path.starts_with(&home) { "machine" } else { "repo" };
+                                let sync = if scope == "repo" { "explicit" } else { "auto" };
+                                config.target.push(crate::config::TargetConfig {
+                                    name: target_name.clone(),
+                                    agent: agent.to_string(),
+                                    path: path.clone(),
+                                    scope: scope.to_string(),
+                                    sync: sync.to_string(),
+                                });
+                                out.success(&format!("Added target '{}'", target_name));
+                                added += 1;
+                            }
                         }
-                    }
-
-                    if added > 0 {
-                        crate::config::save(&config, config_path_str)?;
+                        if added > 0 {
+                            crate::config::save(&config, config_path_str)?;
+                        }
                     }
 
                     Ok(())
