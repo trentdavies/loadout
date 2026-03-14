@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use colored::Colorize;
 
 #[derive(Parser)]
 #[command(
@@ -439,6 +440,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                 if cli.json {
                     let json = serde_json::json!({
+                        "identity": crate::output::plain_identity(source_name, plugin_name, &skill.name),
                         "name": skill.name,
                         "plugin": plugin_name,
                         "source": source_name,
@@ -452,10 +454,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 let out = crate::output::Output::from_flags(
                     cli.json, cli.quiet, cli.verbose,
                 );
-                out.status("Skill", &skill.name);
-                out.status("Plugin", plugin_name);
-                out.status("Source", source_name);
-                out.status("description", skill.description.as_deref().unwrap_or("(none)"));
+                out.status("Identity", &crate::output::format_identity(source_name, plugin_name, &skill.name));
+                out.status("Description", skill.description.as_deref().unwrap_or("(none)"));
                 if cli.verbose {
                     out.status("Path", &skill.path.display().to_string());
                 }
@@ -466,6 +466,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         .flat_map(|s| s.plugins.iter().flat_map(move |p| {
                             p.skills.iter().map(move |sk| {
                                 serde_json::json!({
+                                    "identity": crate::output::plain_identity(&s.name, &p.name, &sk.name),
                                     "name": sk.name,
                                     "plugin": p.name,
                                     "source": s.name,
@@ -476,17 +477,29 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     println!("{}", serde_json::to_string_pretty(&entries)?);
                 } else {
                     let output = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
-                    let rows: Vec<Vec<String>> = registry.sources.iter()
+                    // Collect (plain_identity, colored_identity, description) tuples
+                    let rows: Vec<(String, String, String)> = registry.sources.iter()
                         .flat_map(|s| s.plugins.iter().flat_map(move |p| {
                             p.skills.iter().map(move |sk| {
-                                vec![sk.name.clone(), p.name.clone(), s.name.clone()]
+                                (
+                                    crate::output::plain_identity(&s.name, &p.name, &sk.name),
+                                    crate::output::format_identity(&s.name, &p.name, &sk.name),
+                                    sk.description.clone().unwrap_or_default(),
+                                )
                             })
                         }))
                         .collect();
                     if rows.is_empty() {
                         output.info("No skills found. Add a source with `skittle add`");
                     } else {
-                        output.table(&["Skill", "Plugin", "Source"], &rows);
+                        // Use plain identity for width calculation, colored for display
+                        let id_width = rows.iter().map(|(p, _, _)| p.len()).max().unwrap_or(0).max("Identity".len());
+                        println!("{}", format!("{:<w$}  {}", "Identity", "Description", w = id_width).bold());
+                        println!("{}", format!("{}  {}", "─".repeat(id_width), "─".repeat("Description".len())).dimmed());
+                        for (plain, colored, desc) in &rows {
+                            let padding = id_width.saturating_sub(plain.len());
+                            println!("{}{}  {}", colored, " ".repeat(padding), desc);
+                        }
                     }
                 }
             }
@@ -593,7 +606,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                 crate::target::SkillStatus::Unchanged => "unchanged",
                                 crate::target::SkillStatus::Changed => "changed",
                             };
-                            println!("  (dry run) {} → {} [{}]", s.name, tc.name, label);
+                            println!("  (dry run) {} → {} [{}]", crate::output::format_identity(src_name, plug_name, &s.name), tc.name, label);
                         }
                         continue;
                     }
@@ -715,7 +728,12 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     if execute {
                         adapter.uninstall_skill(name, &tc.path)?;
                     } else if !cli.quiet {
-                        println!("  would uninstall {} from {}", name, tc.name);
+                        // Look up provenance for colored identity
+                        let identity = registry.installed.get(&tc.name)
+                            .and_then(|m| m.get(name))
+                            .map(|info| crate::output::format_identity(&info.source, &info.plugin, &info.skill))
+                            .unwrap_or_else(|| name.clone());
+                        println!("  would uninstall {} from {}", identity, tc.name);
                     }
                 }
             }
@@ -748,15 +766,14 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                 if adopt {
                     // Copy to plugins/
-                    let plugin_name = if let Some(target_installs) = registry.installed.get(&target) {
-                        if let Some(info) = target_installs.get(skill_name) {
-                            info.plugin.clone()
-                        } else {
-                            "local".to_string()
-                        }
-                    } else {
-                        "local".to_string()
-                    };
+                    let provenance = registry.installed.get(&target)
+                        .and_then(|m| m.get(skill_name));
+                    let plugin_name = provenance
+                        .map(|info| info.plugin.clone())
+                        .unwrap_or_else(|| "local".to_string());
+                    let source_name = provenance
+                        .map(|info| info.source.clone())
+                        .unwrap_or_else(|| "local".to_string());
 
                     let dest_plugin = crate::config::plugins_dir().join(&plugin_name);
                     let dest_skill = dest_plugin.join("skills").join(skill_name);
@@ -774,18 +791,19 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                     // Regenerate marketplace
                     generate_marketplace(&data_dir)?;
-                    out.success(&format!("Adopted {} into plugins/{}", skill_name, plugin_name));
+                    let identity = crate::output::format_identity(&source_name, &plugin_name, skill_name);
+                    out.success(&format!("Adopted {}", identity));
                 } else {
                     // Copy back to origin
-                    let origin = registry.installed.get(&target)
-                        .and_then(|m| m.get(skill_name))
-                        .map(|info| info.origin.clone());
+                    let provenance = registry.installed.get(&target)
+                        .and_then(|m| m.get(skill_name));
 
-                    if let Some(origin_rel) = origin {
-                        let dest = data_dir.join(&origin_rel);
+                    if let Some(info) = provenance {
+                        let dest = data_dir.join(&info.origin);
                         std::fs::create_dir_all(&dest)?;
                         copy_dir_all(&target_skill_dir, &dest)?;
-                        out.success(&format!("Collected {} → {}", skill_name, origin_rel));
+                        let identity = crate::output::format_identity(&info.source, &info.plugin, &info.skill);
+                        out.success(&format!("Collected {} → {}", identity, info.origin));
                     } else {
                         out.warn(&format!("'{}' has no provenance. Use --adopt to claim it.", skill_name));
                     }
@@ -799,7 +817,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                 for skill_name in &installed_on_target {
                     if let Some(info) = target_installs.get(skill_name) {
-                        tracked.push((skill_name.clone(), info.origin.clone()));
+                        tracked.push((skill_name.clone(), info.clone()));
                     } else {
                         untracked.push(skill_name.clone());
                     }
@@ -807,8 +825,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                 if !tracked.is_empty() {
                     out.info("Tracked:");
-                    for (name, origin) in &tracked {
-                        out.info(&format!("  {} ← {}", name, origin));
+                    for (_name, info) in &tracked {
+                        let identity = crate::output::format_identity(&info.source, &info.plugin, &info.skill);
+                        out.info(&format!("  {} ← {}", identity, info.origin));
                     }
                 }
 
@@ -836,7 +855,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                             let dest = local_plugin.join("skills").join(name);
                             std::fs::create_dir_all(&dest)?;
                             copy_dir_all(&target_skill_dir, &dest)?;
-                            out.success(&format!("Adopted {}", name));
+                            let identity = crate::output::format_identity("local", "local", name);
+                            out.success(&format!("Adopted {}", identity));
                         }
 
                         // Create plugin.json for local plugin if missing
