@@ -51,7 +51,7 @@ Red-green testing against `openspec/changes/skittle-cli-v1/tasks.md`:
 
 ## Key Conventions
 
-- Config: TOML at `$XDG_CONFIG_HOME/skittle/config.toml`
+- Config: TOML at `$XDG_CONFIG_HOME/skittle/skittle.toml`
 - Data: JSON registry + cache at `$XDG_DATA_HOME/skittle/`
 - CLI: clap derive, global flags (-n, -v, -q, --json, --color, --config)
 - All commands must support --help, -h, help

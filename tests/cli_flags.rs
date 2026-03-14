@@ -168,7 +168,7 @@ fn parse_remove() {
 fn parse_update() {
     let cli = Cli::try_parse_from(["skittle", "update", "my-source"]).unwrap();
     match cli.command {
-        skittle::cli::Command::Update { name } => {
+        skittle::cli::Command::Update { name, .. } => {
             assert_eq!(name, Some("my-source".to_string()));
         }
         _ => panic!("expected Update"),
@@ -179,7 +179,7 @@ fn parse_update() {
 fn parse_update_all() {
     let cli = Cli::try_parse_from(["skittle", "update"]).unwrap();
     match cli.command {
-        skittle::cli::Command::Update { name } => {
+        skittle::cli::Command::Update { name, .. } => {
             assert!(name.is_none());
         }
         _ => panic!("expected Update"),

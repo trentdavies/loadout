@@ -88,6 +88,10 @@ pub enum Command {
     Update {
         /// Source name (omit to update all)
         name: Option<String>,
+
+        /// Switch to a specific git ref (tag or branch). Use "latest" to unpin.
+        #[arg(long, value_name = "REF")]
+        r#ref: Option<String>,
     },
 
     /// Apply skills to targets
@@ -356,7 +360,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 let source_name = source_url.default_name();
                 let cache_path = crate::config::cache_dir().join(&source_name);
 
-                crate::source::fetch::fetch(&source_url, &cache_path)?;
+                crate::source::fetch::fetch(&source_url, &cache_path, None)?;
 
                 let structure = crate::source::detect::detect(&cache_path)?;
                 let registered = crate::source::normalize::normalize(
@@ -412,20 +416,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             let cache_path = crate::config::cache_dir().join(&source_name);
 
             if !cli.dry_run {
-                crate::source::fetch::fetch(&source_url, &cache_path)?;
-
-                // If ref specified, checkout that ref
-                if let Some(ref git_ref) = r#ref {
-                    let output = std::process::Command::new("git")
-                        .args(["checkout", git_ref])
-                        .current_dir(&cache_path)
-                        .output();
-                    if let Ok(o) = output {
-                        if !o.status.success() {
-                            eprintln!("warning: failed to checkout ref '{}': {}", git_ref, String::from_utf8_lossy(&o.stderr).trim());
-                        }
-                    }
-                }
+                crate::source::fetch::fetch(&source_url, &cache_path, r#ref.as_deref())?;
 
                 let structure = crate::source::detect::detect(&cache_path)?;
 
@@ -534,6 +525,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
         }
         Command::List { name } => {
             let data_dir = crate::config::data_dir();
+            let config_for_list = crate::config::load(cli.config.as_deref())?;
             let registry = crate::registry::load_registry(&data_dir)?;
 
             if let Some(identity) = name {
@@ -565,16 +557,26 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 // List all skills
                 if cli.json {
                     let entries: Vec<serde_json::Value> = registry.sources.iter()
-                        .flat_map(|s| s.plugins.iter().flat_map(move |p| {
-                            p.skills.iter().map(move |sk| {
-                                serde_json::json!({
-                                    "identity": crate::output::plain_identity(&s.name, &p.name, &sk.name),
-                                    "name": sk.name,
-                                    "plugin": p.name,
-                                    "source": s.name,
+                        .flat_map(|s| {
+                            let source_ref = config_for_list.source.iter()
+                                .find(|cs| cs.name == s.name)
+                                .and_then(|cs| cs.r#ref.clone());
+                            s.plugins.iter().flat_map(move |p| {
+                                let sr = source_ref.clone();
+                                p.skills.iter().map(move |sk| {
+                                    let mut entry = serde_json::json!({
+                                        "identity": crate::output::plain_identity(&s.name, &p.name, &sk.name),
+                                        "name": sk.name,
+                                        "plugin": p.name,
+                                        "source": s.name,
+                                    });
+                                    if let Some(ref r) = sr {
+                                        entry["ref"] = serde_json::Value::String(r.clone());
+                                    }
+                                    entry
                                 })
                             })
-                        }))
+                        })
                         .collect();
                     println!("{}", serde_json::to_string_pretty(&entries)?);
                 } else {
@@ -1015,6 +1017,19 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             out.status("Installed", &total_installed.to_string());
             out.status("Bundles", &config.bundle.len().to_string());
 
+            // Show source refs if any are pinned/tracking
+            let sources_with_refs: Vec<_> = config.source.iter()
+                .filter(|s| s.r#ref.is_some())
+                .collect();
+            if !sources_with_refs.is_empty() {
+                out.info("");
+                out.info("Source versions:");
+                for src in &config.source {
+                    let version = src.r#ref.as_deref().unwrap_or("latest");
+                    out.info(&format!("  {} @ {}", src.name, version));
+                }
+            }
+
             if !registry.active_bundles.is_empty() {
                 out.info("");
                 out.info("Active bundles:");
@@ -1101,11 +1116,15 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
             Ok(())
         }
-        Command::Update { name } => {
+        Command::Update { name, r#ref: update_ref } => {
             let config_path_str = cli.config.as_deref();
-            let config = crate::config::load(config_path_str)?;
+            let mut config = crate::config::load(config_path_str)?;
             let data_dir = crate::config::data_dir();
             let registry = crate::registry::load_registry(&data_dir)?;
+
+            if update_ref.is_some() && name.is_none() {
+                anyhow::bail!("--ref requires a source name (e.g., skittle update my-source --ref v2.0)");
+            }
 
             // Determine which sources to update
             let sources_to_update: Vec<&crate::config::SourceConfig> = if let Some(ref n) = name {
@@ -1126,6 +1145,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             let mut updated_registry = registry;
             let mut updated_count = 0;
             let mut errors = Vec::new();
+            let mut ref_changed = false;
 
             for src in &sources_to_update {
                 if !cli.quiet {
@@ -1152,26 +1172,58 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 };
 
                 // For local sources, remove cache and re-copy
-                // For git sources, update_git handles fetch + reset
+                // For git sources, update with ref awareness
                 match &source_url {
                     crate::source::SourceUrl::Local(path) => {
                         if cache_path.exists() {
                             std::fs::remove_dir_all(&cache_path)?;
                         }
-                        if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path) {
+                        if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path, None) {
                             errors.push(format!("{}: {}", src.name, e));
                             continue;
                         }
                         let _ = path; // used via source_url
                     }
                     crate::source::SourceUrl::Git(_) => {
-                        if cache_path.exists() {
-                            if let Err(e) = crate::source::fetch::update_git(&cache_path) {
-                                errors.push(format!("{}: {}", src.name, e));
-                                continue;
+                        if let Some(ref new_ref) = update_ref {
+                            // Ref switch: fetch + checkout new ref + update config
+                            if !cache_path.exists() {
+                                let effective_ref = if new_ref == "latest" { None } else { Some(new_ref.as_str()) };
+                                if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path, effective_ref) {
+                                    errors.push(format!("{}: {}", src.name, e));
+                                    continue;
+                                }
+                            } else if new_ref == "latest" {
+                                // Unpin: fetch + reset to default branch
+                                if let Err(e) = crate::source::fetch::update_git(&cache_path, None) {
+                                    errors.push(format!("{}: {}", src.name, e));
+                                    continue;
+                                }
+                            } else {
+                                if let Err(e) = crate::source::fetch::switch_ref(&cache_path, new_ref) {
+                                    errors.push(format!("{}: {}", src.name, e));
+                                    continue;
+                                }
+                            }
+                            ref_changed = true;
+                        } else if cache_path.exists() {
+                            match crate::source::fetch::update_git_ref(&cache_path, src.r#ref.as_deref()) {
+                                Ok(None) => {
+                                    // Pinned to a tag — warn and skip
+                                    if !cli.quiet {
+                                        let tag = src.r#ref.as_deref().unwrap_or("unknown");
+                                        eprintln!("warning: source '{}' is pinned to {}, skipping", src.name, tag);
+                                    }
+                                    continue;
+                                }
+                                Ok(Some(_)) => {}
+                                Err(e) => {
+                                    errors.push(format!("{}: {}", src.name, e));
+                                    continue;
+                                }
                             }
                         } else {
-                            if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path) {
+                            if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path, src.r#ref.as_deref()) {
                                 errors.push(format!("{}: {}", src.name, e));
                                 continue;
                             }
@@ -1182,7 +1234,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         if cache_path.exists() {
                             std::fs::remove_dir_all(&cache_path)?;
                         }
-                        if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path) {
+                        if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path, None) {
                             errors.push(format!("{}: {}", src.name, e));
                             continue;
                         }
@@ -1212,6 +1264,16 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
             if !cli.dry_run {
                 crate::registry::save_registry(&updated_registry, &data_dir)?;
+                if ref_changed {
+                    if let Some(ref new_ref) = update_ref {
+                        if let Some(ref source_name) = name {
+                            if let Some(cfg_src) = config.source.iter_mut().find(|s| s.name == *source_name) {
+                                cfg_src.r#ref = if new_ref == "latest" { None } else { Some(new_ref.clone()) };
+                            }
+                        }
+                    }
+                    crate::config::save(&config, config_path_str)?;
+                }
             }
 
             if !cli.quiet {

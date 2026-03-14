@@ -53,7 +53,7 @@ fn source_add_zip_end_to_end() {
 
     // Fetch (unpack)
     let source_cache = cache_dir.join("my-plugin");
-    skittle::source::fetch::fetch(&source_url, &source_cache).unwrap();
+    skittle::source::fetch::fetch(&source_url, &source_cache, None).unwrap();
     assert!(source_cache.join(".claude-plugin/plugin.json").exists());
     assert!(source_cache.join("skill-a/SKILL.md").exists());
 
@@ -87,7 +87,7 @@ fn source_add_skill_file_end_to_end() {
     assert_eq!(source_url.default_name(), "helper");
 
     let source_cache = cache_dir.join("helper");
-    skittle::source::fetch::fetch(&source_url, &source_cache).unwrap();
+    skittle::source::fetch::fetch(&source_url, &source_cache, None).unwrap();
     assert!(source_cache.join("SKILL.md").exists());
 
     let structure = skittle::source::detect::detect(&source_cache).unwrap();

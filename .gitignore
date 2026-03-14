@@ -3,7 +3,7 @@
 **/*.rs.bk
 
 # Cargo lock is committed for binary crates (remove this line for libraries)
-# Cargo.lock
+Cargo.lock
 
 # Environment and secrets
 .env

@@ -6,10 +6,10 @@ use super::SourceUrl;
 
 /// Fetch a source into the local cache directory.
 /// Returns the path to the cached source content.
-pub fn fetch(source_url: &SourceUrl, cache_dir: &Path) -> Result<PathBuf> {
+pub fn fetch(source_url: &SourceUrl, cache_dir: &Path, git_ref: Option<&str>) -> Result<PathBuf> {
     match source_url {
         SourceUrl::Local(path) => fetch_local(path, cache_dir),
-        SourceUrl::Git(url) => fetch_git(url, cache_dir),
+        SourceUrl::Git(url) => fetch_git(url, cache_dir, git_ref),
         SourceUrl::Archive(path) => fetch_archive(path, cache_dir),
     }
 }
@@ -45,15 +45,25 @@ fn fetch_local(source_path: &Path, cache_dir: &Path) -> Result<PathBuf> {
 
 /// Clone a git repository into the cache directory using the git CLI.
 /// Uses the system git so SSH config, agent forwarding, and host aliases all work.
-fn fetch_git(url: &str, cache_dir: &Path) -> Result<PathBuf> {
+/// When `git_ref` is provided, clones that specific branch or tag.
+fn fetch_git(url: &str, cache_dir: &Path, git_ref: Option<&str>) -> Result<PathBuf> {
     if cache_dir.exists() {
-        return update_git(cache_dir);
+        return update_git(cache_dir, git_ref);
     }
 
     fs::create_dir_all(cache_dir.parent().unwrap_or(cache_dir))?;
 
+    let mut args = vec!["clone", "--depth", "1"];
+    let ref_string;
+    if let Some(r) = git_ref {
+        ref_string = r.to_string();
+        args.push("--branch");
+        args.push(&ref_string);
+    }
+    args.push(url);
+
     let output = std::process::Command::new("git")
-        .args(["clone", "--depth", "1", url])
+        .args(&args)
         .arg(cache_dir)
         .output()
         .context("failed to run git clone (is git installed?)")?;
@@ -66,8 +76,83 @@ fn fetch_git(url: &str, cache_dir: &Path) -> Result<PathBuf> {
     Ok(cache_dir.to_path_buf())
 }
 
-/// Update an existing git clone by fetching and resetting to origin/HEAD.
-pub fn update_git(repo_path: &Path) -> Result<PathBuf> {
+/// The type of a git ref — determines update behavior.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RefType {
+    /// No ref specified — tracks default branch.
+    Latest,
+    /// Ref is a branch — tracks that branch.
+    Tracking(String),
+    /// Ref is a tag — pinned, update warns and skips.
+    Pinned(String),
+}
+
+/// Detect whether a ref is a tag or branch in the given repo.
+pub fn detect_ref_type(git_ref: Option<&str>, repo_path: &Path) -> RefType {
+    let r = match git_ref {
+        None => return RefType::Latest,
+        Some(r) => r,
+    };
+
+    if is_tag(r, repo_path) {
+        RefType::Pinned(r.to_string())
+    } else {
+        RefType::Tracking(r.to_string())
+    }
+}
+
+/// Check if a ref is a tag in the given repo.
+pub fn is_tag(git_ref: &str, repo_path: &Path) -> bool {
+    let output = std::process::Command::new("git")
+        .args(["tag", "--list", git_ref])
+        .current_dir(repo_path)
+        .output();
+
+    match output {
+        Ok(o) => !o.stdout.is_empty(),
+        Err(_) => false,
+    }
+}
+
+/// Update an existing git clone, respecting the ref.
+/// - No ref (latest): fetch + reset to origin/HEAD
+/// - Branch (tracking): fetch + reset to origin/<branch>
+/// - Tag (pinned): warn and skip
+///
+/// Returns `Ok(None)` when the update was skipped (pinned tag).
+pub fn update_git_ref(repo_path: &Path, git_ref: Option<&str>) -> Result<Option<PathBuf>> {
+    let ref_type = detect_ref_type(git_ref, repo_path);
+
+    match ref_type {
+        RefType::Pinned(_) => {
+            Ok(None) // Caller should warn
+        }
+        RefType::Tracking(branch) => {
+            git_fetch(repo_path)?;
+            git_reset(repo_path, &format!("origin/{}", branch))?;
+            Ok(Some(repo_path.to_path_buf()))
+        }
+        RefType::Latest => {
+            git_fetch(repo_path)?;
+            git_reset(repo_path, "origin/HEAD")?;
+            Ok(Some(repo_path.to_path_buf()))
+        }
+    }
+}
+
+/// Update an existing git clone by fetching and resetting.
+pub fn update_git(repo_path: &Path, git_ref: Option<&str>) -> Result<PathBuf> {
+    let reset_target = match git_ref {
+        Some(r) => format!("origin/{}", r),
+        None => "origin/HEAD".to_string(),
+    };
+
+    git_fetch(repo_path)?;
+    git_reset(repo_path, &reset_target)?;
+    Ok(repo_path.to_path_buf())
+}
+
+fn git_fetch(repo_path: &Path) -> Result<()> {
     let output = std::process::Command::new("git")
         .args(["fetch", "origin"])
         .current_dir(repo_path)
@@ -78,9 +163,12 @@ pub fn update_git(repo_path: &Path) -> Result<PathBuf> {
         let stderr = String::from_utf8_lossy(&output.stderr);
         anyhow::bail!("failed to fetch in {}: {}", repo_path.display(), stderr.trim());
     }
+    Ok(())
+}
 
+fn git_reset(repo_path: &Path, target: &str) -> Result<()> {
     let output = std::process::Command::new("git")
-        .args(["reset", "--hard", "origin/HEAD"])
+        .args(["reset", "--hard", target])
         .current_dir(repo_path)
         .output()
         .context("failed to run git reset")?;
@@ -89,8 +177,26 @@ pub fn update_git(repo_path: &Path) -> Result<PathBuf> {
         let stderr = String::from_utf8_lossy(&output.stderr);
         anyhow::bail!("failed to reset in {}: {}", repo_path.display(), stderr.trim());
     }
+    Ok(())
+}
 
-    Ok(repo_path.to_path_buf())
+/// Switch a git repo to a different ref. Fetches first, then checks out.
+pub fn switch_ref(repo_path: &Path, new_ref: &str) -> Result<()> {
+    git_fetch(repo_path)?;
+
+    // Try checking out as a remote branch first, fall back to tag/direct ref
+    let output = std::process::Command::new("git")
+        .args(["checkout", new_ref])
+        .current_dir(repo_path)
+        .output()
+        .context("failed to run git checkout")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("failed to checkout '{}': {}", new_ref, stderr.trim());
+    }
+
+    Ok(())
 }
 
 /// Extract a zip/skill archive into the cache directory.
@@ -185,7 +291,7 @@ mod tests {
 
         let url = SourceUrl::Local(src.path().to_path_buf());
         let cache_dest = cache.path().join("test-src");
-        let result = fetch(&url, &cache_dest).unwrap();
+        let result = fetch(&url, &cache_dest, None).unwrap();
         assert!(result.join("SKILL.md").exists());
         assert!(result.join("extra.txt").exists());
     }
@@ -199,7 +305,7 @@ mod tests {
 
         let url = SourceUrl::Local(skill_file);
         let cache_dest = cache.path().join("test-src");
-        let result = fetch(&url, &cache_dest).unwrap();
+        let result = fetch(&url, &cache_dest, None).unwrap();
         assert!(result.join("SKILL.md").exists());
     }
 
@@ -207,7 +313,7 @@ mod tests {
     fn fetch_local_nonexistent_errors() {
         let cache = TempDir::new().unwrap();
         let url = SourceUrl::Local(PathBuf::from("/nonexistent/path/xyz"));
-        let result = fetch(&url, &cache.path().join("out"));
+        let result = fetch(&url, &cache.path().join("out"), None);
         assert!(result.is_err());
     }
 
@@ -267,7 +373,7 @@ mod tests {
 
         let url = SourceUrl::Archive(zip_path);
         let cache_dest = cache.path().join("test-archive");
-        let result = fetch(&url, &cache_dest).unwrap();
+        let result = fetch(&url, &cache_dest, None).unwrap();
         assert!(result.join("SKILL.md").exists());
         assert!(result.join("extra.txt").exists());
     }
@@ -283,7 +389,7 @@ mod tests {
 
         let url = SourceUrl::Archive(skill_path);
         let cache_dest = cache.path().join("test-skill");
-        let result = fetch(&url, &cache_dest).unwrap();
+        let result = fetch(&url, &cache_dest, None).unwrap();
         assert!(result.join("SKILL.md").exists());
     }
 
@@ -291,7 +397,7 @@ mod tests {
     fn fetch_archive_not_found() {
         let cache = TempDir::new().unwrap();
         let url = SourceUrl::Archive(PathBuf::from("/nonexistent/archive.zip"));
-        let result = fetch(&url, &cache.path().join("out"));
+        let result = fetch(&url, &cache.path().join("out"), None);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("archive not found"));
     }

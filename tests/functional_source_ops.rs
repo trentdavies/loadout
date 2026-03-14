@@ -117,7 +117,7 @@ fn add_local_source_and_verify_registry() {
     .unwrap();
     let default_name = source_url.default_name();
     let cached = cache_dir.join(&default_name);
-    skittle::source::fetch::fetch(&source_url, &cached).unwrap();
+    skittle::source::fetch::fetch(&source_url, &cached, None).unwrap();
 
     let structure = skittle::source::detect::detect(&cached).unwrap();
     let registered =
@@ -166,7 +166,7 @@ fn add_source_with_custom_name() {
     // Use a custom name instead of the default
     let custom_name = "my-custom-source";
     let cached = cache_dir.join(custom_name);
-    skittle::source::fetch::fetch(&source_url, &cached).unwrap();
+    skittle::source::fetch::fetch(&source_url, &cached, None).unwrap();
 
     let structure = skittle::source::detect::detect(&cached).unwrap();
     let registered =
@@ -453,7 +453,7 @@ fn normalize_with_overrides_uses_custom_names() {
         source_dir.path().to_str().unwrap(),
     ).unwrap();
     let cached = cache_dir.join("test-src");
-    skittle::source::fetch::fetch(&source_url, &cached).unwrap();
+    skittle::source::fetch::fetch(&source_url, &cached, None).unwrap();
 
     let structure = skittle::source::detect::detect(&cached).unwrap();
     let overrides = skittle::source::normalize::Overrides {
@@ -479,7 +479,7 @@ fn normalize_with_overrides_rejects_invalid_kebab() {
         source_dir.path().to_str().unwrap(),
     ).unwrap();
     let cached = cache_dir.join("test-src");
-    skittle::source::fetch::fetch(&source_url, &cached).unwrap();
+    skittle::source::fetch::fetch(&source_url, &cached, None).unwrap();
 
     let structure = skittle::source::detect::detect(&cached).unwrap();
     let overrides = skittle::source::normalize::Overrides {
