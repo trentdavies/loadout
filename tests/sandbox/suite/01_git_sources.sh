@@ -40,23 +40,24 @@ test_02b_knowledge_work_in_json() {
 }
 
 test_03_add_claude_official() {
-  local output exit_code
-  output=$("$LOADOUT" add https://github.com/anthropics/claude-plugins-official.git --source claude-official 2>&1)
-  exit_code=$?
-  printf "  \$ loadout add ... --name claude-official\n" | tee -a "$SANDBOX_LOG"
-  printf "  exit: %d\n" "$exit_code" | tee -a "$SANDBOX_LOG"
-  echo "$output" | head -5 | while IFS= read -r line; do
-    printf "  %s\n" "$line" | tee -a "$SANDBOX_LOG"
-  done
-  echo "" | tee -a "$SANDBOX_LOG"
+  # claude-plugins-official marketplace.json uses object-format `source` entries
+  # (e.g. {"source": "url", "url": "..."} and {"source": "git-subdir", ...})
+  # alongside string-format entries (e.g. "./plugins/typescript-lsp").
+  # Our marketplace parser must handle both formats.
+  log_cmd "$LOADOUT" add https://github.com/anthropics/claude-plugins-official.git --source claude-official
 
-  if [ "$exit_code" -eq 0 ]; then
-    _pass "claude-official source added"
-    log_check 1 "claude-official appears in source list"
+  local json
+  json=$("$LOADOUT" list --json 2>/dev/null)
+  local skill_count
+  skill_count=$(echo "$json" | jq '[.[] | select(.source == "claude-official")] | length')
+
+  if [ "$skill_count" -gt 0 ]; then
+    _pass "claude-official source added ($skill_count skills)"
+    log_check 1 "claude-official has $skill_count skills"
   else
-    # This repo has a known parse issue — log it but don't block the suite
-    _pass "claude-official add failed (known parse issue in repo): $output"
-    log_check 0 "claude-official — loadout could not parse repo (upstream issue)"
+    _fail "claude-official has no skills (marketplace parser likely rejects object-format source entries)" \
+      "skills present" "0 (check marketplace.json source field deserialization)"
+    log_check 0 "claude-official skills detected"
   fi
 }
 
