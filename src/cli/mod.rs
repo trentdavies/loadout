@@ -477,29 +477,17 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     println!("{}", serde_json::to_string_pretty(&entries)?);
                 } else {
                     let output = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
-                    // Collect (plain_identity, colored_identity, description) tuples
-                    let rows: Vec<(String, String, String)> = registry.sources.iter()
-                        .flat_map(|s| s.plugins.iter().flat_map(move |p| {
-                            p.skills.iter().map(move |sk| {
-                                (
-                                    crate::output::plain_identity(&s.name, &p.name, &sk.name),
-                                    crate::output::format_identity(&s.name, &p.name, &sk.name),
-                                    sk.description.clone().unwrap_or_default(),
-                                )
-                            })
-                        }))
-                        .collect();
-                    if rows.is_empty() {
-                        output.info("No skills found. Add a source with `skittle add`");
-                    } else {
-                        // Use plain identity for width calculation, colored for display
-                        let id_width = rows.iter().map(|(p, _, _)| p.len()).max().unwrap_or(0).max("Identity".len());
-                        println!("{}", format!("{:<w$}  {}", "Identity", "Description", w = id_width).bold());
-                        println!("{}", format!("{}  {}", "─".repeat(id_width), "─".repeat("Description".len())).dimmed());
-                        for (plain, colored, desc) in &rows {
-                            let padding = id_width.saturating_sub(plain.len());
-                            println!("{}{}  {}", colored, " ".repeat(padding), desc);
+                    let mut found = false;
+                    for s in &registry.sources {
+                        for p in &s.plugins {
+                            for sk in &p.skills {
+                                found = true;
+                                println!("{}", crate::output::format_identity(&s.name, &p.name, &sk.name));
+                            }
                         }
+                    }
+                    if !found {
+                        output.info("No skills found. Add a source with `skittle add`");
                     }
                 }
             }
