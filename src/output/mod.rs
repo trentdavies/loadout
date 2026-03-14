@@ -1,5 +1,22 @@
 use colored::Colorize;
 
+/// Format a skill identity as a color-coded string: source(cyan) : plugin(green) / skill(bold).
+pub fn format_identity(source: &str, plugin: &str, skill: &str) -> String {
+    format!(
+        "{}{}{}{}{}",
+        source.cyan(),
+        ":".dimmed(),
+        plugin.green(),
+        "/".dimmed(),
+        skill.bold(),
+    )
+}
+
+/// Format a skill identity as a plain string: source:plugin/skill.
+pub fn plain_identity(source: &str, plugin: &str, skill: &str) -> String {
+    format!("{}:{}/{}", source, plugin, skill)
+}
+
 /// Output context carrying global flags for all formatting decisions.
 #[derive(Debug, Clone)]
 pub struct Output {
