@@ -46,10 +46,6 @@ pub struct InstalledSkill {
 pub struct Registry {
     pub sources: Vec<RegisteredSource>,
 
-    /// Active bundle per target: target_name → bundle_name.
-    #[serde(default)]
-    pub active_bundles: std::collections::BTreeMap<String, String>,
-
     /// Installed skills per target: target_name → skill_name → provenance.
     #[serde(default)]
     pub installed: std::collections::BTreeMap<String, std::collections::BTreeMap<String, InstalledSkill>>,

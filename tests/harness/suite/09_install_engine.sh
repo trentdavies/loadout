@@ -83,19 +83,14 @@ test_install_bundle() {
   assert_file_not_exists "$TARGET_CLAUDE/skills/apply/SKILL.md"
 }
 
-test_install_bundle_tracks_active() {
+test_install_bundle_applies_skills() {
   setup_source_and_targets
   "$SKITTLE" bundle create test-b >/dev/null 2>&1
   "$SKITTLE" bundle add test-b test-plugin/explore >/dev/null 2>&1
   "$SKITTLE" apply --force --bundle test-b --target test-claude >/dev/null 2>&1
-  # Status should show test-b as active on test-claude
-  local output
-  output=$("$SKITTLE" status 2>/dev/null)
-  if echo "$output" | grep -qF "test-b"; then
-    _pass "active bundle shown in status"
-  else
-    _pass "bundle installed (active tracking may vary in output)"
-  fi
+  # Skills from the bundle should be installed on the target
+  assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
+  _pass "bundle skills applied to target"
 }
 
 test_uninstall_skill() {

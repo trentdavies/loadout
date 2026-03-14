@@ -109,21 +109,6 @@ impl Registry {
         result
     }
 
-    /// Set the active bundle for a target.
-    pub fn set_active_bundle(&mut self, target_name: &str, bundle_name: &str) {
-        self.active_bundles.insert(target_name.to_string(), bundle_name.to_string());
-    }
-
-    /// Get the active bundle for a target.
-    pub fn active_bundle(&self, target_name: &str) -> Option<&str> {
-        self.active_bundles.get(target_name).map(|s| s.as_str())
-    }
-
-    /// Clear the active bundle for a target.
-    pub fn clear_active_bundle(&mut self, target_name: &str) {
-        self.active_bundles.remove(target_name);
-    }
-
     /// Match skills whose full identity (`source:plugin/skill`) matches a glob pattern.
     /// The pattern is matched against the full identity string using `glob_match`.
     pub fn match_skills(&self, pattern: &str) -> Vec<(&str, &RegisteredPlugin, &RegisteredSkill)> {
@@ -309,13 +294,10 @@ mod tests {
             }],
             cache_path: std::path::PathBuf::from("/tmp"),
         });
-        registry.set_active_bundle("tgt", "my-bundle");
-
         save_registry(&registry, tmp.path()).unwrap();
         let loaded = load_registry(tmp.path()).unwrap();
         assert_eq!(loaded.sources.len(), 1);
         assert_eq!(loaded.sources[0].plugins[0].skills[0].name, "sk");
-        assert_eq!(loaded.active_bundle("tgt"), Some("my-bundle"));
     }
 
     #[test]

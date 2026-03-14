@@ -47,7 +47,8 @@ test_bundle_subcommand_help() {
   assert_stdout_contains "show" "$SKITTLE" bundle --help
   assert_stdout_contains "add" "$SKITTLE" bundle --help
   assert_stdout_contains "drop" "$SKITTLE" bundle --help
-  assert_stdout_contains "swap" "$SKITTLE" bundle --help
+  assert_stdout_contains "activate" "$SKITTLE" bundle --help
+  assert_stdout_contains "deactivate" "$SKITTLE" bundle --help
 }
 
 test_config_subcommand_help() {

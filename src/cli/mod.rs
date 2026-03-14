@@ -249,19 +249,35 @@ pub enum BundleCommand {
         #[arg(required = true)]
         skills: Vec<String>,
     },
-    /// Swap active bundle (uninstall from, install to)
-    Swap {
-        /// Bundle to uninstall
-        from: String,
+    /// Activate a bundle (batch install its skills onto a target)
+    Activate {
+        /// Bundle name
+        name: String,
 
-        /// Bundle to install
-        to: String,
-
-        /// Target for the swap
-        #[arg(long)]
+        /// Target to activate on
         target: Option<String>,
 
-        /// Actually perform the swap (default is dry run)
+        /// Activate on all configured targets
+        #[arg(long)]
+        all: bool,
+
+        /// Actually perform the activation (default is dry run)
+        #[arg(long)]
+        force: bool,
+    },
+    /// Deactivate a bundle (batch uninstall its skills from a target)
+    Deactivate {
+        /// Bundle name
+        name: String,
+
+        /// Target to deactivate from
+        target: Option<String>,
+
+        /// Deactivate from all configured targets
+        #[arg(long)]
+        all: bool,
+
+        /// Actually perform the deactivation (default is dry run)
         #[arg(long)]
         force: bool,
     },
@@ -871,15 +887,6 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
             }
 
-            // Track active bundle
-            if let Some(ref bundle_name) = bundle {
-                if !cli.dry_run {
-                    for tc in &targets {
-                        reg.set_active_bundle(&tc.name, bundle_name);
-                    }
-                }
-            }
-
             if !cli.dry_run {
                 crate::registry::save_registry(&reg, &data_dir)?;
             }
@@ -1123,7 +1130,6 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     "skills": total_skills,
                     "installed": total_installed,
                     "bundles": config.bundle.len(),
-                    "active_bundles": registry.active_bundles,
                 });
                 println!("{}", serde_json::to_string_pretty(&json)?);
                 return Ok(());
@@ -1149,14 +1155,6 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 for src in &config.source {
                     let version = src.r#ref.as_deref().unwrap_or("latest");
                     out.info(&format!("  {} @ {}", src.name, version));
-                }
-            }
-
-            if !registry.active_bundles.is_empty() {
-                out.info("");
-                out.info("Active bundles:");
-                for (target, bundle) in &registry.active_bundles {
-                    out.info(&format!("  {} → {}", target, bundle));
                 }
             }
 
@@ -1444,24 +1442,10 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         anyhow::bail!("bundle '{}' not found", name);
                     }
 
-                    // Check if active
-                    let registry = crate::registry::load_registry(&data_dir)?;
-                    let is_active = registry.active_bundles.values().any(|b| b == &name);
-                    if is_active && !cli.quiet {
-                        eprintln!("warning: bundle '{}' is active on a target", name);
-                    }
-
                     let execute = force && !cli.dry_run;
                     if execute {
                         config.bundle.remove(&name);
                         crate::config::save(&config, config_path_str)?;
-
-                        // Clear from active bundles
-                        if is_active {
-                            let mut reg = registry;
-                            reg.active_bundles.retain(|_, v| v != &name);
-                            crate::registry::save_registry(&reg, &data_dir)?;
-                        }
                     }
 
                     if !cli.quiet {
@@ -1475,8 +1459,6 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     Ok(())
                 }
                 BundleCommand::List { patterns } => {
-                    let registry = crate::registry::load_registry(&data_dir)?;
-
                     let bundles: Vec<(&String, &crate::config::BundleConfig)> = if patterns.is_empty() {
                         config.bundle.iter().collect()
                     } else {
@@ -1493,14 +1475,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                     if cli.json {
                         let entries: Vec<serde_json::Value> = bundles.iter().map(|(name, b)| {
-                            let active_targets: Vec<&str> = registry.active_bundles.iter()
-                                .filter(|(_, v)| v.as_str() == name.as_str())
-                                .map(|(k, _)| k.as_str())
-                                .collect();
                             serde_json::json!({
                                 "name": name,
                                 "skills": b.skills.len(),
-                                "active_targets": active_targets,
                             })
                         }).collect();
                         println!("{}", serde_json::to_string_pretty(&entries)?);
@@ -1519,21 +1496,16 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
 
                     let rows: Vec<Vec<String>> = bundles.iter().map(|(name, b)| {
-                        let active: Vec<&str> = registry.active_bundles.iter()
-                            .filter(|(_, v)| v.as_str() == name.as_str())
-                            .map(|(k, _)| k.as_str())
-                            .collect();
                         vec![
                             (*name).clone(),
                             b.skills.len().to_string(),
-                            if active.is_empty() { String::new() } else { active.join(", ") },
                         ]
                     }).collect();
 
                     let out = crate::output::Output::from_flags(
                         cli.json, cli.quiet, cli.verbose,
                     );
-                    out.table(&["BUNDLE", "SKILLS", "ACTIVE ON"], &rows);
+                    out.table(&["BUNDLE", "SKILLS"], &rows);
                     Ok(())
                 }
                 BundleCommand::Show { name } => {
@@ -1616,60 +1588,100 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
                     Ok(())
                 }
-                BundleCommand::Swap { from, to, target, force } => {
-                    let config_for_install = config.clone();
-                    let mut registry = crate::registry::load_registry(&data_dir)?;
+                BundleCommand::Activate { name, target, all, force } => {
+                    if target.is_none() && !all {
+                        anyhow::bail!("provide a <target> or use --all");
+                    }
 
-                    // Validate both bundles exist
-                    let from_bundle = config.bundle.get(&from)
-                        .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", from))?
+                    let bundle = config.bundle.get(&name)
+                        .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", name))?
                         .clone();
-                    let to_bundle = config.bundle.get(&to)
-                        .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", to))?
-                        .clone();
+                    let registry = crate::registry::load_registry(&data_dir)?;
 
-                    // Determine targets
-                    let targets: Vec<&crate::config::TargetConfig> = if let Some(ref t) = target {
-                        let tc = config_for_install.target.iter()
+                    let targets: Vec<&crate::config::TargetConfig> = if all {
+                        config.target.iter().collect()
+                    } else {
+                        let t = target.as_ref().unwrap();
+                        let tc = config.target.iter()
                             .find(|tc| tc.name == *t)
                             .ok_or_else(|| anyhow::anyhow!("target '{}' not found", t))?;
                         vec![tc]
-                    } else {
-                        config_for_install.target.iter().filter(|t| t.sync == "auto").collect()
                     };
 
                     let execute = force && !cli.dry_run;
+                    let mut installed_count = 0usize;
                     for tc in &targets {
-                        let adapter = crate::target::resolve_adapter(tc, &config_for_install.adapter)?;
+                        let adapter = crate::target::resolve_adapter(tc, &config.adapter)?;
+                        let already = adapter.installed_skills(&tc.path).unwrap_or_default();
 
-                        if execute {
-                            // Uninstall 'from' skills
-                            for skill_id in &from_bundle.skills {
-                                if let Ok((_, _, s)) = registry.find_skill(skill_id) {
-                                    adapter.uninstall_skill(&s.name, &tc.path)?;
-                                }
+                        for skill_id in &bundle.skills {
+                            let (_, _, s) = registry.find_skill(skill_id)?;
+                            if already.contains(&s.name) {
+                                continue; // idempotent: skip silently
                             }
-                            // Install 'to' skills
-                            for skill_id in &to_bundle.skills {
-                                let (_, _, s) = registry.find_skill(skill_id)?;
+                            if execute {
                                 adapter.install_skill(s, &tc.path)?;
+                                installed_count += 1;
+                            } else if !cli.quiet {
+                                println!("  would install {} on {}", skill_id, tc.name);
                             }
-                            // Update active bundle
-                            registry.set_active_bundle(&tc.name, &to);
-                        } else if !cli.quiet {
-                            println!("  would swap {} → {} on {}", from, to, tc.name);
                         }
-                    }
-
-                    if execute {
-                        crate::registry::save_registry(&registry, &data_dir)?;
                     }
 
                     if !cli.quiet {
                         if execute {
-                            println!("Swapped bundle '{}' → '{}' on {} target(s)", from, to, targets.len());
+                            println!("Activated bundle '{}' ({} skill(s) installed)", name, installed_count);
                         } else {
-                            println!("Use --force to swap");
+                            println!("Use --force to activate");
+                        }
+                    }
+                    Ok(())
+                }
+                BundleCommand::Deactivate { name, target, all, force } => {
+                    if target.is_none() && !all {
+                        anyhow::bail!("provide a <target> or use --all");
+                    }
+
+                    let bundle = config.bundle.get(&name)
+                        .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", name))?
+                        .clone();
+                    let registry = crate::registry::load_registry(&data_dir)?;
+
+                    let targets: Vec<&crate::config::TargetConfig> = if all {
+                        config.target.iter().collect()
+                    } else {
+                        let t = target.as_ref().unwrap();
+                        let tc = config.target.iter()
+                            .find(|tc| tc.name == *t)
+                            .ok_or_else(|| anyhow::anyhow!("target '{}' not found", t))?;
+                        vec![tc]
+                    };
+
+                    let execute = force && !cli.dry_run;
+                    let mut removed_count = 0usize;
+                    for tc in &targets {
+                        let adapter = crate::target::resolve_adapter(tc, &config.adapter)?;
+                        let already = adapter.installed_skills(&tc.path).unwrap_or_default();
+
+                        for skill_id in &bundle.skills {
+                            let (_, _, s) = registry.find_skill(skill_id)?;
+                            if !already.contains(&s.name) {
+                                continue; // idempotent: skip silently
+                            }
+                            if execute {
+                                adapter.uninstall_skill(&s.name, &tc.path)?;
+                                removed_count += 1;
+                            } else if !cli.quiet {
+                                println!("  would uninstall {} from {}", skill_id, tc.name);
+                            }
+                        }
+                    }
+
+                    if !cli.quiet {
+                        if execute {
+                            println!("Deactivated bundle '{}' ({} skill(s) removed)", name, removed_count);
+                        } else {
+                            println!("Use --force to deactivate");
                         }
                     }
                     Ok(())

@@ -5,7 +5,7 @@ use tempfile::TempDir;
 
 use skittle::config::{BundleConfig, Config, TargetConfig, load_from, save_to};
 use skittle::registry::{
-    load_registry, save_registry, RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry,
+    RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry,
 };
 use skittle::target::resolve_adapter;
 
@@ -89,25 +89,6 @@ fn delete_bundle() {
     assert!(!reloaded.bundle.contains_key("ephemeral"));
 }
 
-/// Set a bundle as active on a target via the registry, then verify
-/// active_bundle() returns Some. The CLI uses this check to reject deletion
-/// without --force.
-#[test]
-fn delete_active_bundle_detected() {
-    let data_dir = TempDir::new().unwrap();
-
-    let mut registry = Registry::default();
-    registry.set_active_bundle("my-target", "important");
-    save_registry(&registry, data_dir.path()).unwrap();
-
-    let loaded = load_registry(data_dir.path()).unwrap();
-    assert_eq!(loaded.active_bundle("my-target"), Some("important"));
-
-    // The CLI would check this before allowing deletion:
-    let is_active = loaded.active_bundle("my-target").is_some();
-    assert!(is_active, "bundle should be detected as active on target");
-}
-
 /// Create a bundle with 3 skills, remove one via retain, save, reload, and
 /// verify only 2 remain.
 #[test]
@@ -136,13 +117,11 @@ fn drop_skill_from_bundle() {
 
 /// Create two bundles with different skills backed by real fixture files.
 /// Install bundle A's skills to a target, then swap to bundle B: uninstall A,
-/// install B. Verify B's skills are present and A's are not. Update active
-/// bundle tracking accordingly.
+/// install B. Verify B's skills are present and A's are not.
 #[test]
 fn swap_bundle() {
     let source_dir = TempDir::new().unwrap();
     let target_dir = TempDir::new().unwrap();
-    let data_dir = TempDir::new().unwrap();
 
     // Create skill fixtures on disk
     let skill_a1 = create_skill_fixture(source_dir.path(), "skill-a1");
@@ -188,8 +167,6 @@ fn swap_bundle() {
     // Install bundle A
     adapter.install_skill(&skill_a1, target_dir.path()).unwrap();
     adapter.install_skill(&skill_a2, target_dir.path()).unwrap();
-    registry.set_active_bundle("tgt", "bundle-a");
-
     let installed = adapter.installed_skills(target_dir.path()).unwrap();
     assert_eq!(installed.len(), 2);
     assert!(installed.contains(&"skill-a1".to_string()));
@@ -200,22 +177,12 @@ fn swap_bundle() {
     adapter.uninstall_skill("skill-a2", target_dir.path()).unwrap();
     adapter.install_skill(&skill_b1, target_dir.path()).unwrap();
     adapter.install_skill(&skill_b2, target_dir.path()).unwrap();
-    registry.set_active_bundle("tgt", "bundle-b");
-
     let installed = adapter.installed_skills(target_dir.path()).unwrap();
     assert_eq!(installed.len(), 2);
     assert!(installed.contains(&"skill-b1".to_string()));
     assert!(installed.contains(&"skill-b2".to_string()));
     assert!(!installed.contains(&"skill-a1".to_string()));
     assert!(!installed.contains(&"skill-a2".to_string()));
-
-    // Verify active bundle tracking updated
-    assert_eq!(registry.active_bundle("tgt"), Some("bundle-b"));
-
-    // Persist and reload to confirm
-    save_registry(&registry, data_dir.path()).unwrap();
-    let loaded = load_registry(data_dir.path()).unwrap();
-    assert_eq!(loaded.active_bundle("tgt"), Some("bundle-b"));
 }
 
 /// Insert a bundle named "dup" and verify contains_key detects it. The CLI

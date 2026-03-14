@@ -260,18 +260,6 @@ fn registry_find_skill_not_found() {
     assert!(registry.find_skill("nope/nada").is_err());
 }
 
-#[test]
-fn registry_active_bundle_tracking() {
-    let mut registry = skittle::registry::Registry::default();
-    assert!(registry.active_bundle("target-a").is_none());
-
-    registry.set_active_bundle("target-a", "dev-bundle");
-    assert_eq!(registry.active_bundle("target-a"), Some("dev-bundle"));
-
-    registry.clear_active_bundle("target-a");
-    assert!(registry.active_bundle("target-a").is_none());
-}
-
 // ─── Target Adapter ─────────────────────────────────────────────────────
 
 #[test]

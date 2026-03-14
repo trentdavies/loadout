@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Suite 11: End-to-End Lifecycle
 # Full lifecycle: init → add → target add → bundle create → bundle add →
-# install --bundle → status → swap → uninstall → remove
+# install --bundle → status → deactivate/activate → uninstall → remove
 
 test_full_lifecycle() {
   reset_environment
@@ -36,10 +36,11 @@ test_full_lifecycle() {
     _fail "status command failed" "exit 0" "exit $exit_code"
   fi
 
-  # 8. Create second bundle and swap (--force required)
+  # 8. Create second bundle, deactivate first, activate second (--force required)
   "$SKITTLE" bundle create lifecycle-bundle-b >/dev/null 2>&1
   "$SKITTLE" bundle add lifecycle-bundle-b test-plugin/verify >/dev/null 2>&1
-  assert_exit_code 0 "$SKITTLE" bundle swap lifecycle-bundle lifecycle-bundle-b --target lifecycle-target --force
+  assert_exit_code 0 "$SKITTLE" bundle deactivate lifecycle-bundle lifecycle-target --force
+  assert_exit_code 0 "$SKITTLE" bundle activate lifecycle-bundle-b lifecycle-target --force
   # Old skills removed, new skill installed
   assert_file_not_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_not_exists "$TARGET_CLAUDE/skills/apply/SKILL.md"
@@ -104,7 +105,7 @@ test_multi_target_lifecycle() {
   _pass "multi-target lifecycle completed"
 }
 
-test_bundle_swap_lifecycle() {
+test_bundle_activate_deactivate_lifecycle() {
   reset_environment
   "$SKITTLE" init >/dev/null 2>&1
 
@@ -123,19 +124,21 @@ test_bundle_swap_lifecycle() {
   assert_file_exists "$TARGET_CLAUDE/skills/apply/SKILL.md"
   assert_file_not_exists "$TARGET_CLAUDE/skills/verify/SKILL.md"
 
-  # Swap to prod (--force required)
-  "$SKITTLE" bundle swap dev-bundle prod-bundle --target tgt --force >/dev/null 2>&1
+  # Deactivate dev, activate prod (--force required)
+  "$SKITTLE" bundle deactivate dev-bundle tgt --force >/dev/null 2>&1
+  "$SKITTLE" bundle activate prod-bundle tgt --force >/dev/null 2>&1
   assert_file_not_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_not_exists "$TARGET_CLAUDE/skills/apply/SKILL.md"
   assert_file_exists "$TARGET_CLAUDE/skills/verify/SKILL.md"
 
-  # Swap back to dev (--force required)
-  "$SKITTLE" bundle swap prod-bundle dev-bundle --target tgt --force >/dev/null 2>&1
+  # Deactivate prod, activate dev (--force required)
+  "$SKITTLE" bundle deactivate prod-bundle tgt --force >/dev/null 2>&1
+  "$SKITTLE" bundle activate dev-bundle tgt --force >/dev/null 2>&1
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_exists "$TARGET_CLAUDE/skills/apply/SKILL.md"
   assert_file_not_exists "$TARGET_CLAUDE/skills/verify/SKILL.md"
 
-  _pass "bundle swap lifecycle completed"
+  _pass "bundle activate/deactivate lifecycle completed"
 }
 
 test_idempotent_operations_lifecycle() {

@@ -123,57 +123,6 @@ fn bundle_config_roundtrip() {
     assert!(loaded.bundle["production"].skills.contains(&"core/explore".to_string()));
 }
 
-// ─── Active Bundle Tracking ─────────────────────────────────────────────
-
-#[test]
-fn active_bundle_set_and_get() {
-    let mut registry = skittle::registry::Registry::default();
-
-    registry.set_active_bundle("my-target", "dev");
-    assert_eq!(registry.active_bundle("my-target"), Some("dev"));
-}
-
-#[test]
-fn active_bundle_overwrite() {
-    let mut registry = skittle::registry::Registry::default();
-
-    registry.set_active_bundle("t", "bundle-a");
-    registry.set_active_bundle("t", "bundle-b");
-    assert_eq!(registry.active_bundle("t"), Some("bundle-b"));
-}
-
-#[test]
-fn active_bundle_clear() {
-    let mut registry = skittle::registry::Registry::default();
-
-    registry.set_active_bundle("t", "dev");
-    registry.clear_active_bundle("t");
-    assert!(registry.active_bundle("t").is_none());
-}
-
-#[test]
-fn active_bundle_per_target() {
-    let mut registry = skittle::registry::Registry::default();
-
-    registry.set_active_bundle("target-a", "bundle-1");
-    registry.set_active_bundle("target-b", "bundle-2");
-
-    assert_eq!(registry.active_bundle("target-a"), Some("bundle-1"));
-    assert_eq!(registry.active_bundle("target-b"), Some("bundle-2"));
-}
-
-#[test]
-fn active_bundle_persists_through_save_load() {
-    let data_dir = TempDir::new().unwrap();
-
-    let mut registry = skittle::registry::Registry::default();
-    registry.set_active_bundle("claude-main", "production");
-    skittle::registry::save_registry(&registry, data_dir.path()).unwrap();
-
-    let loaded = skittle::registry::load_registry(data_dir.path()).unwrap();
-    assert_eq!(loaded.active_bundle("claude-main"), Some("production"));
-}
-
 // ─── Bundle Swap (adapter-level simulation) ─────────────────────────────
 
 #[test]
@@ -220,14 +169,3 @@ fn bundle_swap_installs_new_uninstalls_old() {
     assert!(!installed.contains(&"sk-a".to_string()));
 }
 
-#[test]
-fn bundle_swap_updates_active_tracking() {
-    let mut registry = skittle::registry::Registry::default();
-
-    registry.set_active_bundle("target-1", "old-bundle");
-    assert_eq!(registry.active_bundle("target-1"), Some("old-bundle"));
-
-    // Swap updates the active bundle
-    registry.set_active_bundle("target-1", "new-bundle");
-    assert_eq!(registry.active_bundle("target-1"), Some("new-bundle"));
-}
