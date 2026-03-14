@@ -10,8 +10,8 @@ use tempfile::TempDir;
 fn full_lifecycle_smoke_test() {
     // ── Setup isolated environment ──────────────────────────────────────
     let env_dir = TempDir::new().unwrap();
-    let config_path = env_dir.path().join("config/skittle/config.toml");
-    let data_dir = env_dir.path().join("data/skittle");
+    let config_path = env_dir.path().join("config/loadout/config.toml");
+    let data_dir = env_dir.path().join("data/loadout");
     let cache_dir = data_dir.join("sources");
     fs::create_dir_all(config_path.parent().unwrap()).unwrap();
     fs::create_dir_all(&cache_dir).unwrap();
@@ -46,8 +46,8 @@ fn full_lifecycle_smoke_test() {
     .unwrap();
 
     // ── Step 1: Init (create default config) ────────────────────────────
-    let config = skittle::config::Config::default();
-    skittle::config::save_to(&config, &config_path).unwrap();
+    let config = loadout::config::Config::default();
+    loadout::config::save_to(&config, &config_path).unwrap();
     assert!(config_path.exists(), "config file should exist after init");
 
     // ── Step 2: Source add ──────────────────────────────────────────────
@@ -55,22 +55,22 @@ fn full_lifecycle_smoke_test() {
     let cached = cache_dir.join("smoke-src");
     copy_dir_recursive(source_dir.path(), &cached).unwrap();
 
-    let structure = skittle::source::detect::detect(&cached).unwrap();
+    let structure = loadout::source::detect::detect(&cached).unwrap();
     let registered =
-        skittle::source::normalize::normalize("smoke-src", &cached, &structure).unwrap();
+        loadout::source::normalize::normalize("smoke-src", &cached, &structure).unwrap();
 
     assert!(!registered.plugins.is_empty(), "should detect plugin");
     let total_skills: usize = registered.plugins.iter().map(|p| p.skills.len()).sum();
     assert_eq!(total_skills, 3, "should find 3 skills");
 
     // Save to registry
-    let mut registry = skittle::registry::Registry::default();
+    let mut registry = loadout::registry::Registry::default();
     registry.sources.push(registered);
-    skittle::registry::save_registry(&registry, &data_dir).unwrap();
+    loadout::registry::save_registry(&registry, &data_dir).unwrap();
 
     // Update config with source
-    let mut config = skittle::config::load_from(&config_path).unwrap();
-    config.source.push(skittle::config::SourceConfig {
+    let mut config = loadout::config::load_from(&config_path).unwrap();
+    config.source.push(loadout::config::SourceConfig {
         name: "smoke-src".to_string(),
         url: source_dir.path().display().to_string(),
         source_type: "local".to_string(),
@@ -79,24 +79,24 @@ fn full_lifecycle_smoke_test() {
     });
 
     // ── Step 3: Target add ──────────────────────────────────────────────
-    config.target.push(skittle::config::TargetConfig {
+    config.target.push(loadout::config::TargetConfig {
         name: "smoke-target".to_string(),
         agent: "claude".to_string(),
         path: target_dir.path().to_path_buf(),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
     });
-    skittle::config::save_to(&config, &config_path).unwrap();
+    loadout::config::save_to(&config, &config_path).unwrap();
 
     // Verify config roundtrip
-    let config = skittle::config::load_from(&config_path).unwrap();
+    let config = loadout::config::load_from(&config_path).unwrap();
     assert_eq!(config.source.len(), 1);
     assert_eq!(config.target.len(), 1);
 
     // ── Step 4: Install --all ───────────────────────────────────────────
-    let registry = skittle::registry::load_registry(&data_dir).unwrap();
+    let registry = loadout::registry::load_registry(&data_dir).unwrap();
     let target = &config.target[0];
-    let adapter = skittle::target::resolve_adapter(target, &config.adapter).unwrap();
+    let adapter = loadout::target::resolve_adapter(target, &config.adapter).unwrap();
 
     let all_skills = registry.all_skills();
     assert_eq!(all_skills.len(), 3);
@@ -122,7 +122,7 @@ fn full_lifecycle_smoke_test() {
     assert!(target.path.join("skills/explore/scripts/run.sh").exists());
 
     // ── Step 5: Status check ────────────────────────────────────────────
-    let registry = skittle::registry::load_registry(&data_dir).unwrap();
+    let registry = loadout::registry::load_registry(&data_dir).unwrap();
     let source_count = registry.sources.len();
     let plugin_count: usize = registry.sources.iter().map(|s| s.plugins.len()).sum();
     let skill_count: usize = registry
@@ -153,11 +153,11 @@ fn full_lifecycle_smoke_test() {
     }
 
     // Clear registry
-    let empty_registry = skittle::registry::Registry::default();
-    skittle::registry::save_registry(&empty_registry, &data_dir).unwrap();
+    let empty_registry = loadout::registry::Registry::default();
+    loadout::registry::save_registry(&empty_registry, &data_dir).unwrap();
 
     // Verify clean state
-    let registry = skittle::registry::load_registry(&data_dir).unwrap();
+    let registry = loadout::registry::load_registry(&data_dir).unwrap();
     assert!(
         registry.sources.is_empty(),
         "registry should be empty after cache clean"

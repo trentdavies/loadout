@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-IMAGE="skittle-test"
+IMAGE="loadout-test"
 
 # Build the Docker image
 echo "Building $IMAGE..."

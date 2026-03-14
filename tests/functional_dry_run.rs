@@ -31,30 +31,30 @@ fn setup_env() -> (TempDir, TempDir, TempDir, PathBuf, PathBuf) {
     make_skill_fixture(source_dir.path(), "skill-b");
 
     // Build registry
-    let structure = skittle::source::detect::detect(source_dir.path()).unwrap();
+    let structure = loadout::source::detect::detect(source_dir.path()).unwrap();
     let registered =
-        skittle::source::normalize::normalize("test-src", source_dir.path(), &structure).unwrap();
-    let mut registry = skittle::registry::Registry::default();
+        loadout::source::normalize::normalize("test-src", source_dir.path(), &structure).unwrap();
+    let mut registry = loadout::registry::Registry::default();
     registry.sources.push(registered);
-    skittle::registry::save_registry(&registry, &data_dir).unwrap();
+    loadout::registry::save_registry(&registry, &data_dir).unwrap();
 
     // Build config
-    let mut config = skittle::config::Config::default();
-    config.source.push(skittle::config::SourceConfig {
+    let mut config = loadout::config::Config::default();
+    config.source.push(loadout::config::SourceConfig {
         name: "test-src".to_string(),
         url: source_dir.path().display().to_string(),
         source_type: "local".to_string(),
         r#ref: None,
         mode: None,
     });
-    config.target.push(skittle::config::TargetConfig {
+    config.target.push(loadout::config::TargetConfig {
         name: "test-target".to_string(),
         agent: "claude".to_string(),
         path: target_dir.path().to_path_buf(),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
     });
-    skittle::config::save_to(&config, &config_path).unwrap();
+    loadout::config::save_to(&config, &config_path).unwrap();
 
     (env_dir, source_dir, target_dir, config_path, data_dir)
 }
@@ -63,10 +63,10 @@ fn setup_env() -> (TempDir, TempDir, TempDir, PathBuf, PathBuf) {
 fn not_calling_install_writes_nothing() {
     let (_env, _source, target_dir, config_path, data_dir) = setup_env();
 
-    let config = skittle::config::load_from(&config_path).unwrap();
-    let registry = skittle::registry::load_registry(&data_dir).unwrap();
+    let config = loadout::config::load_from(&config_path).unwrap();
+    let registry = loadout::registry::load_registry(&data_dir).unwrap();
     let target = &config.target[0];
-    let adapter = skittle::target::resolve_adapter(target, &config.adapter).unwrap();
+    let adapter = loadout::target::resolve_adapter(target, &config.adapter).unwrap();
 
     // Without --force, destructive commands skip adapter calls.
     // Verify that NOT calling install_skill means nothing is written.
@@ -86,10 +86,10 @@ fn not_calling_install_writes_nothing() {
 fn not_calling_uninstall_removes_nothing() {
     let (_env, _source, target_dir, config_path, data_dir) = setup_env();
 
-    let config = skittle::config::load_from(&config_path).unwrap();
-    let registry = skittle::registry::load_registry(&data_dir).unwrap();
+    let config = loadout::config::load_from(&config_path).unwrap();
+    let registry = loadout::registry::load_registry(&data_dir).unwrap();
     let target = &config.target[0];
-    let adapter = skittle::target::resolve_adapter(target, &config.adapter).unwrap();
+    let adapter = loadout::target::resolve_adapter(target, &config.adapter).unwrap();
 
     // First, actually install skills
     for (_, _, skill) in &registry.all_skills() {

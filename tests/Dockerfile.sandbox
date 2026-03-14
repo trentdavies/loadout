@@ -19,13 +19,13 @@ RUN apt-get update && apt-get install -y \
 
 # SSH setup
 RUN mkdir -p /run/sshd \
-    && echo 'root:skittle' | chpasswd \
+    && echo 'root:loadout' | chpasswd \
     && sed -i 's/#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config \
     && sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config \
     && sed -i 's/#AllowAgentForwarding.*/AllowAgentForwarding yes/' /etc/ssh/sshd_config
 
 # Copy just the binary from builder
-COPY --from=builder /build/target/release/skittle /usr/local/bin/skittle
+COPY --from=builder /build/target/release/loadout /usr/local/bin/loadout
 
 # Set up a realistic home directory
 ENV HOME=/root
@@ -37,7 +37,7 @@ RUN mkdir -p ~/.claude ~/.codex ~/.cursor
 # Copy test fixtures for playing with
 COPY tests/fixtures/ /fixtures/
 
-# Skittle is on PATH, network is available, SSH on port 22
+# Loadout is on PATH, network is available, SSH on port 22
 EXPOSE 22
 
 CMD ["/usr/sbin/sshd", "-D"]

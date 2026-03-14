@@ -1,6 +1,6 @@
 ---
 name: single-skill
-description: A minimal test skill used to validate single-file source detection. Use when testing that skittle can add a lone SKILL.md as a source.
+description: A minimal test skill used to validate single-file source detection. Use when testing that loadout can add a lone SKILL.md as a source.
 ---
 
 # Single Skill

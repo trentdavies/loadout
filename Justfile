@@ -2,7 +2,7 @@
 
 # Run all Rust tests (unit + integration)
 test:
-    SKITTLE_NON_INTERACTIVE=1 cargo test
+    LOADOUT_NON_INTERACTIVE=1 cargo test
 
 # Build debug binary
 build:
@@ -14,7 +14,7 @@ release:
 
 # Run the shell test harness in Docker (offline, no network)
 harness:
-    DOCKER_BUILDKIT=0 docker build -f tests/Dockerfile -t skittle-harness . && docker run --rm skittle-harness
+    DOCKER_BUILDKIT=0 docker build -f tests/Dockerfile -t loadout-harness . && docker run --rm loadout-harness
 
 # Launch sandbox container (detached, interactive)
 sandbox:
@@ -30,11 +30,11 @@ sandbox-keep:
 
 # Connect to a running sandbox container
 sandbox-exec:
-    docker exec -it skittle-sandbox bash
+    docker exec -it loadout-sandbox bash
 
 # Stop and remove sandbox container
 sandbox-clean:
-    docker rm -f skittle-sandbox
+    docker rm -f loadout-sandbox
 
 # Run all tests: Rust + harness
 test-all: test harness

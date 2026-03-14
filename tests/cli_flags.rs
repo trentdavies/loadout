@@ -1,5 +1,5 @@
 use clap::Parser;
-use skittle::cli::Cli;
+use loadout::cli::Cli;
 
 /// Verify clap parsing of global flags at the Rust level.
 /// Full functional coverage is in Docker suite 00.
@@ -7,7 +7,7 @@ use skittle::cli::Cli;
 #[test]
 fn parse_help_flag() {
     // --help causes clap to exit, so we check that parsing without it works
-    let cli = Cli::try_parse_from(["skittle", "status"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "status"]).unwrap();
     assert!(!cli.json);
     assert!(!cli.quiet);
     assert!(!cli.verbose);
@@ -16,51 +16,51 @@ fn parse_help_flag() {
 
 #[test]
 fn parse_dry_run_flag() {
-    let cli = Cli::try_parse_from(["skittle", "-n", "apply", "--all"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "-n", "apply", "--all"]).unwrap();
     assert!(cli.dry_run);
 }
 
 #[test]
 fn parse_dry_run_long_flag() {
-    let cli = Cli::try_parse_from(["skittle", "--dry-run", "status"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "--dry-run", "status"]).unwrap();
     assert!(cli.dry_run);
 }
 
 #[test]
 fn parse_json_flag() {
-    let cli = Cli::try_parse_from(["skittle", "--json", "status"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "--json", "status"]).unwrap();
     assert!(cli.json);
 }
 
 #[test]
 fn parse_quiet_flag() {
-    let cli = Cli::try_parse_from(["skittle", "-q", "status"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "-q", "status"]).unwrap();
     assert!(cli.quiet);
 }
 
 #[test]
 fn parse_verbose_flag() {
-    let cli = Cli::try_parse_from(["skittle", "-v", "status"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "-v", "status"]).unwrap();
     assert!(cli.verbose);
 }
 
 #[test]
 fn parse_config_override() {
-    let cli = Cli::try_parse_from(["skittle", "--config", "/tmp/alt.toml", "status"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "--config", "/tmp/alt.toml", "status"]).unwrap();
     assert_eq!(cli.config, Some("/tmp/alt.toml".to_string()));
 }
 
 #[test]
 fn parse_apply_requires_flag() {
     // apply with no flags should parse OK at clap level (error is in run())
-    let result = Cli::try_parse_from(["skittle", "apply"]);
+    let result = Cli::try_parse_from(["loadout", "apply"]);
     assert!(result.is_ok());
 }
 
 #[test]
 fn parse_target_add() {
     let cli = Cli::try_parse_from([
-        "skittle",
+        "loadout",
         "target",
         "add",
         "claude",
@@ -72,9 +72,9 @@ fn parse_target_add() {
     ])
     .unwrap();
     match cli.command {
-        skittle::cli::Command::Target { command } => {
+        loadout::cli::Command::Target { command } => {
             match command {
-                skittle::cli::TargetCommand::Add {
+                loadout::cli::TargetCommand::Add {
                     agent,
                     path,
                     scope,
@@ -96,9 +96,9 @@ fn parse_target_add() {
 
 #[test]
 fn parse_add() {
-    let cli = Cli::try_parse_from(["skittle", "add", "/tmp/src", "--source", "my-src"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "add", "/tmp/src", "--source", "my-src"]).unwrap();
     match cli.command {
-        skittle::cli::Command::Add { url, source, .. } => {
+        loadout::cli::Command::Add { url, source, .. } => {
             assert_eq!(url, "/tmp/src");
             assert_eq!(source, Some("my-src".to_string()));
         }
@@ -109,9 +109,9 @@ fn parse_add() {
 #[test]
 fn parse_add_deprecated_name_flag() {
     // --name still parses (hidden flag) but the handler will bail with deprecation error
-    let cli = Cli::try_parse_from(["skittle", "add", "/tmp/src", "--name", "my-src"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "add", "/tmp/src", "--name", "my-src"]).unwrap();
     match cli.command {
-        skittle::cli::Command::Add { name, .. } => {
+        loadout::cli::Command::Add { name, .. } => {
             assert_eq!(name, Some("my-src".to_string()));
         }
         _ => panic!("expected Add"),
@@ -121,11 +121,11 @@ fn parse_add_deprecated_name_flag() {
 #[test]
 fn parse_add_with_plugin_and_skill_flags() {
     let cli = Cli::try_parse_from([
-        "skittle", "add", "/tmp/src", "--source", "s", "--plugin", "p", "--skill", "sk",
+        "loadout", "add", "/tmp/src", "--source", "s", "--plugin", "p", "--skill", "sk",
     ])
     .unwrap();
     match cli.command {
-        skittle::cli::Command::Add {
+        loadout::cli::Command::Add {
             source,
             plugin,
             skill,
@@ -141,9 +141,9 @@ fn parse_add_with_plugin_and_skill_flags() {
 
 #[test]
 fn parse_add_symlink_flag() {
-    let cli = Cli::try_parse_from(["skittle", "add", "/tmp/src", "--symlink"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "add", "/tmp/src", "--symlink"]).unwrap();
     match cli.command {
-        skittle::cli::Command::Add { symlink, copy, .. } => {
+        loadout::cli::Command::Add { symlink, copy, .. } => {
             assert!(symlink);
             assert!(!copy);
         }
@@ -153,9 +153,9 @@ fn parse_add_symlink_flag() {
 
 #[test]
 fn parse_add_copy_flag() {
-    let cli = Cli::try_parse_from(["skittle", "add", "/tmp/src", "--copy"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "add", "/tmp/src", "--copy"]).unwrap();
     match cli.command {
-        skittle::cli::Command::Add { symlink, copy, .. } => {
+        loadout::cli::Command::Add { symlink, copy, .. } => {
             assert!(!symlink);
             assert!(copy);
         }
@@ -165,15 +165,15 @@ fn parse_add_copy_flag() {
 
 #[test]
 fn parse_add_symlink_copy_conflict() {
-    let result = Cli::try_parse_from(["skittle", "add", "/tmp/src", "--symlink", "--copy"]);
+    let result = Cli::try_parse_from(["loadout", "add", "/tmp/src", "--symlink", "--copy"]);
     assert!(result.is_err(), "--symlink and --copy should conflict");
 }
 
 #[test]
 fn parse_remove_without_name() {
-    let cli = Cli::try_parse_from(["skittle", "remove"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "remove"]).unwrap();
     match cli.command {
-        skittle::cli::Command::Remove { name, force } => {
+        loadout::cli::Command::Remove { name, force } => {
             assert!(name.is_none());
             assert!(!force);
         }
@@ -183,9 +183,9 @@ fn parse_remove_without_name() {
 
 #[test]
 fn parse_list() {
-    let cli = Cli::try_parse_from(["skittle", "list"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "list"]).unwrap();
     match cli.command {
-        skittle::cli::Command::List { patterns, .. } => {
+        loadout::cli::Command::List { patterns, .. } => {
             assert!(patterns.is_empty());
         }
         _ => panic!("expected List"),
@@ -194,9 +194,9 @@ fn parse_list() {
 
 #[test]
 fn parse_list_with_name() {
-    let cli = Cli::try_parse_from(["skittle", "list", "test-plugin/explore"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "list", "test-plugin/explore"]).unwrap();
     match cli.command {
-        skittle::cli::Command::List { patterns, .. } => {
+        loadout::cli::Command::List { patterns, .. } => {
             assert_eq!(patterns, vec!["test-plugin/explore".to_string()]);
         }
         _ => panic!("expected List"),
@@ -205,9 +205,9 @@ fn parse_list_with_name() {
 
 #[test]
 fn parse_list_with_multiple_patterns() {
-    let cli = Cli::try_parse_from(["skittle", "list", "legal/*", "sales/*"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "list", "legal/*", "sales/*"]).unwrap();
     match cli.command {
-        skittle::cli::Command::List { patterns, .. } => {
+        loadout::cli::Command::List { patterns, .. } => {
             assert_eq!(patterns, vec!["legal/*".to_string(), "sales/*".to_string()]);
         }
         _ => panic!("expected List"),
@@ -216,9 +216,9 @@ fn parse_list_with_multiple_patterns() {
 
 #[test]
 fn parse_remove() {
-    let cli = Cli::try_parse_from(["skittle", "remove", "my-source", "--force"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "remove", "my-source", "--force"]).unwrap();
     match cli.command {
-        skittle::cli::Command::Remove { name, force } => {
+        loadout::cli::Command::Remove { name, force } => {
             assert_eq!(name, Some("my-source".to_string()));
             assert!(force);
         }
@@ -228,9 +228,9 @@ fn parse_remove() {
 
 #[test]
 fn parse_update() {
-    let cli = Cli::try_parse_from(["skittle", "update", "my-source"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "update", "my-source"]).unwrap();
     match cli.command {
-        skittle::cli::Command::Update { name, .. } => {
+        loadout::cli::Command::Update { name, .. } => {
             assert_eq!(name, Some("my-source".to_string()));
         }
         _ => panic!("expected Update"),
@@ -239,9 +239,9 @@ fn parse_update() {
 
 #[test]
 fn parse_update_all() {
-    let cli = Cli::try_parse_from(["skittle", "update"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "update"]).unwrap();
     match cli.command {
-        skittle::cli::Command::Update { name, .. } => {
+        loadout::cli::Command::Update { name, .. } => {
             assert!(name.is_none());
         }
         _ => panic!("expected Update"),
@@ -250,9 +250,9 @@ fn parse_update_all() {
 
 #[test]
 fn parse_init_with_url() {
-    let cli = Cli::try_parse_from(["skittle", "init", "https://github.com/org/skills"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "init", "https://github.com/org/skills"]).unwrap();
     match cli.command {
-        skittle::cli::Command::Init { url } => {
+        loadout::cli::Command::Init { url } => {
             assert_eq!(url, Some("https://github.com/org/skills".to_string()));
         }
         _ => panic!("expected Init"),
@@ -261,9 +261,9 @@ fn parse_init_with_url() {
 
 #[test]
 fn parse_init_without_url() {
-    let cli = Cli::try_parse_from(["skittle", "init"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "init"]).unwrap();
     match cli.command {
-        skittle::cli::Command::Init { url } => {
+        loadout::cli::Command::Init { url } => {
             assert!(url.is_none());
         }
         _ => panic!("expected Init"),
@@ -273,7 +273,7 @@ fn parse_init_without_url() {
 #[test]
 fn parse_bundle_activate_with_target() {
     let cli = Cli::try_parse_from([
-        "skittle",
+        "loadout",
         "bundle",
         "activate",
         "dev",
@@ -282,8 +282,8 @@ fn parse_bundle_activate_with_target() {
     ])
     .unwrap();
     match cli.command {
-        skittle::cli::Command::Bundle { command } => match command {
-            skittle::cli::BundleCommand::Activate {
+        loadout::cli::Command::Bundle { command } => match command {
+            loadout::cli::BundleCommand::Activate {
                 name,
                 target,
                 all,
@@ -302,10 +302,10 @@ fn parse_bundle_activate_with_target() {
 
 #[test]
 fn parse_bundle_activate_with_all() {
-    let cli = Cli::try_parse_from(["skittle", "bundle", "activate", "dev", "--all"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "bundle", "activate", "dev", "--all"]).unwrap();
     match cli.command {
-        skittle::cli::Command::Bundle { command } => match command {
-            skittle::cli::BundleCommand::Activate {
+        loadout::cli::Command::Bundle { command } => match command {
+            loadout::cli::BundleCommand::Activate {
                 name, all, target, ..
             } => {
                 assert_eq!(name, "dev");
@@ -321,7 +321,7 @@ fn parse_bundle_activate_with_all() {
 #[test]
 fn parse_bundle_deactivate_with_target() {
     let cli = Cli::try_parse_from([
-        "skittle",
+        "loadout",
         "bundle",
         "deactivate",
         "dev",
@@ -330,8 +330,8 @@ fn parse_bundle_deactivate_with_target() {
     ])
     .unwrap();
     match cli.command {
-        skittle::cli::Command::Bundle { command } => match command {
-            skittle::cli::BundleCommand::Deactivate {
+        loadout::cli::Command::Bundle { command } => match command {
+            loadout::cli::BundleCommand::Deactivate {
                 name,
                 target,
                 force,
@@ -349,7 +349,7 @@ fn parse_bundle_deactivate_with_target() {
 
 #[test]
 fn parse_bundle_swap_no_longer_exists() {
-    let result = Cli::try_parse_from(["skittle", "bundle", "swap", "a", "b"]);
+    let result = Cli::try_parse_from(["loadout", "bundle", "swap", "a", "b"]);
     assert!(
         result.is_err(),
         "bundle swap should no longer be a valid subcommand"
@@ -358,8 +358,8 @@ fn parse_bundle_swap_no_longer_exists() {
 
 #[test]
 fn known_marketplaces_non_empty() {
-    assert!(!skittle::marketplace::KNOWN_MARKETPLACES.is_empty());
-    for (name, url) in skittle::marketplace::KNOWN_MARKETPLACES {
+    assert!(!loadout::marketplace::KNOWN_MARKETPLACES.is_empty());
+    for (name, url) in loadout::marketplace::KNOWN_MARKETPLACES {
         assert!(!name.is_empty(), "marketplace name should not be empty");
         assert!(!url.is_empty(), "marketplace URL should not be empty");
         assert!(url.starts_with("https://"), "marketplace URL should be https: {}", url);
@@ -368,14 +368,14 @@ fn known_marketplaces_non_empty() {
 
 #[test]
 fn multi_select_returns_empty_non_interactive() {
-    let result = skittle::prompt::multi_select("Pick", &["a", "b"], &[true, true], false);
+    let result = loadout::prompt::multi_select("Pick", &["a", "b"], &[true, true], false);
     assert!(result.is_empty());
 }
 
 #[test]
 fn detect_agent_targets_returns_vec() {
     // In a tempdir with no agent dirs, should return empty
-    let result = skittle::cli::detect_agent_targets();
+    let result = loadout::cli::detect_agent_targets();
     // Can't assert empty because the test runner's home may have agents
     // Just verify it returns without error
     let _ = result;

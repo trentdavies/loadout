@@ -4,8 +4,8 @@
 
 test_01_skills_detected() {
   local output
-  output=$("$SKITTLE" list 2>/dev/null)
-  log_cmd "$SKITTLE" list
+  output=$("$LOADOUT" list 2>/dev/null)
+  log_cmd "$LOADOUT" list
 
   local line_count
   line_count=$(echo "$output" | wc -l | tr -d ' ')
@@ -21,7 +21,7 @@ test_01_skills_detected() {
 
 test_02_knowledge_work_plugins_detected() {
   local output
-  output=$("$SKITTLE" list 2>/dev/null)
+  output=$("$LOADOUT" list 2>/dev/null)
 
   local found_any=false
   for keyword in engineer legal sales marketing product research; do
@@ -42,7 +42,7 @@ test_02_knowledge_work_plugins_detected() {
 
 test_03_list_json_valid() {
   local output
-  output=$("$SKITTLE" list --json 2>/dev/null)
+  output=$("$LOADOUT" list --json 2>/dev/null)
   local exit_code=$?
 
   if [ "$exit_code" -ne 0 ]; then
@@ -63,7 +63,7 @@ test_03_list_json_valid() {
 test_04_skill_detail() {
   # Use JSON output to reliably get a non-ambiguous plugin/skill identity
   local qualified
-  qualified=$("$SKITTLE" list --json 2>/dev/null | jq -r \
+  qualified=$("$LOADOUT" list --json 2>/dev/null | jq -r \
     '[.[] | select(.plugin != .source)] | .[0] | "\(.plugin)/\(.name)"')
 
   if [ -z "$qualified" ] || [ "$qualified" = "null/null" ]; then
@@ -71,17 +71,17 @@ test_04_skill_detail() {
     return
   fi
 
-  log_cmd "$SKITTLE" list "$qualified"
+  log_cmd "$LOADOUT" list "$qualified"
 
   local detail_output
-  detail_output=$("$SKITTLE" list "$qualified" 2>/dev/null)
+  detail_output=$("$LOADOUT" list "$qualified" 2>/dev/null)
   local exit_code=$?
 
   if [ "$exit_code" -eq 0 ] && [ -n "$detail_output" ]; then
     _pass "skill detail for '$qualified' shows metadata"
-    log_check 1 "skittle list $qualified shows detail output"
+    log_check 1 "loadout list $qualified shows detail output"
   else
     _fail "skill detail failed for '$qualified'" "exit 0 with output" "exit $exit_code"
-    log_check 0 "skittle list $qualified shows detail output"
+    log_check 0 "loadout list $qualified shows detail output"
   fi
 }

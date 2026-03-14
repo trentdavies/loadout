@@ -13,11 +13,11 @@ COPY src/ ./src/
 
 # Build with graceful failure handling
 RUN cargo build --release 2>/dev/null; \
-    if [ -f target/release/skittle ]; then \
-      cp target/release/skittle /usr/local/bin/skittle; \
-      echo "BUILD OK — skittle binary installed"; \
+    if [ -f target/release/loadout ]; then \
+      cp target/release/loadout /usr/local/bin/loadout; \
+      echo "BUILD OK — loadout binary installed"; \
     else \
-      echo "BUILD FAILED — skittle binary not produced (tests will report this)"; \
+      echo "BUILD FAILED — loadout binary not produced (tests will report this)"; \
     fi
 
 # Set XDG env var for test isolation (config + data both live in XDG_DATA_HOME)

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Test runner for skittle CLI test harness.
+# Test runner for loadout CLI test harness.
 # Discovers suite/*.sh files, sources each, and executes all test_ functions.
 #
 # Usage:
@@ -46,12 +46,12 @@ while [ $# -gt 0 ]; do
 done
 
 # ---------------------------------------------------------------------------
-# Check for skittle binary
+# Check for loadout binary
 # ---------------------------------------------------------------------------
-if [ ! -x "$SKITTLE" ]; then
+if [ ! -x "$LOADOUT" ]; then
   echo ""
   echo "═══════════════════════════════════════════════"
-  printf "\033[31mBUILD FAILED\033[0m — skittle binary not found at: %s\n" "$SKITTLE"
+  printf "\033[31mBUILD FAILED\033[0m — loadout binary not found at: %s\n" "$LOADOUT"
   echo "Build the project first: cargo build --release"
   echo "═══════════════════════════════════════════════"
   exit 2
@@ -84,9 +84,9 @@ if [ ${#SUITE_FILES[@]} -eq 0 ]; then
 fi
 
 echo ""
-echo "Skittle CLI Test Harness"
+echo "Loadout CLI Test Harness"
 echo "═══════════════════════════════════════════════"
-echo "Binary:  $SKITTLE"
+echo "Binary:  $LOADOUT"
 echo "Suites:  ${#SUITE_FILES[@]}"
 echo "Network: $([ "${SKIP_NETWORK:-0}" = "1" ] && echo "disabled" || echo "enabled")"
 echo "═══════════════════════════════════════════════"

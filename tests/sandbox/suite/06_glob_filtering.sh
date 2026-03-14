@@ -4,8 +4,8 @@
 
 test_01_list_wildcard_all() {
   local all_count glob_count
-  all_count=$("$SKITTLE" list --json 2>/dev/null | jq 'length')
-  glob_count=$("$SKITTLE" list --json "*/*" 2>/dev/null | jq 'length')
+  all_count=$("$LOADOUT" list --json 2>/dev/null | jq 'length')
+  glob_count=$("$LOADOUT" list --json "*/*" 2>/dev/null | jq 'length')
 
   if [ "$glob_count" -gt 0 ] && [ "$glob_count" -eq "$all_count" ]; then
     _pass "list '*/*' returns all $all_count skills"
@@ -22,7 +22,7 @@ test_01_list_wildcard_all() {
 test_02_list_glob_by_source() {
   # Pick the first source that has skills
   local source_name
-  source_name=$("$SKITTLE" list --json 2>/dev/null | jq -r '.[0].source // empty')
+  source_name=$("$LOADOUT" list --json 2>/dev/null | jq -r '.[0].source // empty')
 
   if [ -z "$source_name" ]; then
     _fail "no sources available for glob test" "source name" "empty"
@@ -30,8 +30,8 @@ test_02_list_glob_by_source() {
   fi
 
   local source_count glob_count
-  source_count=$("$SKITTLE" list --json 2>/dev/null | jq --arg s "$source_name" '[.[] | select(.source == $s)] | length')
-  glob_count=$("$SKITTLE" list --json "$source_name:*/*" 2>/dev/null | jq 'length')
+  source_count=$("$LOADOUT" list --json 2>/dev/null | jq --arg s "$source_name" '[.[] | select(.source == $s)] | length')
+  glob_count=$("$LOADOUT" list --json "$source_name:*/*" 2>/dev/null | jq 'length')
 
   if [ "$glob_count" -eq "$source_count" ] && [ "$glob_count" -gt 0 ]; then
     _pass "list '$source_name:*/*' returns $glob_count skills (matches source count)"
@@ -48,7 +48,7 @@ test_02_list_glob_by_source() {
 test_03_list_glob_by_plugin() {
   # Pick the first plugin name
   local plugin_name
-  plugin_name=$("$SKITTLE" list --json 2>/dev/null | jq -r '.[0].plugin // empty')
+  plugin_name=$("$LOADOUT" list --json 2>/dev/null | jq -r '.[0].plugin // empty')
 
   if [ -z "$plugin_name" ]; then
     _fail "no plugins available for glob test" "plugin name" "empty"
@@ -56,8 +56,8 @@ test_03_list_glob_by_plugin() {
   fi
 
   local plugin_count glob_count
-  plugin_count=$("$SKITTLE" list --json 2>/dev/null | jq --arg p "$plugin_name" '[.[] | select(.plugin == $p)] | length')
-  glob_count=$("$SKITTLE" list --json "$plugin_name/*" 2>/dev/null | jq 'length')
+  plugin_count=$("$LOADOUT" list --json 2>/dev/null | jq --arg p "$plugin_name" '[.[] | select(.plugin == $p)] | length')
+  glob_count=$("$LOADOUT" list --json "$plugin_name/*" 2>/dev/null | jq 'length')
 
   if [ "$glob_count" -eq "$plugin_count" ] && [ "$glob_count" -gt 0 ]; then
     _pass "list '$plugin_name/*' returns $glob_count skills"
@@ -73,7 +73,7 @@ test_03_list_glob_by_plugin() {
 
 test_04_list_glob_no_match() {
   local output exit_code
-  output=$("$SKITTLE" list --json "nonexistent-plugin-xyz/*" 2>&1)
+  output=$("$LOADOUT" list --json "nonexistent-plugin-xyz/*" 2>&1)
   exit_code=$?
 
   local count
@@ -91,9 +91,9 @@ test_04_list_glob_no_match() {
 test_05_list_glob_question_mark() {
   # Find a skill name, then use ? to match one character
   local skill_name
-  skill_name=$("$SKITTLE" list --json 2>/dev/null | jq -r '.[0].name // empty')
+  skill_name=$("$LOADOUT" list --json 2>/dev/null | jq -r '.[0].name // empty')
   local plugin_name
-  plugin_name=$("$SKITTLE" list --json 2>/dev/null | jq -r '.[0].plugin // empty')
+  plugin_name=$("$LOADOUT" list --json 2>/dev/null | jq -r '.[0].plugin // empty')
 
   if [ -z "$skill_name" ] || [ -z "$plugin_name" ]; then
     _fail "no skill available for ? glob test" "skill" "empty"
@@ -103,7 +103,7 @@ test_05_list_glob_question_mark() {
   # Replace last char with ?
   local pattern="${plugin_name}/${skill_name%?}?"
   local glob_count
-  glob_count=$("$SKITTLE" list --json "$pattern" 2>/dev/null | jq 'length')
+  glob_count=$("$LOADOUT" list --json "$pattern" 2>/dev/null | jq 'length')
 
   if [ "$glob_count" -gt 0 ]; then
     _pass "list '$pattern' matches $glob_count skill(s) using ?"
@@ -117,8 +117,8 @@ test_05_list_glob_question_mark() {
 test_06_freeform_source_prefix() {
   # 'anthr*' should match all skills from anthropic-skills source
   local source_count glob_count
-  source_count=$("$SKITTLE" list --json 2>/dev/null | jq '[.[] | select(.source == "anthropic-skills")] | length')
-  glob_count=$("$SKITTLE" list --json 'anthr*' 2>/dev/null | jq 'length')
+  source_count=$("$LOADOUT" list --json 2>/dev/null | jq '[.[] | select(.source == "anthropic-skills")] | length')
+  glob_count=$("$LOADOUT" list --json 'anthr*' 2>/dev/null | jq 'length')
 
   if [ "$source_count" -eq 0 ]; then
     _fail "anthropic-skills source has no skills" "skills present" "0"
@@ -139,13 +139,13 @@ test_06_freeform_source_prefix() {
 
 test_07_freeform_substring_local() {
   # Add a local source if not already present, then '*local*' should match it
-  if ! "$SKITTLE" list 2>/dev/null | grep -qF "local"; then
+  if ! "$LOADOUT" list 2>/dev/null | grep -qF "local"; then
     _skip "no source with 'local' in name — skipping *local* test"
     return
   fi
 
   local glob_count
-  glob_count=$("$SKITTLE" list --json '*local*' 2>/dev/null | jq 'length')
+  glob_count=$("$LOADOUT" list --json '*local*' 2>/dev/null | jq 'length')
 
   if [ "$glob_count" -gt 0 ]; then
     _pass "list '*local*' matches $glob_count skills"
@@ -159,8 +159,8 @@ test_07_freeform_substring_local() {
 test_08_freeform_substring_finan() {
   # '*finan*' should match financial-services skills (like grep finan)
   local grep_count glob_count
-  grep_count=$("$SKITTLE" list --json 2>/dev/null | jq '[.[] | select((.source | test("finan")) or (.plugin | test("finan")) or (.name | test("finan")))] | length')
-  glob_count=$("$SKITTLE" list --json '*finan*' 2>/dev/null | jq 'length')
+  grep_count=$("$LOADOUT" list --json 2>/dev/null | jq '[.[] | select((.source | test("finan")) or (.plugin | test("finan")) or (.name | test("finan")))] | length')
+  glob_count=$("$LOADOUT" list --json '*finan*' 2>/dev/null | jq 'length')
 
   if [ "$grep_count" -eq 0 ]; then
     _fail "no skills contain 'finan' in identity" "skills present" "0"
@@ -182,7 +182,7 @@ test_08_freeform_substring_finan() {
 test_10_apply_glob_to_target() {
   # Pick a plugin with multiple skills and apply via glob
   local plugin_name
-  plugin_name=$("$SKITTLE" list --json 2>/dev/null | jq -r \
+  plugin_name=$("$LOADOUT" list --json 2>/dev/null | jq -r \
     '[group_by(.plugin)[] | select(length > 1) | .[0].plugin] | .[0] // empty')
 
   if [ -z "$plugin_name" ]; then
@@ -191,13 +191,13 @@ test_10_apply_glob_to_target() {
   fi
 
   local expected_count
-  expected_count=$("$SKITTLE" list --json "$plugin_name/*" 2>/dev/null | jq 'length')
+  expected_count=$("$LOADOUT" list --json "$plugin_name/*" 2>/dev/null | jq 'length')
 
   # Clean target and apply via glob
   find "$SANDBOX_TARGET_CODEX/skills" -mindepth 1 -maxdepth 1 -type d -exec rm -r {} + 2>/dev/null
   mkdir -p "$SANDBOX_TARGET_CODEX"
 
-  log_cmd "$SKITTLE" apply --force --skill "$plugin_name/*" --target sandbox-codex
+  log_cmd "$LOADOUT" apply --force --skill "$plugin_name/*" --target sandbox-codex
 
   local installed
   installed=$(find "$SANDBOX_TARGET_CODEX" -name "SKILL.md" -type f 2>/dev/null | wc -l | tr -d ' ')

@@ -4,36 +4,36 @@
 # ambiguous identity error.
 
 test_registry_json_created_on_source_add() {
-  "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
-  assert_file_exists "$XDG_DATA_HOME/skittle/.skittle/registry.json"
+  "$LOADOUT" init >/dev/null 2>&1
+  "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
+  assert_file_exists "$XDG_DATA_HOME/loadout/.loadout/registry.json"
 }
 
 test_registry_json_contains_source() {
-  "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
-  assert_file_contains "$XDG_DATA_HOME/skittle/.skittle/registry.json" "tp"
+  "$LOADOUT" init >/dev/null 2>&1
+  "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
+  assert_file_contains "$XDG_DATA_HOME/loadout/.loadout/registry.json" "tp"
 }
 
 test_registry_json_contains_skills() {
-  "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
-  assert_file_contains "$XDG_DATA_HOME/skittle/.skittle/registry.json" "explore"
-  assert_file_contains "$XDG_DATA_HOME/skittle/.skittle/registry.json" "apply"
-  assert_file_contains "$XDG_DATA_HOME/skittle/.skittle/registry.json" "verify"
+  "$LOADOUT" init >/dev/null 2>&1
+  "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
+  assert_file_contains "$XDG_DATA_HOME/loadout/.loadout/registry.json" "explore"
+  assert_file_contains "$XDG_DATA_HOME/loadout/.loadout/registry.json" "apply"
+  assert_file_contains "$XDG_DATA_HOME/loadout/.loadout/registry.json" "verify"
 }
 
 test_cache_dir_mirrors_source() {
-  "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
-  assert_dir_exists "$XDG_DATA_HOME/skittle/external/tp"
+  "$LOADOUT" init >/dev/null 2>&1
+  "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
+  assert_dir_exists "$XDG_DATA_HOME/loadout/external/tp"
 }
 
 test_cache_contains_skill_files() {
-  "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
+  "$LOADOUT" init >/dev/null 2>&1
+  "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
   # Cached source should contain the skill files
-  local cache_dir="$XDG_DATA_HOME/skittle/external/tp"
+  local cache_dir="$XDG_DATA_HOME/loadout/external/tp"
   # Look for SKILL.md somewhere in the cache
   local found
   found=$(find "$cache_dir" -name "SKILL.md" 2>/dev/null | head -1)
@@ -45,28 +45,28 @@ test_cache_contains_skill_files() {
 }
 
 test_skill_identity_short_form() {
-  "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
+  "$LOADOUT" init >/dev/null 2>&1
+  "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
   # Should be able to look up by plugin/skill
-  assert_exit_code 0 "$SKITTLE" list test-plugin/explore
+  assert_exit_code 0 "$LOADOUT" list test-plugin/explore
 }
 
 test_skill_identity_full_form() {
-  "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
+  "$LOADOUT" init >/dev/null 2>&1
+  "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
   # Full form: source:plugin/skill
-  assert_exit_code 0 "$SKITTLE" list tp:test-plugin/explore
+  assert_exit_code 0 "$LOADOUT" list tp:test-plugin/explore
 }
 
 test_skill_identity_ambiguous_error() {
-  "$SKITTLE" init >/dev/null 2>&1
+  "$LOADOUT" init >/dev/null 2>&1
   # Add the same plugin name from two different sources to create ambiguity
   # We'll use plugin-source twice with different source names
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source src-one >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source src-two >/dev/null 2>&1
+  "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source src-one >/dev/null 2>&1
+  "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source src-two >/dev/null 2>&1
   # Short form should be ambiguous now
   local output
-  output=$("$SKITTLE" list test-plugin/explore 2>&1)
+  output=$("$LOADOUT" list test-plugin/explore 2>&1)
   local exit_code=$?
   if [ "$exit_code" -ne 0 ]; then
     _pass "ambiguous skill identity returns error (exit $exit_code)"
@@ -82,13 +82,13 @@ test_skill_identity_ambiguous_error() {
 }
 
 test_registry_cleared_on_source_remove() {
-  "$SKITTLE" init >/dev/null 2>&1
-  "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
-  "$SKITTLE" remove tp --force >/dev/null 2>&1
+  "$LOADOUT" init >/dev/null 2>&1
+  "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
+  "$LOADOUT" remove tp --force >/dev/null 2>&1
   # Registry should no longer contain this source's entries
-  if [ -f "$XDG_DATA_HOME/skittle/.skittle/registry.json" ]; then
+  if [ -f "$XDG_DATA_HOME/loadout/.loadout/registry.json" ]; then
     local content
-    content=$(cat "$XDG_DATA_HOME/skittle/.skittle/registry.json")
+    content=$(cat "$XDG_DATA_HOME/loadout/.loadout/registry.json")
     if echo "$content" | grep -qF "tp"; then
       _fail "registry still contains removed source" "tp absent" "still present"
     else
@@ -103,12 +103,12 @@ test_xdg_override_respected() {
   # Use a custom XDG path
   local custom_data="/tmp/test-custom-xdg"
   rm -rf "$custom_data"
-  XDG_DATA_HOME="$custom_data" "$SKITTLE" init >/dev/null 2>&1
-  XDG_DATA_HOME="$custom_data" "$SKITTLE" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
-  if [ -d "$custom_data/skittle" ]; then
+  XDG_DATA_HOME="$custom_data" "$LOADOUT" init >/dev/null 2>&1
+  XDG_DATA_HOME="$custom_data" "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
+  if [ -d "$custom_data/loadout" ]; then
     _pass "custom XDG_DATA_HOME respected"
   else
-    _fail "custom XDG_DATA_HOME not used" "$custom_data/skittle exists" "not found"
+    _fail "custom XDG_DATA_HOME not used" "$custom_data/loadout exists" "not found"
   fi
   rm -rf "$custom_data"
 }

@@ -13,9 +13,9 @@ COPY Cargo.toml Cargo.loc[k] ./
 # Copy source code
 COPY src/ ./src/
 
-# Build skittle
+# Build loadout
 RUN mkdir -p /root/.local/bin \
-    && cargo build --release && cp target/release/skittle /root/.local/bin/skittle
+    && cargo build --release && cp target/release/loadout /root/.local/bin/loadout
 
 # Clean build dir to save space
 RUN rm -rf /build/target
@@ -24,10 +24,10 @@ RUN rm -rf /build/target
 ENV HOME=/root
 WORKDIR /root
 
-# skittle on PATH via ~/.local/bin
+# loadout on PATH via ~/.local/bin
 ENV PATH="/root/.local/bin:${PATH}"
 
-# XDG — mirrors real ~/.local/share/skittle
+# XDG — mirrors real ~/.local/share/loadout
 ENV XDG_DATA_HOME=/root/.local/share
 
 # Simulate agent config directories
