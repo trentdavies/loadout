@@ -436,7 +436,23 @@ pub fn add_detected_targets(
             sync: sync.to_string(),
         });
         if !quiet {
-            println!("  Added target '{}'", target_name);
+            use colored::Colorize;
+            let display_path = if let Some(home_str) = home.to_str() {
+                path.to_string_lossy().replacen(home_str, "~", 1)
+            } else {
+                path.to_string_lossy().to_string()
+            };
+            let skills_desc = match agent.as_str() {
+                "cursor" => format!("(skills in {}/)", display_path),
+                _ => format!("(skills in {}/skills/)", display_path),
+            };
+            println!(
+                "  {} {}  {}  {}",
+                "✓".green(),
+                target_name.bold(),
+                display_path.dimmed(),
+                skills_desc.dimmed(),
+            );
         }
         added += 1;
     }
@@ -578,11 +594,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 let added = add_detected_targets(&mut config, cli.quiet);
                 if added > 0 {
                     crate::config::save(&config, cli.config.as_deref())?;
-                    if !cli.quiet {
-                        println!("Added {} target(s)", added);
-                    }
                 } else if !cli.quiet {
-                    println!("No agent targets found");
+                    println!("  No agent targets found");
                 }
             }
 

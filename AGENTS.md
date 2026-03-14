@@ -14,7 +14,7 @@
 
 ```bash
 # Build and run the full test suite
-docker build -t loadout-harness -f tests/Dockerfile . && docker run --rm loadout-harness /tests/harness/runner.sh
+docker buildx build --load -t loadout-harness -f tests/Dockerfile . && docker run --rm loadout-harness /tests/harness/runner.sh
 
 # Run a specific suite
 docker run --rm loadout-harness /tests/harness/runner.sh --suite 02
@@ -44,7 +44,7 @@ Red-green testing against `openspec/changes/loadout-cli-v1/tasks.md`:
 1. Pick the next 2-3 unchecked tasks and implement them in sequence
 2. For each task: implement, run `cargo check`, mark `[x]`, commit
 3. After every 5 completed tasks, run Docker test harness:
-   `docker build -t loadout-harness -f tests/Dockerfile . && docker run --rm loadout-harness /tests/harness/runner.sh`
+   `docker buildx build --load -t loadout-harness -f tests/Dockerfile . && docker run --rm loadout-harness /tests/harness/runner.sh`
 4. Verify pass count has NOT regressed (baseline: 190 passed as of task 5.4). New tests SHOULD turn green as features land.
 5. If tests regressed, fix before proceeding — do NOT commit broken code
 6. Include pass/fail count in commit body when Docker tests are run

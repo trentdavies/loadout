@@ -14,7 +14,7 @@ release:
 
 # Run the shell test harness in Docker (offline, no network)
 harness:
-    DOCKER_BUILDKIT=0 docker build -f tests/Dockerfile -t loadout-harness . && docker run --rm loadout-harness /tests/harness/runner.sh
+    docker buildx build --load -f tests/Dockerfile -t loadout-harness . && docker run --rm loadout-harness /tests/harness/runner.sh
 
 # Launch sandbox container (detached, interactive)
 sandbox:

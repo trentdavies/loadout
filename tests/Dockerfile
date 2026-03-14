@@ -1,21 +1,24 @@
-# ── Build stage ──────────────────────────────────────────────
-FROM rust:latest AS builder
+FROM rust:bookworm
+
+# Extra tools (git already included via buildpack-deps)
+RUN apt-get update && apt-get install -y \
+    openssh-server jq tree vim less \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 
-# Cache dependency build: copy manifests first, build a dummy, then copy real src
+# Copy manifests and source
 COPY Cargo.toml Cargo.loc[k] ./
-RUN mkdir src && echo 'fn main() {}' > src/main.rs && cargo build --release 2>/dev/null; rm -rf src
-
 COPY src/ ./src/
-RUN cargo build --release
 
-# ── Runtime stage ────────────────────────────────────────────
-FROM debian:bookworm-slim
+# Build with persistent cargo caches (registry + target dir survive across builds)
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/build/target \
+    cargo build --release \
+    && cp target/release/loadout /usr/local/bin/loadout
 
-RUN apt-get update && apt-get install -y \
-    openssh-server jq tree vim less git \
-    && rm -rf /var/lib/apt/lists/*
+# Symlink so loadout is available at ~/.local/bin too
+RUN mkdir -p /root/.local/bin && ln -s /usr/local/bin/loadout /root/.local/bin/loadout
 
 # SSH setup
 RUN mkdir -p /run/sshd \
@@ -23,10 +26,6 @@ RUN mkdir -p /run/sshd \
     && sed -i 's/#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config \
     && sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config \
     && sed -i 's/#AllowAgentForwarding.*/AllowAgentForwarding yes/' /etc/ssh/sshd_config
-
-# Copy binary from builder — available at both locations
-COPY --from=builder /build/target/release/loadout /usr/local/bin/loadout
-RUN mkdir -p /root/.local/bin && ln -s /usr/local/bin/loadout /root/.local/bin/loadout
 
 # Environment
 ENV HOME=/root

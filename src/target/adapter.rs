@@ -200,7 +200,7 @@ pub fn resolve_adapter(
 
     // Built-in adapters
     if BUILTIN_AGENTS.contains(&target.agent.as_str()) {
-        return Ok(builtin_adapter());
+        return Ok(builtin_adapter(&target.agent));
     }
 
     let available: Vec<String> = BUILTIN_AGENTS
@@ -216,10 +216,15 @@ pub fn resolve_adapter(
     );
 }
 
-/// The standard built-in adapter (claude, codex, cursor all use the same layout).
-fn builtin_adapter() -> Adapter {
+/// Built-in adapter for known agent types.
+/// Most agents store skills in `skills/{name}`, but cursor stores directly in `{name}`.
+fn builtin_adapter(agent: &str) -> Adapter {
+    let skill_dir_template = match agent {
+        "cursor" => "{name}".to_string(),
+        _ => "skills/{name}".to_string(),
+    };
     Adapter {
-        skill_dir_template: "skills/{name}".to_string(),
+        skill_dir_template,
         skill_file: "SKILL.md".to_string(),
         copy_dirs: DEFAULT_COPY_DIRS.iter().map(|s| s.to_string()).collect(),
         format: "agentskills".to_string(),

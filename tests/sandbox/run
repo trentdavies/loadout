@@ -22,7 +22,7 @@ for arg in "$@"; do
 done
 
 echo "Building sandbox image..."
-DOCKER_BUILDKIT=0 docker build -f "$SCRIPT_DIR/../Dockerfile" -t "$IMAGE" "$PROJECT_DIR" || exit 1
+docker buildx build --load -f "$SCRIPT_DIR/../Dockerfile" -t "$IMAGE" "$PROJECT_DIR" || exit 1
 
 # Remove previous container if it exists
 docker rm -f "$CONTAINER" 2>/dev/null || true

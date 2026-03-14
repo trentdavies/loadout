@@ -10,7 +10,7 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Build
 echo "Building sandbox..."
-docker build -f "$SCRIPT_DIR/Dockerfile" -t "$IMAGE" "$PROJECT_DIR" || exit 1
+docker buildx build --load -f "$SCRIPT_DIR/Dockerfile" -t "$IMAGE" "$PROJECT_DIR" || exit 1
 
 # Stop previous if running
 docker rm -f "$CONTAINER" 2>/dev/null || true
