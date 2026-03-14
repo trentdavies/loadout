@@ -888,8 +888,18 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
 
             if let Some(ref skill_id) = skill {
-                let (src, plug, s) = registry.find_skill(skill_id)?;
-                skills_to_apply.push((src, plug, s));
+                if crate::registry::is_glob(skill_id) {
+                    let matches = registry.match_skills(skill_id);
+                    if matches.is_empty() {
+                        anyhow::bail!("no skills matched pattern '{}'", skill_id);
+                    }
+                    for (src, plugin, s) in matches {
+                        skills_to_apply.push((src, &plugin.name, s));
+                    }
+                } else {
+                    let (src, plug, s) = registry.find_skill(skill_id)?;
+                    skills_to_apply.push((src, plug, s));
+                }
             }
 
             if let Some(ref plugin_name) = plugin {
@@ -1071,8 +1081,18 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             let mut skill_names: Vec<String> = Vec::new();
 
             if let Some(ref skill_id) = skill {
-                let (_, _, s) = registry.find_skill(skill_id)?;
-                skill_names.push(s.name.clone());
+                if crate::registry::is_glob(skill_id) {
+                    let matches = registry.match_skills(skill_id);
+                    if matches.is_empty() {
+                        anyhow::bail!("no skills matched pattern '{}'", skill_id);
+                    }
+                    for (_, _, s) in matches {
+                        skill_names.push(s.name.clone());
+                    }
+                } else {
+                    let (_, _, s) = registry.find_skill(skill_id)?;
+                    skill_names.push(s.name.clone());
+                }
             }
 
             if let Some(ref plugin_name) = plugin {

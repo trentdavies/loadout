@@ -109,15 +109,28 @@ impl Registry {
     }
 
     /// Match skills whose full identity (`source:plugin/skill`) matches a glob pattern.
-    /// The pattern is matched against the full identity string using `glob_match`.
+    ///
+    /// Pattern forms:
+    /// - `source:plugin/skill` — fully qualified, matched against full identity
+    /// - `plugin/skill` — matched against full identity with any source
+    /// - `keyword*` (no `:` or `/`) — freeform, matched against each component
+    ///   (source, plugin, skill name) individually
     pub fn match_skills(&self, pattern: &str) -> Vec<(&str, &RegisteredPlugin, &RegisteredSkill)> {
+        let freeform = !pattern.contains(':') && !pattern.contains('/');
         let expanded = expand_pattern(pattern);
         let mut result = Vec::new();
         for src in &self.sources {
             for plugin in &src.plugins {
                 for skill in &plugin.skills {
-                    let identity = format!("{}:{}/{}", src.name, plugin.name, skill.name);
-                    if glob_match::glob_match(&expanded, &identity) {
+                    let matched = if freeform {
+                        glob_match::glob_match(&expanded, &src.name)
+                            || glob_match::glob_match(&expanded, &plugin.name)
+                            || glob_match::glob_match(&expanded, &skill.name)
+                    } else {
+                        let identity = format!("{}:{}/{}", src.name, plugin.name, skill.name);
+                        glob_match::glob_match(&expanded, &identity)
+                    };
+                    if matched {
                         result.push((src.name.as_str(), plugin, skill));
                     }
                 }
@@ -132,13 +145,28 @@ pub fn is_glob(input: &str) -> bool {
     input.contains('*') || input.contains('?') || input.contains('[')
 }
 
-/// Expands a short-form pattern by prepending `*:` if no `:` is present.
-/// This is consistent with how short-form identities imply "any source."
+/// Expands a short-form pattern for matching against full identity strings
+/// (`source:plugin/skill`).
+///
+/// - Has `:` → already fully qualified, use as-is
+/// - Has `/` → plugin/skill form, prepend `*:` for any source
+/// - Otherwise → freeform search, wrap as `*<pattern>*` to match anywhere
+///   in the full identity
 pub fn expand_pattern(input: &str) -> String {
     if input.contains(':') {
         input.to_string()
-    } else {
+    } else if input.contains('/') {
         format!("*:{}", input)
+    } else {
+        let mut result = String::new();
+        if !input.starts_with('*') {
+            result.push('*');
+        }
+        result.push_str(input);
+        if !input.ends_with('*') {
+            result.push('*');
+        }
+        result
     }
 }
 
@@ -369,7 +397,7 @@ mod tests {
     }
 
     #[test]
-    fn expand_pattern_prepends_star_colon() {
+    fn expand_pattern_prepends_star_colon_for_slash() {
         assert_eq!(expand_pattern("legal/*"), "*:legal/*");
         assert_eq!(expand_pattern("*/code-*"), "*:*/code-*");
     }
@@ -378,6 +406,14 @@ mod tests {
     fn expand_pattern_preserves_qualified() {
         assert_eq!(expand_pattern("src:legal/*"), "src:legal/*");
         assert_eq!(expand_pattern("*:*/*"), "*:*/*");
+    }
+
+    #[test]
+    fn expand_pattern_freeform_wraps_with_stars() {
+        assert_eq!(expand_pattern("anthr*"), "*anthr*");
+        assert_eq!(expand_pattern("*finan*"), "*finan*");
+        assert_eq!(expand_pattern("compl?"), "*compl?*");
+        assert_eq!(expand_pattern("legal"), "*legal*");
     }
 
     fn test_registry() -> Registry {
@@ -467,6 +503,39 @@ mod tests {
     }
 
     #[test]
+    fn match_skills_freeform_source_prefix() {
+        // "alph*" should match all skills from source "alpha"
+        let reg = test_registry();
+        let matches = reg.match_skills("alph*");
+        assert_eq!(matches.len(), 2);
+        assert!(matches.iter().all(|(s, _, _)| *s == "alpha"));
+    }
+
+    #[test]
+    fn match_skills_freeform_substring() {
+        // "*egal*" should match skills under plugin "legal"
+        let reg = test_registry();
+        let matches = reg.match_skills("*egal*");
+        assert_eq!(matches.len(), 2);
+    }
+
+    #[test]
+    fn match_skills_freeform_skill_name() {
+        // "call*" should match "call-prep" from beta:sales
+        let reg = test_registry();
+        let matches = reg.match_skills("call*");
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].2.name, "call-prep");
+    }
+
+    #[test]
+    fn match_skills_freeform_no_match() {
+        let reg = test_registry();
+        let matches = reg.match_skills("zzz*");
+        assert!(matches.is_empty());
+    }
+
+    #[test]
     fn find_skill_success() {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
@@ -492,3 +561,4 @@ mod tests {
         assert_eq!(skill.name, "sk");
     }
 }
+
