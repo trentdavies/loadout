@@ -362,7 +362,11 @@ fn known_marketplaces_non_empty() {
     for (name, url) in loadout::marketplace::KNOWN_MARKETPLACES {
         assert!(!name.is_empty(), "marketplace name should not be empty");
         assert!(!url.is_empty(), "marketplace URL should not be empty");
-        assert!(url.starts_with("https://"), "marketplace URL should be https: {}", url);
+        assert!(
+            url.starts_with("https://"),
+            "marketplace URL should be https: {}",
+            url
+        );
     }
 }
 

@@ -579,4 +579,3 @@ mod tests {
         assert_eq!(skill.name, "sk");
     }
 }
-

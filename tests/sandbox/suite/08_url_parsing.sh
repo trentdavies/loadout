@@ -507,51 +507,51 @@ test_10_vv_harness() {
 }
 
 # ---------------------------------------------------------------------------
-# 11. trentdavies/writing-assistant — SinglePlugin (no tree URL)
+# 11. badlogic/pi-skills — FlatSkills (no tree URL)
 # ---------------------------------------------------------------------------
-test_11_writing_assistant() {
+test_11_pi_skills() {
   skip_if_no_network && return
 
-  local source="writing-asst"
+  local source="pi-skills"
   local json
-  json=$(_add_and_list "trentdavies/writing-assistant" "$source")
+  json=$(_add_and_list "badlogic/pi-skills" "$source")
 
   if echo "$json" | grep -q "^EXIT:"; then
-    _fail "add failed for trentdavies/writing-assistant" "exit 0" "$json"
+    _fail "add failed for badlogic/pi-skills" "exit 0" "$json"
     return
   fi
 
-  local plugin_count skill_count has_content_writer
+  local plugin_count skill_count has_brave_search
   skill_count=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s)] | length')
   plugin_count=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s)] | [.[].plugin] | unique | length')
-  has_content_writer=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s and .name == "content-writer")] | length')
+  has_brave_search=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s and .name == "brave-search")] | length')
 
   if [ "$plugin_count" -eq 1 ]; then
-    _pass "writing-assistant: SinglePlugin (1 plugin)"
+    _pass "pi-skills: FlatSkills (1 plugin)"
   else
-    _fail "writing-assistant plugin count" "1" "$plugin_count"
+    _fail "pi-skills plugin count" "1" "$plugin_count"
   fi
 
-  if [ "$skill_count" -eq 7 ]; then
-    _pass "writing-assistant has 7 skills"
+  if [ "$skill_count" -ge 7 ]; then
+    _pass "pi-skills has $skill_count skills"
   else
-    _fail "writing-assistant skill count" "7" "$skill_count"
+    _fail "pi-skills skill count" ">=7" "$skill_count"
   fi
 
-  if [ "$has_content_writer" -ge 1 ]; then
-    _pass "writing-assistant contains content-writer skill"
+  if [ "$has_brave_search" -ge 1 ]; then
+    _pass "pi-skills contains brave-search skill"
   else
-    _fail "writing-assistant missing content-writer" "present" "not found"
+    _fail "pi-skills missing brave-search" "present" "not found"
   fi
 
-  # Identity: SinglePlugin plugin name from plugin.json = "writing-assistant"
+  # Identity: FlatSkills plugin name = cache dir name = source name = "pi-skills"
   local identity
   identity=$(echo "$json" | jq -r --arg s "$source" \
-    '[.[] | select(.source == $s and .name == "content-writer")] | .[0].identity')
-  if [ "$identity" = "writing-asst:writing-assistant/content-writer" ]; then
-    _pass "writing-assistant content-writer identity correct: $identity"
+    '[.[] | select(.source == $s and .name == "brave-search")] | .[0].identity')
+  if [ "$identity" = "pi-skills:pi-skills/brave-search" ]; then
+    _pass "pi-skills brave-search identity correct: $identity"
   else
-    _fail "writing-assistant content-writer identity" "writing-asst:writing-assistant/content-writer" "$identity"
+    _fail "pi-skills brave-search identity" "pi-skills:pi-skills/brave-search" "$identity"
   fi
 
   _cleanup_source "$source"

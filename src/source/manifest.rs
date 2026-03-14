@@ -19,9 +19,78 @@ pub struct MarketplaceOwner {
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct MarketplacePlugin {
     pub name: String,
-    pub source: String,
+    #[serde(deserialize_with = "deserialize_plugin_source")]
+    pub source: PluginSource,
     pub description: Option<String>,
     pub author: Option<MarketplaceAuthor>,
+}
+
+/// A marketplace plugin source — either a local path or an external reference.
+#[derive(Debug, Clone)]
+pub enum PluginSource {
+    /// Local path relative to the marketplace root (e.g. `"./plugins/legal"`).
+    Local(String),
+    /// External URL-based source — not resolvable from the local clone.
+    External { url: String, path: Option<String> },
+}
+
+impl PluginSource {
+    /// Returns the local path if this is a local source, or None for external sources.
+    pub fn local_path(&self) -> Option<&str> {
+        match self {
+            PluginSource::Local(p) => Some(p),
+            PluginSource::External { .. } => None,
+        }
+    }
+}
+
+/// Custom deserializer for `source` field that accepts both string and object formats.
+///
+/// String format: `"./plugins/legal"` → `PluginSource::Local`
+/// Object format: `{"source": "url", "url": "..."}` → `PluginSource::External`
+/// Object format: `{"source": "git-subdir", "url": "...", "path": "..."}` → `PluginSource::External`
+fn deserialize_plugin_source<'de, D>(deserializer: D) -> std::result::Result<PluginSource, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de;
+
+    struct SourceVisitor;
+
+    impl<'de> de::Visitor<'de> for SourceVisitor {
+        type Value = PluginSource;
+
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("a string path or an object with source type and url")
+        }
+
+        fn visit_str<E: de::Error>(self, v: &str) -> std::result::Result<PluginSource, E> {
+            Ok(PluginSource::Local(v.to_string()))
+        }
+
+        fn visit_map<M: de::MapAccess<'de>>(
+            self,
+            mut map: M,
+        ) -> std::result::Result<PluginSource, M::Error> {
+            let mut url: Option<String> = None;
+            let mut path: Option<String> = None;
+
+            while let Some(key) = map.next_key::<String>()? {
+                match key.as_str() {
+                    "url" => url = Some(map.next_value()?),
+                    "path" => path = Some(map.next_value()?),
+                    _ => {
+                        let _ = map.next_value::<serde::de::IgnoredAny>()?;
+                    }
+                }
+            }
+
+            let url = url.unwrap_or_default();
+            Ok(PluginSource::External { url, path })
+        }
+    }
+
+    deserializer.deserialize_any(SourceVisitor)
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -95,7 +164,7 @@ mod tests {
         assert_eq!(m.owner.unwrap().name.as_deref(), Some("Anthropic"));
         assert_eq!(m.plugins.len(), 2);
         assert_eq!(m.plugins[0].name, "legal");
-        assert_eq!(m.plugins[0].source, "./legal");
+        assert_eq!(m.plugins[0].source.local_path(), Some("./legal"));
         assert_eq!(m.plugins[0].description.as_deref(), Some("Legal tools"));
     }
 
@@ -136,6 +205,88 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let f = write_json(tmp.path(), "marketplace.json", "not json");
         assert!(load_marketplace(&f).is_err());
+    }
+
+    #[test]
+    fn marketplace_object_source_url() {
+        let tmp = TempDir::new().unwrap();
+        let f = write_json(
+            tmp.path(),
+            "marketplace.json",
+            r#"{
+            "name": "mkt",
+            "plugins": [
+                {
+                    "name": "atlassian",
+                    "source": {"source": "url", "url": "https://github.com/atlassian/mcp.git"}
+                }
+            ]
+        }"#,
+        );
+        let m = load_marketplace(&f).unwrap();
+        assert_eq!(m.plugins.len(), 1);
+        assert_eq!(m.plugins[0].name, "atlassian");
+        assert!(m.plugins[0].source.local_path().is_none());
+        match &m.plugins[0].source {
+            PluginSource::External { url, path } => {
+                assert_eq!(url, "https://github.com/atlassian/mcp.git");
+                assert!(path.is_none());
+            }
+            _ => panic!("expected External"),
+        }
+    }
+
+    #[test]
+    fn marketplace_object_source_git_subdir() {
+        let tmp = TempDir::new().unwrap();
+        let f = write_json(
+            tmp.path(),
+            "marketplace.json",
+            r#"{
+            "name": "mkt",
+            "plugins": [
+                {
+                    "name": "railway",
+                    "source": {
+                        "source": "git-subdir",
+                        "url": "railwayapp/railway-skills",
+                        "path": "plugins/railway",
+                        "ref": "main",
+                        "sha": "abc123"
+                    }
+                }
+            ]
+        }"#,
+        );
+        let m = load_marketplace(&f).unwrap();
+        assert_eq!(m.plugins.len(), 1);
+        match &m.plugins[0].source {
+            PluginSource::External { url, path } => {
+                assert_eq!(url, "railwayapp/railway-skills");
+                assert_eq!(path.as_deref(), Some("plugins/railway"));
+            }
+            _ => panic!("expected External"),
+        }
+    }
+
+    #[test]
+    fn marketplace_mixed_sources() {
+        let tmp = TempDir::new().unwrap();
+        let f = write_json(
+            tmp.path(),
+            "marketplace.json",
+            r#"{
+            "name": "mkt",
+            "plugins": [
+                {"name": "local-plugin", "source": "./local-plugin"},
+                {"name": "external", "source": {"source": "url", "url": "https://example.com/repo.git"}}
+            ]
+        }"#,
+        );
+        let m = load_marketplace(&f).unwrap();
+        assert_eq!(m.plugins.len(), 2);
+        assert_eq!(m.plugins[0].source.local_path(), Some("./local-plugin"));
+        assert!(m.plugins[1].source.local_path().is_none());
     }
 
     // -- plugin.json tests --
@@ -191,7 +342,6 @@ mod tests {
             "plugin.json",
             r#"{"name": "p", "unknown_field": true}"#,
         );
-        // serde should ignore unknown fields by default
         let m = load_plugin_manifest(&f).unwrap();
         assert_eq!(m.name, "p");
     }

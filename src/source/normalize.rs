@@ -71,10 +71,12 @@ pub fn normalize_with(
         }
 
         SourceStructure::FlatSkills => {
-            let dir_name = cache_path
+            let raw_dir = cache_path
                 .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or(source_name);
+            // Strip leading dot from hidden directories (e.g. ".curated" → "curated")
+            let dir_name = raw_dir.strip_prefix('.').unwrap_or(raw_dir);
             let plugin_name = overrides.plugin.unwrap_or(dir_name);
             let discovered = discover::discover_skills(cache_path)?;
             let skills = discovered
@@ -126,12 +128,21 @@ fn scan_marketplace(path: &Path) -> Result<Vec<RegisteredPlugin>> {
 
     let mut plugins = Vec::new();
     for mp in &marketplace.plugins {
+        // Only load plugins with local paths; skip external URL sources
+        let local_source = match &mp.source {
+            manifest::PluginSource::Local(p) => p.as_str(),
+            manifest::PluginSource::External { .. } => {
+                // External plugins reference other repos — skip during local scan
+                continue;
+            }
+        };
+
         // Resolve plugin path relative to source root
-        let plugin_path = path.join(mp.source.trim_start_matches("./"));
+        let plugin_path = path.join(local_source.trim_start_matches("./"));
         if !plugin_path.is_dir() {
             eprintln!(
                 "warning: marketplace plugin '{}' path does not exist: {}",
-                mp.name, mp.source
+                mp.name, local_source
             );
             continue;
         }

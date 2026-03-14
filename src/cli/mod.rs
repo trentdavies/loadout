@@ -387,9 +387,7 @@ pub fn detect_agent_targets() -> Vec<(String, std::path::PathBuf)> {
                     continue;
                 }
                 for (agent, prefix) in AGENT_PREFIXES {
-                    if name_str == *prefix
-                        || name_str.starts_with(&format!("{}-", prefix))
-                    {
+                    if name_str == *prefix || name_str.starts_with(&format!("{}-", prefix)) {
                         let path = entry.path();
                         if !candidates.iter().any(|(_, p)| *p == path) {
                             candidates.push((agent.to_string(), path));
@@ -405,10 +403,7 @@ pub fn detect_agent_targets() -> Vec<(String, std::path::PathBuf)> {
 
 /// Add all detected agent targets to config (auto-add, no per-target prompt).
 /// Returns count of targets added.
-pub fn add_detected_targets(
-    config: &mut crate::config::Config,
-    quiet: bool,
-) -> usize {
+pub fn add_detected_targets(config: &mut crate::config::Config, quiet: bool) -> usize {
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
         .or_else(|_| dirs::home_dir().ok_or(()))
@@ -426,7 +421,11 @@ pub fn add_detected_targets(
             .unwrap_or(agent)
             .trim_start_matches('.')
             .to_string();
-        let scope = if path.starts_with(&home) { "machine" } else { "repo" };
+        let scope = if path.starts_with(&home) {
+            "machine"
+        } else {
+            "repo"
+        };
         let sync = if scope == "repo" { "explicit" } else { "auto" };
         config.target.push(crate::config::TargetConfig {
             name: target_name.clone(),
@@ -554,8 +553,12 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 true // non-interactive default: yes
             } else {
                 crate::prompt::confirm_or_override(
-                    "Initialize git in loadout data dir? [Y/n]", "Y", cli.quiet,
-                ).to_uppercase() != "N"
+                    "Initialize git in loadout data dir? [Y/n]",
+                    "Y",
+                    cli.quiet,
+                )
+                .to_uppercase()
+                    != "N"
             };
             if should_git_init && !data.join(".git").exists() {
                 let result = std::process::Command::new("git")
@@ -570,7 +573,10 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
                     Ok(o) => {
                         if cli.verbose {
-                            eprintln!("warning: git init failed: {}", String::from_utf8_lossy(&o.stderr).trim());
+                            eprintln!(
+                                "warning: git init failed: {}",
+                                String::from_utf8_lossy(&o.stderr).trim()
+                            );
                         }
                     }
                     Err(_) => {
@@ -586,8 +592,12 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 true
             } else {
                 crate::prompt::confirm_or_override(
-                    "Detect and add agent targets? [Y/n]", "Y", cli.quiet,
-                ).to_uppercase() != "N"
+                    "Detect and add agent targets? [Y/n]",
+                    "Y",
+                    cli.quiet,
+                )
+                .to_uppercase()
+                    != "N"
             };
             if should_detect {
                 let mut config = crate::config::load(cli.config.as_deref())?;
@@ -645,7 +655,11 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         }
                         match crate::source::detect::detect(&cache_path) {
                             Ok(structure) => {
-                                match crate::source::normalize::normalize(&source_name, &cache_path, &structure) {
+                                match crate::source::normalize::normalize(
+                                    &source_name,
+                                    &cache_path,
+                                    &structure,
+                                ) {
                                     Ok(registered) => {
                                         registry.sources.retain(|s| s.name != source_name);
                                         registry.sources.push(registered);
@@ -660,7 +674,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                             println!("  Added source '{}'", source_name);
                                         }
                                     }
-                                    Err(e) => eprintln!("warning: failed to normalize '{}': {}", name, e),
+                                    Err(e) => {
+                                        eprintln!("warning: failed to normalize '{}': {}", name, e)
+                                    }
                                 }
                             }
                             Err(e) => eprintln!("warning: failed to detect '{}': {}", name, e),
@@ -725,14 +741,23 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             };
 
             if !cli.dry_run {
+                // Use tree ref from URL when no explicit --ref provided
+                let effective_ref = r#ref.as_deref().or_else(|| source_url.tree_ref());
+
                 crate::source::fetch::fetch_with_mode(
                     &source_url,
                     &cache_path,
-                    r#ref.as_deref(),
+                    effective_ref,
                     use_symlink,
                 )?;
 
-                let structure = crate::source::detect::detect(&cache_path)?;
+                // Detect on subpath within the clone if the URL points into a tree
+                let detect_path = if let Some(subpath) = source_url.subpath() {
+                    cache_path.join(subpath)
+                } else {
+                    cache_path.clone()
+                };
+                let structure = crate::source::detect::detect(&detect_path)?;
 
                 // Determine default plugin/skill names from structure for prompting
                 let overrides = {
@@ -749,9 +774,10 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                 None
                             }
                             SourceStructure::FlatSkills => {
-                                let dir = cache_path
+                                let dir = detect_path
                                     .file_name()
                                     .and_then(|n| n.to_str())
+                                    .map(|n| n.strip_prefix('.').unwrap_or(n))
                                     .unwrap_or(&source_name);
                                 if dir == source_name {
                                     None
@@ -760,7 +786,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                 }
                             }
                             SourceStructure::SinglePlugin => {
-                                let plugin_json = cache_path.join(".claude-plugin/plugin.json");
+                                let plugin_json = detect_path.join(".claude-plugin/plugin.json");
                                 if plugin_json.exists() {
                                     let m = crate::source::manifest::load_plugin_manifest(
                                         &plugin_json,
@@ -771,7 +797,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                         Some(m.name)
                                     }
                                 } else {
-                                    let n = cache_path
+                                    let n = detect_path
                                         .file_name()
                                         .and_then(|n| n.to_str())
                                         .unwrap_or("unnamed")
@@ -841,7 +867,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                 let registered = crate::source::normalize::normalize_with(
                     &source_name,
-                    &cache_path,
+                    &detect_path,
                     &structure,
                     &norm_overrides,
                 )?;
@@ -1035,47 +1061,39 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 if cli.verbose {
                     out.status("Path", &skill.path.display().to_string());
                 }
+            } else if cli.json {
+                let entries: Vec<serde_json::Value> = skills.iter()
+                    .map(|(source_name, plugin, skill)| {
+                        let source_ref = config_for_list.source.iter()
+                            .find(|cs| cs.name == *source_name)
+                            .and_then(|cs| cs.r#ref.clone());
+                        let mut entry = serde_json::json!({
+                            "identity": crate::output::plain_identity(source_name, &plugin.name, &skill.name),
+                            "name": skill.name,
+                            "plugin": plugin.name,
+                            "source": source_name,
+                        });
+                        if let Some(ref r) = source_ref {
+                            entry["ref"] = serde_json::Value::String(r.clone());
+                        }
+                        entry
+                    })
+                    .collect();
+                println!("{}", serde_json::to_string_pretty(&entries)?);
             } else {
-
-                if cli.json {
-                    let entries: Vec<serde_json::Value> = skills.iter()
-                        .map(|(source_name, plugin, skill)| {
-                            let source_ref = config_for_list.source.iter()
-                                .find(|cs| cs.name == *source_name)
-                                .and_then(|cs| cs.r#ref.clone());
-                            let mut entry = serde_json::json!({
-                                "identity": crate::output::plain_identity(source_name, &plugin.name, &skill.name),
-                                "name": skill.name,
-                                "plugin": plugin.name,
-                                "source": source_name,
-                            });
-                            if let Some(ref r) = source_ref {
-                                entry["ref"] = serde_json::Value::String(r.clone());
-                            }
-                            entry
-                        })
-                        .collect();
-                    println!("{}", serde_json::to_string_pretty(&entries)?);
-                } else {
-                    let output =
-                        crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
-                    if skills.is_empty() {
-                        if patterns.is_empty() {
-                            output.info("No skills found. Add a source with `loadout add`");
-                        } else {
-                            output.info("No skills matched the given pattern(s)");
-                        }
+                let output = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
+                if skills.is_empty() {
+                    if patterns.is_empty() {
+                        output.info("No skills found. Add a source with `loadout add`");
                     } else {
-                        for (source_name, plugin, skill) in &skills {
-                            println!(
-                                "{}",
-                                crate::output::format_identity(
-                                    source_name,
-                                    &plugin.name,
-                                    &skill.name
-                                )
-                            );
-                        }
+                        output.info("No skills matched the given pattern(s)");
+                    }
+                } else {
+                    for (source_name, plugin, skill) in &skills {
+                        println!(
+                            "{}",
+                            crate::output::format_identity(source_name, &plugin.name, &skill.name)
+                        );
                     }
                 }
             }
@@ -1782,7 +1800,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         }
                         let _ = path; // used via source_url
                     }
-                    crate::source::SourceUrl::Git(_) => {
+                    crate::source::SourceUrl::Git(..) => {
                         if let Some(ref new_ref) = update_ref {
                             // Ref switch: fetch + checkout new ref + update config
                             if !cache_path.exists() {
@@ -2451,23 +2469,38 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                             .map(std::path::PathBuf::from)
                             .or_else(|_| dirs::home_dir().ok_or(()))
                             .unwrap_or_else(|_| std::path::PathBuf::from("~"));
-                        let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
+                        let out =
+                            crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
                         let mut added = 0;
                         for (agent, path, registered) in &found {
                             if *registered {
-                                out.info(&format!("{} at {} (already registered)", agent, path.display()));
+                                out.info(&format!(
+                                    "{} at {} (already registered)",
+                                    agent,
+                                    path.display()
+                                ));
                                 continue;
                             }
-                            let target_name = path.file_name()
+                            let target_name = path
+                                .file_name()
                                 .and_then(|n| n.to_str())
                                 .unwrap_or(agent)
                                 .trim_start_matches('.')
                                 .to_string();
-                            eprint!("Add {} at {} as target '{}'? [y/N] ", agent, path.display(), target_name);
+                            eprint!(
+                                "Add {} at {} as target '{}'? [y/N] ",
+                                agent,
+                                path.display(),
+                                target_name
+                            );
                             let mut input = String::new();
                             std::io::stdin().read_line(&mut input).unwrap_or(0);
                             if input.trim().eq_ignore_ascii_case("y") {
-                                let scope = if path.starts_with(&home) { "machine" } else { "repo" };
+                                let scope = if path.starts_with(&home) {
+                                    "machine"
+                                } else {
+                                    "repo"
+                                };
                                 let sync = if scope == "repo" { "explicit" } else { "auto" };
                                 config.target.push(crate::config::TargetConfig {
                                     name: target_name.clone(),

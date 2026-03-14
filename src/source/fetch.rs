@@ -21,7 +21,7 @@ pub fn fetch_with_mode(
 ) -> Result<PathBuf> {
     match source_url {
         SourceUrl::Local(path) => fetch_local(path, cache_dir, symlink),
-        SourceUrl::Git(url) => fetch_git(url, cache_dir, git_ref),
+        SourceUrl::Git(url, _) => fetch_git(url, cache_dir, git_ref),
         SourceUrl::Archive(path) => fetch_archive(path, cache_dir),
     }
 }
