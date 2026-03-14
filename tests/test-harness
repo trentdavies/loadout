@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-IMAGE="loadout-test"
+IMAGE="loadout-harness"
 
 # Build the Docker image
 echo "Building $IMAGE..."
@@ -13,7 +13,7 @@ docker build -f "$SCRIPT_DIR/Dockerfile" -t "$IMAGE" "$PROJECT_DIR" || exit 1
 # Run tests — pass any args through (e.g., --suite 02)
 if [ $# -eq 0 ]; then
     echo "Running all harness suites..."
-    docker run --rm "$IMAGE"
+    docker run --rm "$IMAGE" /tests/harness/runner.sh
 else
     echo "Running: runner.sh $*"
     docker run --rm "$IMAGE" /tests/harness/runner.sh "$@"

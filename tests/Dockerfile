@@ -1,36 +1,62 @@
-FROM rust:latest
-
-# Install jq for JSON assertion tests
-RUN apt-get update && apt-get install -y jq && rm -rf /var/lib/apt/lists/*
+# ── Build stage ──────────────────────────────────────────────
+FROM rust:latest AS builder
 
 WORKDIR /build
 
-# Copy Cargo manifests first for layer caching
+# Cache dependency build: copy manifests first, build a dummy, then copy real src
 COPY Cargo.toml Cargo.loc[k] ./
+RUN mkdir src && echo 'fn main() {}' > src/main.rs && cargo build --release 2>/dev/null; rm -rf src
 
-# Copy source code
 COPY src/ ./src/
+RUN cargo build --release
 
-# Build with graceful failure handling
-RUN cargo build --release 2>/dev/null; \
-    if [ -f target/release/loadout ]; then \
-      cp target/release/loadout /usr/local/bin/loadout; \
-      echo "BUILD OK — loadout binary installed"; \
-    else \
-      echo "BUILD FAILED — loadout binary not produced (tests will report this)"; \
-    fi
+# ── Runtime stage ────────────────────────────────────────────
+FROM debian:bookworm-slim
 
-# Set XDG env var for test isolation (config + data both live in XDG_DATA_HOME)
-ENV XDG_DATA_HOME=/tmp/test-data
-ENV SKIP_NETWORK=1
+RUN apt-get update && apt-get install -y \
+    openssh-server jq tree vim less git \
+    && rm -rf /var/lib/apt/lists/*
 
-# Create mock target directories
+# SSH setup
+RUN mkdir -p /run/sshd \
+    && echo 'root:loadout' | chpasswd \
+    && sed -i 's/#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config \
+    && sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config \
+    && sed -i 's/#AllowAgentForwarding.*/AllowAgentForwarding yes/' /etc/ssh/sshd_config
+
+# Copy binary from builder — available at both locations
+COPY --from=builder /build/target/release/loadout /usr/local/bin/loadout
+RUN mkdir -p /root/.local/bin && ln -s /usr/local/bin/loadout /root/.local/bin/loadout
+
+# Environment
+ENV HOME=/root
+ENV XDG_DATA_HOME=/root/.local/share
+ENV PATH="/root/.local/bin:${PATH}"
+WORKDIR /root
+
+# Simulate agent config directories
+RUN mkdir -p ~/.claude ~/.codex ~/.cursor
+
+# Mock install targets (harness uses these)
 RUN mkdir -p /tmp/test-targets/claude /tmp/test-targets/codex
 
-# Copy test fixtures and harness
+# Copy full test directory and fixtures
 COPY tests/ /tests/
 
-# Make test scripts executable
-RUN chmod +x /tests/harness/runner.sh
+# Make scripts executable
+RUN chmod +x /tests/harness/runner.sh \
+    && chmod +x /tests/sandbox/run /tests/sandbox/runner.sh /tests/sandbox/setup.sh \
+    && chmod +x /tests/sandbox/suite/*.sh 2>/dev/null || true
 
-CMD ["/tests/harness/runner.sh"]
+# Convenience symlinks for sandbox exploration
+RUN ln -s /tests/sandbox/runner.sh ~/run-tests \
+    && ln -s /tests/sandbox/setup.sh ~/setup.sh
+
+# SSH port for sandbox-ssh mode
+EXPOSE 22
+
+# Default: interactive shell. Callers override CMD:
+#   just harness        → /tests/harness/runner.sh
+#   sandbox/run --test  → /root/run-tests
+#   sandbox-ssh         → /usr/sbin/sshd -D
+CMD ["bash"]
