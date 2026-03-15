@@ -846,7 +846,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 let effective_ref = r#ref.as_deref().or_else(|| source_url.tree_ref());
                 if !cli.quiet {
                     let action = match &source_url {
-                        crate::source::SourceUrl::Git(url) => format!("Cloning {}", url.dimmed()),
+                        crate::source::SourceUrl::Git(url, _) => format!("Cloning {}", url.dimmed()),
                         crate::source::SourceUrl::Local(path) if use_symlink => {
                             format!("Linking {}", path.display().to_string().dimmed())
                         }
