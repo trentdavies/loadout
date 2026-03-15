@@ -1766,32 +1766,78 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
 
             let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
-            out.status("Sources", &config.source.len().to_string());
-            out.status("Targets", &config.target.len().to_string());
-            out.status(
-                "Plugins",
-                &registry
-                    .sources
-                    .iter()
-                    .flat_map(|s| &s.plugins)
-                    .count()
-                    .to_string(),
-            );
-            out.status("Skills", &total_skills.to_string());
-            out.status("Installed", &total_installed.to_string());
-            out.status("Bundles", &config.bundle.len().to_string());
 
-            // Show source refs if any are pinned/tracking
-            let sources_with_refs: Vec<_> =
-                config.source.iter().filter(|s| s.r#ref.is_some()).collect();
-            if !sources_with_refs.is_empty() {
-                out.info("");
-                out.info("Source versions:");
+            // Sources section
+            out.header("Sources");
+            if config.source.is_empty() {
+                out.info("  (none)");
+            } else {
                 for src in &config.source {
+                    let skill_count: usize = registry
+                        .sources
+                        .iter()
+                        .find(|rs| rs.name == src.name)
+                        .map(|rs| rs.plugins.iter().map(|p| p.skills.len()).sum())
+                        .unwrap_or(0);
                     let version = src.r#ref.as_deref().unwrap_or("latest");
-                    out.info(&format!("  {} @ {}", src.name, version));
+                    let mode_str = src.mode.as_deref().unwrap_or("");
+                    let detail = if mode_str.is_empty() {
+                        format!("{} skills, @ {}", skill_count, version)
+                    } else {
+                        format!("{} skills, @ {}, {}", skill_count, version, mode_str)
+                    };
+                    println!(
+                        "  {} {}",
+                        src.name.bold(),
+                        detail.dimmed(),
+                    );
                 }
             }
+
+            // Targets section
+            out.header("Targets");
+            if config.target.is_empty() {
+                out.info("  (none)");
+            } else {
+                for tc in &config.target {
+                    let adapter = crate::target::resolve_adapter(tc, &config.adapter).ok();
+                    let installed_count = adapter
+                        .as_ref()
+                        .and_then(|a| a.installed_skills(&tc.path).ok())
+                        .map(|s| s.len())
+                        .unwrap_or(0);
+                    println!(
+                        "  {} {} {}",
+                        tc.name.bold(),
+                        format!("({})", tc.agent).cyan(),
+                        format!("{} installed, scope: {}, sync: {}", installed_count, tc.scope, tc.sync).dimmed(),
+                    );
+                }
+            }
+
+            // Bundles section
+            out.header("Bundles");
+            if config.bundle.is_empty() {
+                out.info("  (none)");
+            } else {
+                for (name, bundle) in &config.bundle {
+                    println!(
+                        "  {} {}",
+                        name.bold(),
+                        format!("({} skills)", bundle.skills.len()).dimmed(),
+                    );
+                }
+            }
+
+            // Summary
+            out.info("");
+            out.status("Total", &format!(
+                "{} sources, {} plugins, {} skills, {} installed",
+                config.source.len(),
+                registry.sources.iter().flat_map(|s| &s.plugins).count(),
+                total_skills,
+                total_installed,
+            ));
 
             Ok(())
         }
