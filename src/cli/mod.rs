@@ -1200,6 +1200,101 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     (plugin_override, skill_override)
                 };
 
+                // For local sources with simple structures (SingleFile, SingleSkillDir,
+                // FlatSkills), import directly into plugins/{plugin_name}/ instead of
+                // keeping them in external/.
+                use crate::source::detect::SourceStructure;
+                let is_local_simple = matches!(&source_url, crate::source::SourceUrl::Local(_))
+                    && matches!(
+                        &structure,
+                        SourceStructure::SingleFile { .. }
+                            | SourceStructure::SingleSkillDir { .. }
+                            | SourceStructure::FlatSkills
+                    );
+
+                let (detect_path, structure) = if is_local_simple {
+                    // Compute effective plugin name (same logic as normalize)
+                    let effective_plugin = match overrides.0.as_deref() {
+                        Some(p) => p.to_string(),
+                        None => match &structure {
+                            SourceStructure::FlatSkills => {
+                                let raw_dir = detect_path
+                                    .file_name()
+                                    .and_then(|n| n.to_str())
+                                    .unwrap_or(&source_name);
+                                raw_dir.strip_prefix('.').unwrap_or(raw_dir).to_string()
+                            }
+                            _ => source_name.clone(),
+                        },
+                    };
+
+                    let dest_plugin = crate::config::plugins_dir().join(&effective_plugin);
+
+                    match &structure {
+                        SourceStructure::SingleFile { skill_name } => {
+                            let dest_skill = dest_plugin.join("skills").join(skill_name);
+                            std::fs::create_dir_all(&dest_skill)?;
+                            // Find the source skill file in the cache
+                            let src_file = detect_path.join(format!("{}.md", skill_name));
+                            let src_file = if src_file.exists() {
+                                src_file
+                            } else {
+                                detect_path.join("SKILL.md")
+                            };
+                            std::fs::copy(&src_file, dest_skill.join("SKILL.md"))?;
+                        }
+                        SourceStructure::SingleSkillDir { skill_name } => {
+                            let dest_skill = dest_plugin.join("skills").join(skill_name);
+                            copy_dir_all(&detect_path, &dest_skill)?;
+                        }
+                        SourceStructure::FlatSkills => {
+                            let dest_skills = dest_plugin.join("skills");
+                            for entry in std::fs::read_dir(&detect_path)? {
+                                let entry = entry?;
+                                if !entry.file_type()?.is_dir() {
+                                    continue;
+                                }
+                                let name = entry.file_name();
+                                if name.to_string_lossy().starts_with('.') {
+                                    continue;
+                                }
+                                let skill_dir = entry.path();
+                                if skill_dir.join("SKILL.md").exists() {
+                                    let dest = dest_skills.join(&name);
+                                    copy_dir_all(&skill_dir, &dest)?;
+                                }
+                            }
+                        }
+                        _ => unreachable!(),
+                    }
+
+                    // Create plugin.json if missing
+                    let plugin_json_dir = dest_plugin.join(".claude-plugin");
+                    let plugin_json = plugin_json_dir.join("plugin.json");
+                    if !plugin_json.exists() {
+                        std::fs::create_dir_all(&plugin_json_dir)?;
+                        let json = serde_json::json!({"name": effective_plugin});
+                        std::fs::write(
+                            &plugin_json,
+                            serde_json::to_string_pretty(&json)?,
+                        )?;
+                    }
+
+                    // Clean up external cache
+                    if cache_path.exists() {
+                        let _ = std::fs::remove_dir_all(&cache_path);
+                    }
+
+                    // Regenerate marketplace
+                    generate_marketplace(&data_dir)?;
+
+                    // Re-detect from the new plugins/ location
+                    let new_structure = crate::source::detect::detect(&dest_plugin)?;
+                    (dest_plugin, new_structure)
+                } else {
+                    (detect_path, structure)
+                };
+
                 let norm_overrides = crate::source::normalize::Overrides {
                     plugin: overrides.0.as_deref(),
                     skill: overrides.1.as_deref(),
@@ -2142,10 +2237,25 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
             let execute = force && !cli.dry_run;
             if execute {
-                // Remove cached content
+                // Remove cached content from external/
                 let cache_path = crate::config::cache_dir().join(&name);
                 if cache_path.exists() {
                     std::fs::remove_dir_all(&cache_path)?;
+                }
+
+                // Also remove plugin directories under plugins/ for locally-imported sources
+                let registry = crate::registry::load_registry(&data_dir)?;
+                let plugins_dir = crate::config::plugins_dir();
+                if let Some(reg_src) = registry.sources.iter().find(|s| s.name == name) {
+                    for p in &reg_src.plugins {
+                        if p.path.starts_with(&plugins_dir) && p.path.exists() {
+                            let _ = std::fs::remove_dir_all(&p.path);
+                        }
+                    }
+                    // Regenerate marketplace after removing plugin dirs
+                    if reg_src.plugins.iter().any(|p| p.path.starts_with(&plugins_dir)) {
+                        let _ = generate_marketplace(&data_dir);
+                    }
                 }
 
                 // Remove from registry
