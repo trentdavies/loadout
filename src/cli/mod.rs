@@ -2316,8 +2316,6 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     all,
                     force,
                 } => {
-                    let out =
-                        crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
                     if target.is_none() && !all {
                         anyhow::bail!("provide a <target> or use --all");
                     }
@@ -2328,6 +2326,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", name))?
                         .clone();
                     let registry = crate::registry::load_registry(&data_dir)?;
+                    let mut reg = registry.clone();
 
                     let targets: Vec<&crate::config::TargetConfig> = if all {
                         config.target.iter().collect()
@@ -2341,33 +2340,130 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         vec![tc]
                     };
 
-                    let execute = force && !cli.dry_run;
-                    let mut installed_count = 0usize;
+                    let mut new_count: usize = 0;
+                    let mut unchanged_count: usize = 0;
+                    let mut updated_count: usize = 0;
+                    let mut conflicts: Vec<(String, String)> = Vec::new(); // (skill_id, target)
+
                     for tc in &targets {
                         let adapter = crate::target::resolve_adapter(tc, &config.adapter)?;
-                        let already = adapter.installed_skills(&tc.path).unwrap_or_default();
+
+                        if !cli.quiet {
+                            println!(
+                                "{} {} {}",
+                                "→".bold(),
+                                tc.name.bold(),
+                                tc.path.display().to_string().dimmed(),
+                            );
+                        }
 
                         for skill_id in &bundle.skills {
-                            let (_, _, s) = registry.find_skill(skill_id)?;
-                            if already.contains(&s.name) {
-                                continue; // idempotent: skip silently
-                            }
-                            if execute {
-                                adapter.install_skill(s, &tc.path)?;
-                                installed_count += 1;
-                            } else {
-                                out.info(&format!("  would install {} on {}", skill_id, tc.name));
+                            let (src_name, plug_name, s) = registry.find_skill(skill_id)?;
+                            let status = adapter.compare_skill(s, &tc.path)?;
+                            let dest = adapter.skill_dest(&tc.path, &s.name);
+
+                            match status {
+                                crate::target::SkillStatus::New => {
+                                    if cli.dry_run {
+                                        if !cli.quiet {
+                                            println!(
+                                                "  {} {} → {}",
+                                                "+".green().bold(),
+                                                crate::output::format_identity(src_name, plug_name, &s.name),
+                                                dest.display().to_string().dimmed(),
+                                            );
+                                        }
+                                    } else {
+                                        adapter.install_skill(s, &tc.path)?;
+                                        record_provenance(&mut reg, &data_dir, tc, src_name, plug_name, s);
+                                        new_count += 1;
+                                        if !cli.quiet {
+                                            println!(
+                                                "  {} {} → {}",
+                                                "✓".green(),
+                                                crate::output::format_identity(src_name, plug_name, &s.name),
+                                                dest.display().to_string().dimmed(),
+                                            );
+                                        }
+                                    }
+                                }
+                                crate::target::SkillStatus::Unchanged => {
+                                    unchanged_count += 1;
+                                    if cli.verbose && !cli.quiet {
+                                        println!(
+                                            "  {} {} {}",
+                                            "·".dimmed(),
+                                            s.name.dimmed(),
+                                            "(unchanged)".dimmed(),
+                                        );
+                                    }
+                                }
+                                crate::target::SkillStatus::Changed => {
+                                    if force && !cli.dry_run {
+                                        adapter.install_skill(s, &tc.path)?;
+                                        record_provenance(&mut reg, &data_dir, tc, src_name, plug_name, s);
+                                        updated_count += 1;
+                                        if !cli.quiet {
+                                            println!(
+                                                "  {} {} → {} {}",
+                                                "↻".yellow(),
+                                                crate::output::format_identity(src_name, plug_name, &s.name),
+                                                dest.display().to_string().dimmed(),
+                                                "(overwritten)".yellow(),
+                                            );
+                                        }
+                                    } else {
+                                        conflicts.push((skill_id.clone(), tc.name.clone()));
+                                        if !cli.quiet {
+                                            println!(
+                                                "  {} {} → {} {}",
+                                                "✗".red(),
+                                                crate::output::format_identity(src_name, plug_name, &s.name),
+                                                dest.display().to_string().dimmed(),
+                                                "(changed, use --force)".red(),
+                                            );
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
 
-                    if execute {
-                        out.success(&format!(
-                            "Activated bundle '{}' ({} skill(s) installed)",
-                            name, installed_count
-                        ));
-                    } else {
-                        out.info("Use --force to activate");
+                    // Save provenance if we installed anything
+                    if new_count > 0 || updated_count > 0 {
+                        crate::registry::save_registry(&reg, &data_dir)?;
+                    }
+
+                    // Print summary
+                    if !cli.quiet {
+                        let mut parts = Vec::new();
+                        if new_count > 0 {
+                            parts.push(format!("{} installed", new_count));
+                        }
+                        if updated_count > 0 {
+                            parts.push(format!("{} updated", updated_count));
+                        }
+                        if unchanged_count > 0 {
+                            parts.push(format!("{} unchanged", unchanged_count));
+                        }
+                        if !conflicts.is_empty() {
+                            parts.push(format!("{} conflicted", conflicts.len()));
+                        }
+                        if cli.dry_run {
+                            parts.push("dry run".to_string());
+                        }
+                        if !parts.is_empty() {
+                            println!(
+                                "\n{} bundle {} {}",
+                                if conflicts.is_empty() { "✓".green() } else { "!".yellow() },
+                                name.bold(),
+                                format!("({})", parts.join(", ")).dimmed(),
+                            );
+                        }
+                    }
+
+                    if !conflicts.is_empty() && !cli.dry_run {
+                        std::process::exit(1);
                     }
                     Ok(())
                 }
@@ -2375,10 +2471,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     name,
                     target,
                     all,
-                    force,
+                    force: _,
                 } => {
-                    let out =
-                        crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
                     if target.is_none() && !all {
                         anyhow::bail!("provide a <target> or use --all");
                     }
@@ -2402,36 +2496,82 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         vec![tc]
                     };
 
-                    let execute = force && !cli.dry_run;
-                    let mut removed_count = 0usize;
+                    let mut removed_count: usize = 0;
+                    let mut skipped_count: usize = 0;
+
                     for tc in &targets {
                         let adapter = crate::target::resolve_adapter(tc, &config.adapter)?;
                         let already = adapter.installed_skills(&tc.path).unwrap_or_default();
 
+                        if !cli.quiet {
+                            println!(
+                                "{} {} {}",
+                                "→".bold(),
+                                tc.name.bold(),
+                                tc.path.display().to_string().dimmed(),
+                            );
+                        }
+
                         for skill_id in &bundle.skills {
-                            let (_, _, s) = registry.find_skill(skill_id)?;
+                            let (src_name, plug_name, s) = registry.find_skill(skill_id)?;
+                            let dest = adapter.skill_dest(&tc.path, &s.name);
+
                             if !already.contains(&s.name) {
-                                continue; // idempotent: skip silently
+                                skipped_count += 1;
+                                if cli.verbose && !cli.quiet {
+                                    println!(
+                                        "  {} {} {}",
+                                        "·".dimmed(),
+                                        s.name.dimmed(),
+                                        "(not installed)".dimmed(),
+                                    );
+                                }
+                                continue;
                             }
-                            if execute {
+
+                            if cli.dry_run {
+                                if !cli.quiet {
+                                    println!(
+                                        "  {} {} ← {}",
+                                        "-".red().bold(),
+                                        crate::output::format_identity(src_name, plug_name, &s.name),
+                                        dest.display().to_string().dimmed(),
+                                    );
+                                }
+                            } else {
                                 adapter.uninstall_skill(&s.name, &tc.path)?;
                                 removed_count += 1;
-                            } else {
-                                out.info(&format!(
-                                    "  would uninstall {} from {}",
-                                    skill_id, tc.name
-                                ));
+                                if !cli.quiet {
+                                    println!(
+                                        "  {} {} ← {}",
+                                        "✓".green(),
+                                        crate::output::format_identity(src_name, plug_name, &s.name),
+                                        dest.display().to_string().dimmed(),
+                                    );
+                                }
                             }
                         }
                     }
 
-                    if execute {
-                        out.success(&format!(
-                            "Deactivated bundle '{}' ({} skill(s) removed)",
-                            name, removed_count
-                        ));
-                    } else {
-                        out.info("Use --force to deactivate");
+                    if !cli.quiet {
+                        let mut parts = Vec::new();
+                        if removed_count > 0 {
+                            parts.push(format!("{} removed", removed_count));
+                        }
+                        if skipped_count > 0 {
+                            parts.push(format!("{} not installed", skipped_count));
+                        }
+                        if cli.dry_run {
+                            parts.push("dry run".to_string());
+                        }
+                        if !parts.is_empty() {
+                            println!(
+                                "\n{} bundle {} {}",
+                                "✓".green(),
+                                name.bold(),
+                                format!("({})", parts.join(", ")).dimmed(),
+                            );
+                        }
                     }
                     Ok(())
                 }

@@ -156,7 +156,7 @@ impl Adapter {
     }
 
     /// Resolve the destination directory for a skill.
-    fn skill_dest(&self, target_path: &Path, skill_name: &str) -> PathBuf {
+    pub fn skill_dest(&self, target_path: &Path, skill_name: &str) -> PathBuf {
         let resolved = self.skill_dir_template.replace("{name}", skill_name);
         target_path.join(resolved)
     }
