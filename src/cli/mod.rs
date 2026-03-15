@@ -111,30 +111,34 @@ pub enum Command {
         r#ref: Option<String>,
     },
 
-    /// Apply skills to targets
+    /// Apply skills to target(s)
     Apply {
         /// Apply all configured skills
         #[arg(long)]
         all: bool,
 
-        /// Apply a specific skill (plugin/skill)
-        #[arg(long, value_name = "SKILL")]
-        skill: Option<String>,
+        /// Skill identity (can be a glob pattern)
+        #[arg(long, num_args = 1..)]
+        skill: Option<Vec<String>>,
 
-        /// Apply all skills from a plugin
-        #[arg(long, value_name = "PLUGIN")]
+        /// Plugin name (apply all skills from plugin)
+        #[arg(long)]
         plugin: Option<String>,
 
-        /// Apply a bundle of skills
-        #[arg(long, value_name = "BUNDLE")]
+        /// Bundle name
+        #[arg(long)]
         bundle: Option<String>,
 
-        /// Target to apply to
-        #[arg(long, value_name = "TARGET")]
-        target: Option<String>,
+        /// Target name(s) to apply to (repeatable)
+        #[arg(long, num_args = 1..)]
+        target: Option<Vec<String>>,
 
-        /// Force overwrite of changed skills without prompting
-        #[arg(short, long)]
+        /// Apply to all configured targets
+        #[arg(long, conflicts_with = "target")]
+        all_targets: bool,
+
+        /// Overwrite changed skills without prompting
+        #[arg(long)]
         force: bool,
 
         /// Interactively resolve conflicts for changed skills
@@ -142,7 +146,35 @@ pub enum Command {
         interactive: bool,
     },
 
-    /// Uninstall skills from targets
+    /// Remove skills from target(s)
+    Unapply {
+        /// Skill identity (can be a glob pattern)
+        #[arg(long, num_args = 1..)]
+        skill: Option<Vec<String>>,
+
+        /// Plugin name (remove all skills from plugin)
+        #[arg(long)]
+        plugin: Option<String>,
+
+        /// Bundle name
+        #[arg(long)]
+        bundle: Option<String>,
+
+        /// Target name(s) to remove from (repeatable)
+        #[arg(long, num_args = 1..)]
+        target: Option<Vec<String>>,
+
+        /// Remove from all configured targets
+        #[arg(long, conflicts_with = "target")]
+        all_targets: bool,
+
+        /// Execute removal (default is preview/dry-run)
+        #[arg(long)]
+        force: bool,
+    },
+
+    /// Remove skills from targets (deprecated: use unapply)
+    #[command(hide = true)]
     Uninstall {
         /// Uninstall a specific skill (plugin/skill)
         #[arg(long, value_name = "SKILL")]
@@ -281,7 +313,8 @@ pub enum BundleCommand {
         #[arg(required = true)]
         skills: Vec<String>,
     },
-    /// Activate a bundle (batch install its skills onto a target)
+    /// Activate a bundle (deprecated: use `loadout apply --bundle`)
+    #[command(hide = true)]
     Activate {
         /// Bundle name
         name: String,
@@ -297,7 +330,8 @@ pub enum BundleCommand {
         #[arg(long)]
         force: bool,
     },
-    /// Deactivate a bundle (batch uninstall its skills from a target)
+    /// Deactivate a bundle (deprecated: use `loadout unapply --bundle`)
+    #[command(hide = true)]
     Deactivate {
         /// Bundle name
         name: String,
@@ -561,6 +595,192 @@ pub fn add_detected_targets(config: &mut crate::config::Config, quiet: bool) -> 
         added += 1;
     }
     added
+}
+
+fn resolve_targets<'a>(
+    config: &'a crate::config::Config,
+    target_names: &Option<Vec<String>>,
+    all_targets: bool,
+) -> anyhow::Result<Vec<&'a crate::config::TargetConfig>> {
+    if all_targets {
+        if config.target.is_empty() {
+            anyhow::bail!("no targets configured. Use `loadout target add` first.");
+        }
+        return Ok(config.target.iter().collect());
+    }
+
+    if let Some(names) = target_names {
+        let mut targets = Vec::new();
+        for name in names {
+            let tc = config
+                .target
+                .iter()
+                .find(|tc| tc.name == *name)
+                .ok_or_else(|| anyhow::anyhow!("target '{}' not found", name))?;
+            targets.push(tc);
+        }
+        if targets.is_empty() {
+            anyhow::bail!("no targets specified");
+        }
+        return Ok(targets);
+    }
+
+    // Default: auto-sync targets
+    let auto: Vec<_> = config.target.iter().filter(|t| t.sync == "auto").collect();
+    if auto.is_empty() {
+        anyhow::bail!("no targets configured. Use `loadout target add` first.");
+    }
+    Ok(auto)
+}
+
+fn do_unapply(
+    config_path: Option<&str>,
+    json: bool,
+    quiet: bool,
+    verbose: bool,
+    dry_run: bool,
+    skill: Option<Vec<String>>,
+    plugin: Option<String>,
+    bundle: Option<String>,
+    target: Option<Vec<String>>,
+    all_targets: bool,
+    force: bool,
+) -> anyhow::Result<()> {
+    use colored::Colorize;
+
+    if skill.is_none() && plugin.is_none() && bundle.is_none() {
+        eprintln!("error: unapply requires --skill, --plugin, or --bundle");
+        std::process::exit(2);
+    }
+
+    let config = crate::config::load(config_path)?;
+    let data_dir = crate::config::data_dir();
+    let mut registry = crate::registry::load_registry(&data_dir)?;
+    let renames = crate::registry::reconcile_with_config(
+        &mut registry,
+        &config.source,
+        &data_dir,
+    )?;
+    if !renames.is_empty() {
+        crate::registry::save_registry(&registry, &data_dir)?;
+        if !quiet {
+            for r in &renames {
+                eprintln!("source renamed: {}", r);
+            }
+        }
+    }
+    let out = crate::output::Output::from_flags(json, quiet, verbose);
+
+    let targets = resolve_targets(&config, &target, all_targets)?;
+
+    // Collect skill names to remove
+    let mut skill_names: Vec<String> = Vec::new();
+
+    if let Some(ref skill_ids) = skill {
+        for skill_id in skill_ids {
+            if crate::registry::is_glob(skill_id) {
+                let matches = registry.match_skills(skill_id);
+                if matches.is_empty() {
+                    anyhow::bail!("no skills matched pattern '{}'", skill_id);
+                }
+                for (_, _, s) in matches {
+                    if !skill_names.contains(&s.name) {
+                        skill_names.push(s.name.clone());
+                    }
+                }
+            } else {
+                let (_, _, s) = registry.find_skill(skill_id)?;
+                if !skill_names.contains(&s.name) {
+                    skill_names.push(s.name.clone());
+                }
+            }
+        }
+    }
+
+    if let Some(ref plugin_name) = plugin {
+        let (_, p) = registry
+            .find_plugin(plugin_name)
+            .ok_or_else(|| anyhow::anyhow!("plugin '{}' not found", plugin_name))?;
+        for s in &p.skills {
+            if !skill_names.contains(&s.name) {
+                skill_names.push(s.name.clone());
+            }
+        }
+    }
+
+    if let Some(ref bundle_name) = bundle {
+        let bundle_cfg = config
+            .bundle
+            .get(bundle_name)
+            .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", bundle_name))?;
+        for skill_id in &bundle_cfg.skills {
+            let (_, _, s) = registry.find_skill(skill_id)?;
+            if !skill_names.contains(&s.name) {
+                skill_names.push(s.name.clone());
+            }
+        }
+    }
+
+    let execute = force && !dry_run;
+    let mut total_removed = 0usize;
+    let mut _total_skipped = 0usize;
+
+    for tc in &targets {
+        let adapter = crate::target::resolve_adapter(tc, &config.adapter)?;
+        let installed = adapter.installed_skills(&tc.path).unwrap_or_default();
+
+        for name in &skill_names {
+            if installed.contains(name) {
+                // Look up provenance for colored identity
+                let identity = registry
+                    .installed
+                    .get(&tc.name)
+                    .and_then(|m| m.get(name))
+                    .map(|info| {
+                        crate::output::format_identity(&info.source, &info.plugin, &info.skill)
+                    })
+                    .unwrap_or_else(|| name.clone());
+
+                if execute {
+                    adapter.uninstall_skill(name, &tc.path)?;
+                    if let Some(target_map) = registry.installed.get_mut(&tc.name) {
+                        target_map.remove(name);
+                    }
+                    out.success(&format!(
+                        "Removed {} from {}",
+                        identity,
+                        tc.name.bold()
+                    ));
+                    total_removed += 1;
+                } else {
+                    out.info(&format!("  {} from {}", identity, tc.name.bold()));
+                    total_removed += 1;
+                }
+            } else {
+                _total_skipped += 1;
+            }
+        }
+    }
+
+    if !execute && total_removed > 0 {
+        out.info("");
+        out.warn("Preview only. Use --force to execute.");
+    }
+
+    if execute {
+        crate::registry::save_registry(&registry, &data_dir)?;
+        if !quiet {
+            out.info(&format!(
+                "Removed {} skill(s) from {} target(s)",
+                total_removed,
+                targets.len()
+            ));
+        }
+    } else if total_removed == 0 && !quiet {
+        out.info("No matching skills found on target(s).");
+    }
+
+    Ok(())
 }
 
 pub fn run(cli: Cli) -> anyhow::Result<()> {
@@ -1340,6 +1560,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             plugin,
             bundle,
             target,
+            all_targets,
             force,
             interactive,
         } => {
@@ -1367,20 +1588,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
 
             // Determine which targets to apply to
-            let targets: Vec<&crate::config::TargetConfig> = if let Some(ref t) = target {
-                let tc = config
-                    .target
-                    .iter()
-                    .find(|tc| tc.name == *t)
-                    .ok_or_else(|| anyhow::anyhow!("target '{}' not found", t))?;
-                vec![tc]
-            } else {
-                config.target.iter().filter(|t| t.sync == "auto").collect()
-            };
-
-            if targets.is_empty() {
-                anyhow::bail!("no targets configured. Use `loadout target add` first.");
-            }
+            let targets = resolve_targets(&config, &target, all_targets)?;
 
             // Collect skills to apply with provenance: (source, plugin, skill)
             let mut skills_to_apply: Vec<(&str, &str, &crate::registry::RegisteredSkill)> =
@@ -1396,18 +1604,20 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
             }
 
-            if let Some(ref skill_id) = skill {
-                if crate::registry::is_glob(skill_id) {
-                    let matches = registry.match_skills(skill_id);
-                    if matches.is_empty() {
-                        anyhow::bail!("no skills matched pattern '{}'", skill_id);
+            if let Some(ref skill_ids) = skill {
+                for skill_id in skill_ids {
+                    if crate::registry::is_glob(skill_id) {
+                        let matches = registry.match_skills(skill_id);
+                        if matches.is_empty() {
+                            anyhow::bail!("no skills matched pattern '{}'", skill_id);
+                        }
+                        for (src, plugin, s) in matches {
+                            skills_to_apply.push((src, &plugin.name, s));
+                        }
+                    } else {
+                        let (src, plug, s) = registry.find_skill(skill_id)?;
+                        skills_to_apply.push((src, plug, s));
                     }
-                    for (src, plugin, s) in matches {
-                        skills_to_apply.push((src, &plugin.name, s));
-                    }
-                } else {
-                    let (src, plug, s) = registry.find_skill(skill_id)?;
-                    skills_to_apply.push((src, plug, s));
                 }
             }
 
@@ -1557,6 +1767,18 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
             Ok(())
         }
+        Command::Unapply {
+            skill,
+            plugin,
+            bundle,
+            target,
+            all_targets,
+            force,
+        } => do_unapply(
+            cli.config.as_deref(), cli.json, cli.quiet, cli.verbose, cli.dry_run,
+            skill, plugin, bundle, target, all_targets, force,
+        ),
+
         Command::Uninstall {
             skill,
             plugin,
@@ -1564,114 +1786,13 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             target,
             force,
         } => {
-            if skill.is_none() && plugin.is_none() && bundle.is_none() {
-                eprintln!("error: uninstall requires --skill, --plugin, or --bundle");
-                std::process::exit(2);
-            }
-
-            let config_path_str = cli.config.as_deref();
-            let config = crate::config::load(config_path_str)?;
-            let data_dir = crate::config::data_dir();
-            let mut registry = crate::registry::load_registry(&data_dir)?;
-            let renames = crate::registry::reconcile_with_config(
-                &mut registry,
-                &config.source,
-                &data_dir,
-            )?;
-            if !renames.is_empty() {
-                crate::registry::save_registry(&registry, &data_dir)?;
-                if !cli.quiet {
-                    for r in &renames {
-                        eprintln!("source renamed: {}", r);
-                    }
-                }
-            }
-
-            // Determine targets
-            let targets: Vec<&crate::config::TargetConfig> = if let Some(ref t) = target {
-                let tc = config
-                    .target
-                    .iter()
-                    .find(|tc| tc.name == *t)
-                    .ok_or_else(|| anyhow::anyhow!("target '{}' not found", t))?;
-                vec![tc]
-            } else {
-                config.target.iter().filter(|t| t.sync == "auto").collect()
-            };
-
-            // Collect skill names to uninstall
-            let mut skill_names: Vec<String> = Vec::new();
-
-            if let Some(ref skill_id) = skill {
-                if crate::registry::is_glob(skill_id) {
-                    let matches = registry.match_skills(skill_id);
-                    if matches.is_empty() {
-                        anyhow::bail!("no skills matched pattern '{}'", skill_id);
-                    }
-                    for (_, _, s) in matches {
-                        skill_names.push(s.name.clone());
-                    }
-                } else {
-                    let (_, _, s) = registry.find_skill(skill_id)?;
-                    skill_names.push(s.name.clone());
-                }
-            }
-
-            if let Some(ref plugin_name) = plugin {
-                let (_, p) = registry
-                    .find_plugin(plugin_name)
-                    .ok_or_else(|| anyhow::anyhow!("plugin '{}' not found", plugin_name))?;
-                for s in &p.skills {
-                    skill_names.push(s.name.clone());
-                }
-            }
-
-            if let Some(ref bundle_name) = bundle {
-                let bundle_cfg = config
-                    .bundle
-                    .get(bundle_name)
-                    .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", bundle_name))?;
-                for skill_id in &bundle_cfg.skills {
-                    let (_, _, s) = registry.find_skill(skill_id)?;
-                    skill_names.push(s.name.clone());
-                }
-            }
-
-            let execute = force && !cli.dry_run;
-            for tc in &targets {
-                let adapter = crate::target::resolve_adapter(tc, &config.adapter)?;
-                for name in &skill_names {
-                    if execute {
-                        adapter.uninstall_skill(name, &tc.path)?;
-                    } else if !cli.quiet {
-                        // Look up provenance for colored identity
-                        let identity = registry
-                            .installed
-                            .get(&tc.name)
-                            .and_then(|m| m.get(name))
-                            .map(|info| {
-                                crate::output::format_identity(
-                                    &info.source,
-                                    &info.plugin,
-                                    &info.skill,
-                                )
-                            })
-                            .unwrap_or_else(|| name.clone());
-                        println!("  would uninstall {} from {}", identity, tc.name);
-                    }
-                }
-            }
-
-            if !execute && !cli.quiet {
-                println!("Use --force to uninstall");
-            } else if !cli.quiet {
-                println!(
-                    "Uninstalled {} skill(s) from {} target(s)",
-                    skill_names.len(),
-                    targets.len()
-                );
-            }
-            Ok(())
+            // Delegate to unapply logic, wrapping single skill/target into Vec form
+            let skill_vec = skill.map(|s| vec![s]);
+            let target_vec = target.map(|t| vec![t]);
+            do_unapply(
+                cli.config.as_deref(), cli.json, cli.quiet, cli.verbose, cli.dry_run,
+                skill_vec, plugin, bundle, target_vec, false, force,
+            )
         }
         Command::Collect {
             skill,

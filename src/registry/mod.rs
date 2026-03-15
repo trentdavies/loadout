@@ -54,7 +54,12 @@ pub fn reconcile_with_config(
             continue;
         }
 
-        // Find matching config source by URL
+        // If registry source name already exists in config, it's correctly named
+        if config_sources.iter().any(|cs| cs.name == reg_src.name) {
+            continue;
+        }
+
+        // Find matching config source by URL (the source was renamed in config)
         let config_match = config_sources.iter().find(|cs| cs.url == reg_src.url);
 
         if let Some(cs) = config_match {
@@ -637,6 +642,7 @@ mod tests {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
             name: "claude-plugins".to_string(),
+            url: String::new(),
             plugins: vec![RegisteredPlugin {
                 name: "agent-skills".to_string(),
                 version: None,
