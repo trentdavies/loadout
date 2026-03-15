@@ -123,7 +123,9 @@ impl Registry {
             for plugin in &src.plugins {
                 for skill in &plugin.skills {
                     let matched = if freeform {
-                        glob_match::glob_match(&expanded, &src.name)
+                        let flat = format!("{}-{}-{}", src.name, plugin.name, skill.name);
+                        glob_match::glob_match(&expanded, &flat)
+                            || glob_match::glob_match(&expanded, &src.name)
                             || glob_match::glob_match(&expanded, &plugin.name)
                             || glob_match::glob_match(&expanded, &skill.name)
                     } else {
@@ -551,6 +553,32 @@ mod tests {
         // "al" matches source "alpha", plugin "legal", and skill "call-prep"
         let matches = reg.match_skills("al");
         assert_eq!(matches.len(), 3); // 2 from alpha source + call-prep
+    }
+
+    #[test]
+    fn match_skills_freeform_cross_component() {
+        // Pattern spanning multiple identity components should match
+        let mut registry = Registry::default();
+        registry.sources.push(RegisteredSource {
+            name: "claude-plugins".to_string(),
+            plugins: vec![RegisteredPlugin {
+                name: "agent-skills".to_string(),
+                version: None,
+                description: None,
+                skills: vec![RegisteredSkill {
+                    name: "my-foo-skill".to_string(),
+                    description: None,
+                    author: None,
+                    version: None,
+                    path: std::path::PathBuf::from("/tmp"),
+                }],
+                path: std::path::PathBuf::from("/tmp"),
+            }],
+            cache_path: std::path::PathBuf::from("/tmp"),
+        });
+        let matches = registry.match_skills("cl*sk*");
+        assert_eq!(matches.len(), 1, "cl*sk* should match claude-plugins:agent-skills/my-foo-skill");
+        assert_eq!(matches[0].2.name, "my-foo-skill");
     }
 
     #[test]
