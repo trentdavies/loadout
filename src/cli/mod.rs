@@ -2737,12 +2737,19 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                             .target
                             .iter()
                             .map(|t| {
+                                let adapter = crate::target::resolve_adapter(t, &config.adapter).ok();
+                                let installed_count = adapter
+                                    .as_ref()
+                                    .and_then(|a| a.installed_skills(&t.path).ok())
+                                    .map(|v| v.len())
+                                    .unwrap_or(0);
                                 serde_json::json!({
                                     "name": t.name,
                                     "agent": t.agent,
                                     "path": t.path,
                                     "scope": t.scope,
                                     "sync": t.sync,
+                                    "installed": installed_count,
                                 })
                             })
                             .collect();
@@ -2750,29 +2757,32 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         return Ok(());
                     }
 
+                    let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
                     if config.target.is_empty() {
-                        if !cli.quiet {
-                            println!("No targets configured. Use `loadout target add` to add one.");
-                        }
+                        out.info("No targets configured. Use `loadout target add` to add one.");
                         return Ok(());
                     }
 
-                    let rows: Vec<Vec<String>> = config
-                        .target
-                        .iter()
-                        .map(|t| {
-                            vec![
-                                t.name.clone(),
-                                t.agent.clone(),
-                                t.path.display().to_string(),
-                                t.scope.clone(),
-                                t.sync.clone(),
-                            ]
-                        })
-                        .collect();
+                    for tc in &config.target {
+                        let adapter = crate::target::resolve_adapter(tc, &config.adapter).ok();
+                        let installed = adapter
+                            .as_ref()
+                            .and_then(|a| a.installed_skills(&tc.path).ok())
+                            .unwrap_or_default();
 
-                    let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
-                    out.table(&["NAME", "AGENT", "PATH", "SCOPE", "SYNC"], &rows);
+                        println!(
+                            "{} {} {}",
+                            tc.name.bold(),
+                            format!("({})", tc.agent).cyan(),
+                            format!("— {}", tc.path.display()).dimmed(),
+                        );
+                        println!(
+                            "  {} {} {}",
+                            "scope:".dimmed(),
+                            tc.scope,
+                            format!("  sync: {}  installed: {}", tc.sync, installed.len()).dimmed(),
+                        );
+                    }
                     Ok(())
                 }
                 TargetCommand::Show { name } => {
