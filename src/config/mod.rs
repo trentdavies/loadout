@@ -150,7 +150,7 @@ pub const DEFAULT_CONFIG: &str = r#"# Loadout — Agent Skill Manager
 # Named groups of skills you can activate/deactivate together.
 #
 # CLI:
-#   loadout bundle create <name>               # create an empty bundle
+#   loadout bundle create <name> [skills...]    # create a bundle, optionally with skills
 #   loadout bundle add <name> <skills...>      # add skills to a bundle
 #   loadout bundle drop <name> <skills...>     # remove skills from a bundle
 #   loadout bundle activate <name> --all       # install all skills in a bundle

@@ -207,10 +207,13 @@ pub enum Command {
 
 #[derive(Subcommand)]
 pub enum BundleCommand {
-    /// Create a new bundle
+    /// Create a new bundle, optionally seeding it with skills
     Create {
         /// Bundle name
         name: String,
+
+        /// Skills or glob patterns to add (e.g. "dev", "hashico*", "openai:openai-skills/skill-creator")
+        skills: Vec<String>,
     },
     /// Delete a bundle
     Delete {
@@ -372,6 +375,61 @@ fn extract_domain(url: &str) -> String {
     }
 
     host
+}
+
+/// Build a set of source names that are external (git).
+fn external_source_set(config: &crate::config::Config) -> std::collections::HashSet<String> {
+    config
+        .source
+        .iter()
+        .filter(|s| s.source_type == "git")
+        .map(|s| s.name.clone())
+        .collect()
+}
+
+/// Format a breakdown like "3 external, 2 local" or just "3 external" / "3 local".
+fn source_breakdown(external: usize, local: usize) -> String {
+    match (external, local) {
+        (0, l) => format!("{} local", l),
+        (e, 0) => format!("{} external", e),
+        (e, l) => format!("{} external, {} local", e, l),
+    }
+}
+
+/// Resolve a skill identifier (exact, glob, or freeform) to a list of (source_name, fully_qualified_id).
+fn resolve_skills_for_bundle(
+    skill_id: &str,
+    registry: &crate::registry::Registry,
+) -> anyhow::Result<Vec<(String, String)>> {
+    let mut results = Vec::new();
+    if crate::registry::is_glob(skill_id) {
+        let matches = registry.match_skills(skill_id);
+        if matches.is_empty() {
+            anyhow::bail!("no skills matched pattern '{}'", skill_id);
+        }
+        for (src, plugin, skill) in &matches {
+            let fq = crate::output::plain_identity(src, &plugin.name, &skill.name);
+            results.push((src.to_string(), fq));
+        }
+    } else {
+        match registry.find_skill(skill_id) {
+            Ok((src, plug, sk)) => {
+                let fq = crate::output::plain_identity(src, plug, &sk.name);
+                results.push((src.to_string(), fq));
+            }
+            Err(_) => {
+                let matches = registry.match_skills(skill_id);
+                if matches.is_empty() {
+                    anyhow::bail!("no skills matched '{}'", skill_id);
+                }
+                for (src, plugin, skill) in &matches {
+                    let fq = crate::output::plain_identity(src, &plugin.name, &skill.name);
+                    results.push((src.to_string(), fq));
+                }
+            }
+        }
+    }
+    Ok(results)
 }
 
 const AGENT_PREFIXES: &[(&str, &str)] = &[
@@ -2018,20 +2076,59 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             let data_dir = crate::config::data_dir();
 
             match bundle_cmd {
-                BundleCommand::Create { name } => {
+                BundleCommand::Create { name, skills } => {
+                    let out =
+                        crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
                     if config.bundle.contains_key(&name) {
                         anyhow::bail!("bundle '{}' already exists", name);
                     }
                     config
                         .bundle
                         .insert(name.clone(), crate::config::BundleConfig::default());
+
+                    let mut added = 0usize;
+                    let mut external = 0usize;
+                    let mut local = 0usize;
+                    if !skills.is_empty() {
+                        let registry = crate::registry::load_registry(&data_dir)?;
+                        let ext_sources = external_source_set(&config);
+                        let bundle = config.bundle.get_mut(&name).unwrap();
+                        for skill_id in &skills {
+                            let resolved = resolve_skills_for_bundle(
+                                skill_id, &registry,
+                            )?;
+                            for (src, fq) in resolved {
+                                if !bundle.skills.contains(&fq) {
+                                    bundle.skills.push(fq);
+                                    added += 1;
+                                    if ext_sources.contains(src.as_str()) {
+                                        external += 1;
+                                    } else {
+                                        local += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    let total = config.bundle[&name].skills.len();
                     crate::config::save(&config, config_path_str)?;
-                    if !cli.quiet {
-                        println!("Created bundle '{}'", name);
+                    if added > 0 {
+                        out.success(&format!("Created bundle '{}'", name));
+                        out.info(&format!(
+                            "  {} added ({}), {} total",
+                            added,
+                            source_breakdown(external, local),
+                            total,
+                        ));
+                    } else {
+                        out.success(&format!("Created bundle '{}'", name));
                     }
                     Ok(())
                 }
                 BundleCommand::Delete { name, force } => {
+                    let out =
+                        crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
                     if !config.bundle.contains_key(&name) {
                         anyhow::bail!("bundle '{}' not found", name);
                     }
@@ -2040,15 +2137,10 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     if execute {
                         config.bundle.remove(&name);
                         crate::config::save(&config, config_path_str)?;
-                    }
-
-                    if !cli.quiet {
-                        if execute {
-                            println!("Deleted bundle '{}'", name);
-                        } else {
-                            println!("Would delete bundle '{}'", name);
-                            println!("Use --force to delete");
-                        }
+                        out.success(&format!("Deleted bundle '{}'", name));
+                    } else {
+                        out.info(&format!("Would delete bundle '{}'", name));
+                        out.info("Use --force to delete");
                     }
                     Ok(())
                 }
@@ -2086,13 +2178,12 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         return Ok(());
                     }
 
+                    let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
                     if bundles.is_empty() {
-                        if !cli.quiet {
-                            if patterns.is_empty() {
-                                println!("No bundles configured. Use `loadout bundle create` to create one.");
-                            } else {
-                                println!("No bundles matched the given pattern(s)");
-                            }
+                        if patterns.is_empty() {
+                            out.info("No bundles configured. Use `loadout bundle create` to create one.");
+                        } else {
+                            out.info("No bundles matched the given pattern(s)");
                         }
                         return Ok(());
                     }
@@ -2102,7 +2193,6 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         .map(|(name, b)| vec![(*name).clone(), b.skills.len().to_string()])
                         .collect();
 
-                    let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
                     out.table(&["BUNDLE", "SKILLS"], &rows);
                     Ok(())
                 }
@@ -2135,59 +2225,64 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     Ok(())
                 }
                 BundleCommand::Add { name, skills } => {
-                    let bundle = config
-                        .bundle
-                        .get_mut(&name)
-                        .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", name))?;
+                    let out =
+                        crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
+                    if !config.bundle.contains_key(&name) {
+                        anyhow::bail!("bundle '{}' not found", name);
+                    }
 
                     let registry = crate::registry::load_registry(&data_dir)?;
+                    let ext_sources = external_source_set(&config);
 
+                    let bundle = config.bundle.get_mut(&name).unwrap();
                     let mut added = 0usize;
+                    let mut external = 0usize;
+                    let mut local = 0usize;
                     for skill_id in &skills {
-                        if crate::registry::is_glob(skill_id) {
-                            let matches = registry.match_skills(skill_id);
-                            if matches.is_empty() {
-                                anyhow::bail!("no skills matched pattern '{}'", skill_id);
-                            }
-                            for (src, plugin, skill) in &matches {
-                                let fq =
-                                    crate::output::plain_identity(src, &plugin.name, &skill.name);
-                                if !bundle.skills.contains(&fq) {
-                                    bundle.skills.push(fq);
-                                    added += 1;
-                                }
-                            }
-                        } else {
-                            // Validate skill exists and resolve to fully qualified
-                            let (src, plug, sk) = registry.find_skill(skill_id)?;
-                            let fq = crate::output::plain_identity(src, plug, &sk.name);
+                        let resolved = resolve_skills_for_bundle(
+                            skill_id, &registry,
+                        )?;
+                        for (src, fq) in resolved {
                             if !bundle.skills.contains(&fq) {
                                 bundle.skills.push(fq);
                                 added += 1;
+                                if ext_sources.contains(src.as_str()) {
+                                    external += 1;
+                                } else {
+                                    local += 1;
+                                }
                             }
                         }
                     }
 
+                    let total = bundle.skills.len();
                     crate::config::save(&config, config_path_str)?;
-                    if !cli.quiet {
-                        println!("Added {} skill(s) to bundle '{}'", added, name);
-                    }
+                    out.success(&format!(
+                        "Added {} skill(s) to bundle '{}' ({}), {} total",
+                        added, name, source_breakdown(external, local), total,
+                    ));
                     Ok(())
                 }
                 BundleCommand::Drop { name, skills } => {
+                    let out =
+                        crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
                     let bundle = config
                         .bundle
                         .get_mut(&name)
                         .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", name))?;
 
+                    let before = bundle.skills.len();
                     for skill_id in &skills {
                         bundle.skills.retain(|s| s != skill_id);
                     }
+                    let dropped = before - bundle.skills.len();
+                    let remaining = bundle.skills.len();
 
                     crate::config::save(&config, config_path_str)?;
-                    if !cli.quiet {
-                        println!("Dropped {} skill(s) from bundle '{}'", skills.len(), name);
-                    }
+                    out.success(&format!(
+                        "Dropped {} skill(s) from bundle '{}', {} remaining",
+                        dropped, name, remaining,
+                    ));
                     Ok(())
                 }
                 BundleCommand::Activate {
@@ -2196,6 +2291,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     all,
                     force,
                 } => {
+                    let out =
+                        crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
                     if target.is_none() && !all {
                         anyhow::bail!("provide a <target> or use --all");
                     }
@@ -2233,21 +2330,19 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                             if execute {
                                 adapter.install_skill(s, &tc.path)?;
                                 installed_count += 1;
-                            } else if !cli.quiet {
-                                println!("  would install {} on {}", skill_id, tc.name);
+                            } else {
+                                out.info(&format!("  would install {} on {}", skill_id, tc.name));
                             }
                         }
                     }
 
-                    if !cli.quiet {
-                        if execute {
-                            println!(
-                                "Activated bundle '{}' ({} skill(s) installed)",
-                                name, installed_count
-                            );
-                        } else {
-                            println!("Use --force to activate");
-                        }
+                    if execute {
+                        out.success(&format!(
+                            "Activated bundle '{}' ({} skill(s) installed)",
+                            name, installed_count
+                        ));
+                    } else {
+                        out.info("Use --force to activate");
                     }
                     Ok(())
                 }
@@ -2257,6 +2352,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     all,
                     force,
                 } => {
+                    let out =
+                        crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
                     if target.is_none() && !all {
                         anyhow::bail!("provide a <target> or use --all");
                     }
@@ -2294,21 +2391,22 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                             if execute {
                                 adapter.uninstall_skill(&s.name, &tc.path)?;
                                 removed_count += 1;
-                            } else if !cli.quiet {
-                                println!("  would uninstall {} from {}", skill_id, tc.name);
+                            } else {
+                                out.info(&format!(
+                                    "  would uninstall {} from {}",
+                                    skill_id, tc.name
+                                ));
                             }
                         }
                     }
 
-                    if !cli.quiet {
-                        if execute {
-                            println!(
-                                "Deactivated bundle '{}' ({} skill(s) removed)",
-                                name, removed_count
-                            );
-                        } else {
-                            println!("Use --force to deactivate");
-                        }
+                    if execute {
+                        out.success(&format!(
+                            "Deactivated bundle '{}' ({} skill(s) removed)",
+                            name, removed_count
+                        ));
+                    } else {
+                        out.info("Use --force to deactivate");
                     }
                     Ok(())
                 }
