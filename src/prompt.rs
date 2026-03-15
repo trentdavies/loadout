@@ -1,4 +1,5 @@
 use anyhow::{bail, Result};
+use colored::Colorize;
 use std::io::IsTerminal;
 
 /// Returns true when stdin is a TTY and interactive prompts can be shown.
@@ -10,6 +11,21 @@ pub fn is_interactive() -> bool {
     std::io::stdin().is_terminal()
 }
 
+/// Format a prompt label in gh-cli style: `? Label (default)`
+fn styled_prompt(label: &str, default: Option<&str>) -> String {
+    match default {
+        Some(d) => format!("{} {} {}",
+            "?".green().bold(),
+            label.bold(),
+            format!("({})", d).dimmed(),
+        ),
+        None => format!("{} {}",
+            "?".green().bold(),
+            label.bold(),
+        ),
+    }
+}
+
 /// Show `label` with a `default` value; return the default on Enter or the user's override.
 /// In non-interactive or quiet mode, returns the default without prompting.
 pub fn confirm_or_override(label: &str, default: &str, quiet: bool) -> String {
@@ -18,7 +34,7 @@ pub fn confirm_or_override(label: &str, default: &str, quiet: bool) -> String {
     }
 
     dialoguer::Input::<String>::new()
-        .with_prompt(label)
+        .with_prompt(styled_prompt(label, Some(default)))
         .default(default.to_string())
         .interact_text()
         .unwrap_or_else(|_| default.to_string())
@@ -32,7 +48,7 @@ pub fn select_from(label: &str, options: &[String], quiet: bool) -> Result<Strin
     }
 
     let idx = dialoguer::Select::new()
-        .with_prompt(label)
+        .with_prompt(styled_prompt(label, None))
         .items(options)
         .default(0)
         .interact()?;
@@ -48,7 +64,7 @@ pub fn multi_select(label: &str, options: &[&str], defaults: &[bool], quiet: boo
     }
 
     dialoguer::MultiSelect::new()
-        .with_prompt(label)
+        .with_prompt(styled_prompt(label, None))
         .items(options)
         .defaults(defaults)
         .interact()
@@ -64,7 +80,7 @@ pub fn prompt_fetch_mode(quiet: bool) -> String {
 
     let options = &["symlink (live edits)", "copy (snapshot)"];
     let idx = dialoguer::Select::new()
-        .with_prompt("Fetch mode")
+        .with_prompt(styled_prompt("Fetch mode", None))
         .items(options)
         .default(0)
         .interact()

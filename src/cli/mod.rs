@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use colored::Colorize;
 
 #[derive(Parser)]
 #[command(
@@ -743,6 +744,21 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             if !cli.dry_run {
                 // Use tree ref from URL when no explicit --ref provided
                 let effective_ref = r#ref.as_deref().or_else(|| source_url.tree_ref());
+                if !cli.quiet {
+                    let action = match &source_url {
+                        crate::source::SourceUrl::Git(url) => format!("Cloning {}", url.dimmed()),
+                        crate::source::SourceUrl::Local(path) if use_symlink => {
+                            format!("Linking {}", path.display().to_string().dimmed())
+                        }
+                        crate::source::SourceUrl::Local(path) => {
+                            format!("Copying {}", path.display().to_string().dimmed())
+                        }
+                        crate::source::SourceUrl::Archive(path) => {
+                            format!("Extracting {}", path.display().to_string().dimmed())
+                        }
+                    };
+                    eprintln!("{}", action);
+                }
 
                 crate::source::fetch::fetch_with_mode(
                     &source_url,
@@ -904,7 +920,53 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
 
             if !cli.quiet {
-                println!("Added source '{}'", source_name);
+                // Load the registered source back to get plugin/skill counts
+                let data_dir = crate::config::data_dir();
+                let reg = crate::registry::load_registry(&data_dir)?;
+                if let Some(src) = reg.sources.iter().find(|s| s.name == source_name) {
+                    let plugin_count = src.plugins.len();
+                    let skill_count: usize = src.plugins.iter().map(|p| p.skills.len()).sum();
+
+                    println!(
+                        "{} Added source {} {} {}",
+                        "✓".green(),
+                        source_name.bold(),
+                        format!("({} plugin{}, {} skill{})",
+                            plugin_count,
+                            if plugin_count == 1 { "" } else { "s" },
+                            skill_count,
+                            if skill_count == 1 { "" } else { "s" },
+                        ).dimmed(),
+                        if let Some(r) = &r#ref {
+                            format!("@ {}", r.cyan())
+                        } else {
+                            String::new()
+                        },
+                    );
+
+                    if cli.verbose {
+                        for p in &src.plugins {
+                            println!("  {} {}", "├──".dimmed(), p.name.green());
+                            for (i, s) in p.skills.iter().enumerate() {
+                                let connector = if i == p.skills.len() - 1 { "└──" } else { "├──" };
+                                let desc = s.description.as_deref().unwrap_or("");
+                                if desc.is_empty() {
+                                    println!("  {}   {} {}", "│".dimmed(), connector.dimmed(), s.name);
+                                } else {
+                                    println!(
+                                        "  {}   {} {} {}",
+                                        "│".dimmed(),
+                                        connector.dimmed(),
+                                        s.name,
+                                        format!("— {}", desc).dimmed(),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    println!("{} Added source {}", "✓".green(), source_name.bold());
+                }
             }
             Ok(())
         }
