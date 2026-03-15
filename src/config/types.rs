@@ -11,10 +11,10 @@ pub struct Config {
     #[serde(default)]
     pub target: Vec<TargetConfig>,
 
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub adapter: BTreeMap<String, AdapterConfig>,
 
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub bundle: BTreeMap<String, BundleConfig>,
 }
 

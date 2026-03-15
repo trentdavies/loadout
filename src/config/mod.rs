@@ -89,7 +89,15 @@ pub const DEFAULT_CONFIG: &str = r#"# Loadout — Agent Skill Manager
 # This directory can be a git repo for versioning your configuration.
 
 # ─── Sources ────────────────────────────────────────────────────────────────
-# Where skills come from. Add with: loadout add <url>
+# Where skills come from.
+#
+# CLI:
+#   loadout add <url>                          # add a git or local source
+#   loadout add <url> --ref v1.2               # pin to a tag/branch/SHA
+#   loadout add ~/dev/my-skills --symlink      # local source via symlink
+#   loadout remove <name> --force              # remove a source
+#   loadout update [name]                      # fetch latest from remote
+#   loadout list --external                    # list all sources
 #
 # [[source]]
 # name = "anthropic-plugins"
@@ -107,8 +115,15 @@ pub const DEFAULT_CONFIG: &str = r#"# Loadout — Agent Skill Manager
 # type = "git"
 
 # ─── Targets ────────────────────────────────────────────────────────────────
-# Where skills get installed. Add with: loadout target add <agent> [path]
-# Targets with sync = "auto" receive skills from `loadout install --all`.
+# Where skills get installed. Targets with sync = "auto" receive skills
+# from `loadout install --all`.
+#
+# CLI:
+#   loadout target add claude                  # add a target (auto-detects path)
+#   loadout target add claude ./project/.claude --scope repo
+#   loadout target remove <name> --force       # remove a target
+#   loadout target list                        # list all targets
+#   loadout target detect                      # auto-detect installed agents
 #
 # [[target]]
 # name = "claude"
@@ -132,9 +147,19 @@ pub const DEFAULT_CONFIG: &str = r#"# Loadout — Agent Skill Manager
 # sync = "explicit"
 
 # ─── Bundles ────────────────────────────────────────────────────────────────
-# Named groups of skills. Create with: loadout bundle create <name>
-# Install with: loadout install --bundle <name>
-# Swap between bundles: loadout bundle swap <from> <to> --force
+# Named groups of skills you can activate/deactivate together.
+#
+# CLI:
+#   loadout bundle create <name>               # create an empty bundle
+#   loadout bundle add <name> <skills...>      # add skills to a bundle
+#   loadout bundle drop <name> <skills...>     # remove skills from a bundle
+#   loadout bundle activate <name> --all       # install all skills in a bundle
+#   loadout bundle deactivate <name> --all     # uninstall all skills in a bundle
+#   loadout bundle swap <from> <to> --force    # switch between bundles
+#   loadout bundle list                        # list all bundles
+#   loadout bundle delete <name> --force       # delete a bundle
+#
+# Example: context-switch between work and personal skill sets:
 #
 # [bundle.work]
 # skills = ["legal/contract-review", "legal/compliance", "sales/call-prep"]
@@ -144,16 +169,6 @@ pub const DEFAULT_CONFIG: &str = r#"# Loadout — Agent Skill Manager
 #
 # [bundle.minimal]
 # skills = ["productivity/daily-planner"]
-
-# ─── Custom Adapters ───────────────────────────────────────────────────────
-# Define how skills are installed for non-standard agents.
-# Built-in adapters exist for: claude, codex, cursor, gemini, vscode.
-#
-# [adapter.my-agent]
-# skill_dir = "prompts/{name}"
-# skill_file = "SKILL.md"
-# format = "agentskills"
-# copy_dirs = ["scripts", "references"]
 "#;
 
 #[cfg(test)]
