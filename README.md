@@ -6,9 +6,9 @@ Loadout gives you a single supply chain for agent skills. Add sources from GitHu
 
 ## Why
 
-Coding agents are accumulating skills fast. A team with 5 agents across 3 projects can easily have 50+ skills scattered across `~/.claude/`, `~/.codex/`, project-level configs, and random repos. There's no way to keep them in sync, no way to swap contexts (i.e., "work mode" vs "personal mode"), and no provenance tracking when someone edits a skill at the target.
+Coding agents are accumulating skills fast. A team with 5 agents across 3 projects can easily have 50+ skills scattered across `~/.claude/`, `~/.codex/`, project-level configs, and random repos. There's no way to keep them in sync, no way to swap contexts (i.e., "work mode" vs "personal mode"), and no provenance tracking when someone edits a skill at the agent.
 
-Loadout treats this as a package management problem: sources provide skills, targets consume them, and the registry tracks what came from where.
+Loadout treats this as a package management problem: sources provide skills, agents consume them, and the registry tracks what came from where.
 
 ## How It Works
 
@@ -26,10 +26,10 @@ Sources (GitHub, local dirs, archives)
 └──────────────────────────────────────┘
     │
     ▼
-Targets (~/.claude, ~/.codex, ./project/.cursor, etc.)
+Agents (~/.claude, ~/.codex, ./project/.cursor, etc.)
 ```
 
-Your `~/.local/share/loadout/` directory is itself a valid skill marketplace. We recommend managing it with git — `plugins/` contains your authored skills, `loadout.toml` tracks your sources and targets, and `external/` is gitignored cache. Push it to GitHub and you have a portable, versioned skill library that follows you across machines.
+Your `~/.local/share/loadout/` directory is itself a valid skill marketplace. We recommend managing it with git — `plugins/` contains your authored skills, `loadout.toml` tracks your sources and agents, and `external/` is gitignored cache. Push it to GitHub and you have a portable, versioned skill library that follows you across machines.
 
 Then layer in additional marketplaces from teammates, the community, or your organization:
 
@@ -55,9 +55,9 @@ loadout init # interactive onboard
 # Add a skill source (GitHub repo, local dir, or archive)
 loadout add https://github.com/your-org/agent-skills
 
-# Register your agent targets
-loadout target detect          # auto-detect Claude, Codex, etc.
-loadout target add claude ~/.claude --name claude-global
+# Register your agents
+loadout agent detect          # auto-detect Claude, Codex, etc.
+loadout agent add claude ~/.claude --name claude-global
 
 # See what's available
 loadout list
@@ -75,7 +75,7 @@ loadout status
 
 **Sources** are where skills come from: git repos, local directories, single files, or zip archives. Each source can contain multiple plugins, each containing multiple skills.
 
-**Targets** are where skills get installed: `~/.claude`, `~/.codex`, project-level agent configs, or custom paths with custom adapters.
+**Agents** are where skills get installed: `~/.claude`, `~/.codex`, project-level agent configs, or custom paths with custom adapters.
 
 **Bundles** are named groups of skills you can activate/deactivate as a unit. Think "work mode" vs "personal projects" vs "writing."
 
@@ -154,7 +154,7 @@ loadout list --json
 ### Installing Skills
 
 ```bash
-# Apply all skills to all auto-sync targets
+# Apply all skills to all auto-sync agents
 loadout apply --all
 
 # Apply a specific skill
@@ -163,8 +163,8 @@ loadout apply --skill legal/contract-review
 # Apply all skills from a plugin
 loadout apply --plugin legal
 
-# Apply to a specific target only
-loadout apply --all --target claude-global
+# Apply to a specific agent only
+loadout apply --all --agent claude-global
 
 # Interactive conflict resolution (skip/overwrite/diff per skill)
 loadout apply --all -i
@@ -219,42 +219,42 @@ loadout update acme --ref latest
 
 ### Collecting Edits
 
-When someone edits a skill directly at the target (e.g., tweaks a prompt in `~/.claude/skills/`), `collect` brings those changes back:
+When someone edits a skill directly at the agent (e.g., tweaks a prompt in `~/.claude/skills/`), `collect` brings those changes back:
 
 ```bash
-# Collect modified skills from a target
-loadout collect --target claude-global
+# Collect modified skills from an agent
+loadout collect --agent claude-global
 
 # Collect a specific skill
-loadout collect --skill code-review --target claude-global
+loadout collect --skill code-review --agent claude-global
 
 # Adopt untracked skills into your local plugins
-loadout collect --target claude-global --adopt
+loadout collect --agent claude-global --adopt
 ```
 
-### Managing Targets
+### Managing Agents
 
 ```bash
 # Auto-detect agent installations
-loadout target detect
+loadout agent detect
 
 # Add manually
-loadout target add claude ~/.claude --name claude-global
-loadout target add codex ~/.codex --name codex-global
-loadout target add claude ./project/.claude --name project-claude
+loadout agent add claude ~/.claude --name claude-global
+loadout agent add codex ~/.codex --name codex-global
+loadout agent add claude ./project/.claude --name project-claude
 
-# List targets
-loadout target list
+# List agents
+loadout agent list
 
-# Remove a target
-loadout target remove project-claude
+# Remove an agent
+loadout agent remove project-claude
 ```
 
 ## Directory Layout
 
 ```
 ~/.local/share/loadout/
-├── loadout.toml                  # Sources, targets, bundles, adapters
+├── loadout.toml                  # Sources, agents, bundles, adapters
 ├── .claude-plugin/
 │   └── marketplace.json          # Auto-generated from plugins/
 ├── .loadout/
@@ -283,10 +283,10 @@ format = "agentskills"
 copy_dirs = ["scripts", "references"]
 ```
 
-Then register a target using your adapter:
+Then register an agent using your adapter:
 
 ```bash
-loadout target add my-agent ~/.my-agent --name my-agent-global
+loadout agent add my-agent ~/.my-agent --name my-agent-global
 ```
 
 ## Global Flags

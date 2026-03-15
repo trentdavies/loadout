@@ -10,7 +10,7 @@ test_help_long_flag() {
   assert_stdout_contains "remove" "$LOADOUT" --help
   assert_stdout_contains "update" "$LOADOUT" --help
   assert_stdout_contains "list" "$LOADOUT" --help
-  assert_stdout_contains "target" "$LOADOUT" --help
+  assert_stdout_contains "agent" "$LOADOUT" --help
   assert_stdout_contains "bundle" "$LOADOUT" --help
   assert_stdout_contains "status" "$LOADOUT" --help
   assert_stdout_contains "config" "$LOADOUT" --help
@@ -30,13 +30,13 @@ test_unknown_command_errors() {
   assert_stderr_contains "error" "$LOADOUT" foobar
 }
 
-test_target_subcommand_help() {
-  assert_exit_code 0 "$LOADOUT" target --help
-  assert_stdout_contains "add" "$LOADOUT" target --help
-  assert_stdout_contains "remove" "$LOADOUT" target --help
-  assert_stdout_contains "list" "$LOADOUT" target --help
-  assert_stdout_contains "show" "$LOADOUT" target --help
-  assert_stdout_contains "detect" "$LOADOUT" target --help
+test_agent_subcommand_help() {
+  assert_exit_code 0 "$LOADOUT" agent --help
+  assert_stdout_contains "add" "$LOADOUT" agent --help
+  assert_stdout_contains "remove" "$LOADOUT" agent --help
+  assert_stdout_contains "list" "$LOADOUT" agent --help
+  assert_stdout_contains "show" "$LOADOUT" agent --help
+  assert_stdout_contains "detect" "$LOADOUT" agent --help
 }
 
 test_bundle_subcommand_help() {
@@ -84,7 +84,7 @@ test_global_json_flag() {
 
 test_global_dry_run_flag() {
   # apply --all -n should succeed without writing files
-  setup_source_and_targets
+  setup_source_and_agents
   assert_exit_code 0 "$LOADOUT" apply --all -n
   # Verify no skills were actually installed
   assert_file_not_exists "$TARGET_CLAUDE/skills"

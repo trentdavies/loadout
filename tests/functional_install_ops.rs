@@ -1,12 +1,12 @@
 use std::fs;
 use tempfile::TempDir;
 
-use loadout::config::{BundleConfig, Config, SourceConfig, TargetConfig};
+use loadout::config::{BundleConfig, Config, SourceConfig, AgentConfig};
 use loadout::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry};
-use loadout::target::resolve_adapter;
+use loadout::agent::resolve_adapter;
 
 /// Build a source fixture with a plugin containing 3 skills (skill-a, skill-b,
-/// skill-c), a Registry that references it, and a Config with a claude target
+/// skill-c), a Registry that references it, and a Config with a claude agent
 /// pointing at a temp directory.
 fn setup_test_env() -> (TempDir, TempDir, Registry, Config) {
     let source_dir = TempDir::new().unwrap();
@@ -56,9 +56,9 @@ fn setup_test_env() -> (TempDir, TempDir, Registry, Config) {
         r#ref: None,
         mode: None,
     });
-    config.target.push(TargetConfig {
+    config.agent.push(AgentConfig {
         name: "claude".to_string(),
-        agent: "claude".to_string(),
+        agent_type: "claude".to_string(),
         path: target_dir.path().to_path_buf(),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
@@ -72,7 +72,7 @@ fn setup_test_env() -> (TempDir, TempDir, Registry, Config) {
 #[test]
 fn install_specific_skill() {
     let (_source_dir, target_dir, registry, config) = setup_test_env();
-    let adapter = resolve_adapter(&config.target[0], &config.adapter).unwrap();
+    let adapter = resolve_adapter(&config.agent[0], &config.adapter).unwrap();
 
     let (_src, _plug, skill) = registry.find_skill("test-plugin/skill-a").unwrap();
     adapter.install_skill(skill, target_dir.path()).unwrap();
@@ -86,7 +86,7 @@ fn install_specific_skill() {
 #[test]
 fn install_all_skills_from_plugin() {
     let (_source_dir, target_dir, registry, config) = setup_test_env();
-    let adapter = resolve_adapter(&config.target[0], &config.adapter).unwrap();
+    let adapter = resolve_adapter(&config.agent[0], &config.adapter).unwrap();
 
     let (_src, plugin) = registry.find_plugin("test-plugin").unwrap();
     for skill in &plugin.skills {
@@ -105,7 +105,7 @@ fn install_all_skills_from_plugin() {
 #[test]
 fn install_bundle() {
     let (_source_dir, target_dir, registry, mut config) = setup_test_env();
-    let adapter = resolve_adapter(&config.target[0], &config.adapter).unwrap();
+    let adapter = resolve_adapter(&config.agent[0], &config.adapter).unwrap();
 
     config.bundle.insert(
         "dev".to_string(),
@@ -130,37 +130,37 @@ fn install_bundle() {
     assert!(!installed.contains(&"skill-c".to_string()));
 }
 
-// ─── Install to specific target ─────────────────────────────────────────
+// ─── Install to specific agent ──────────────────────────────────────────
 
 #[test]
-fn install_to_specific_target() {
+fn install_to_specific_agent() {
     let (_source_dir, _target_dir, registry, mut config) = setup_test_env();
 
-    let second_target_dir = TempDir::new().unwrap();
-    config.target.push(TargetConfig {
+    let second_agent_dir = TempDir::new().unwrap();
+    config.agent.push(AgentConfig {
         name: "codex".to_string(),
-        agent: "codex".to_string(),
-        path: second_target_dir.path().to_path_buf(),
+        agent_type: "codex".to_string(),
+        path: second_agent_dir.path().to_path_buf(),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
     });
 
-    // Install only to the second target
-    let adapter = resolve_adapter(&config.target[1], &config.adapter).unwrap();
+    // Install only to the second agent
+    let adapter = resolve_adapter(&config.agent[1], &config.adapter).unwrap();
     let (_src, plugin) = registry.find_plugin("test-plugin").unwrap();
     for skill in &plugin.skills {
         adapter
-            .install_skill(skill, second_target_dir.path())
+            .install_skill(skill, second_agent_dir.path())
             .unwrap();
     }
 
-    // Second target has all 3 skills
-    let installed_second = adapter.installed_skills(second_target_dir.path()).unwrap();
+    // Second agent has all 3 skills
+    let installed_second = adapter.installed_skills(second_agent_dir.path()).unwrap();
     assert_eq!(installed_second.len(), 3);
 
-    // First target remains empty
-    let first_adapter = resolve_adapter(&config.target[0], &config.adapter).unwrap();
-    let first_target_path = &config.target[0].path;
+    // First agent remains empty
+    let first_adapter = resolve_adapter(&config.agent[0], &config.adapter).unwrap();
+    let first_target_path = &config.agent[0].path;
     let installed_first = first_adapter.installed_skills(first_target_path).unwrap();
     assert!(installed_first.is_empty());
 }
@@ -194,7 +194,7 @@ fn install_nonexistent_plugin_fails() {
 #[test]
 fn uninstall_specific_skill() {
     let (_source_dir, target_dir, registry, config) = setup_test_env();
-    let adapter = resolve_adapter(&config.target[0], &config.adapter).unwrap();
+    let adapter = resolve_adapter(&config.agent[0], &config.adapter).unwrap();
 
     // Install all 3 skills
     let (_src, plugin) = registry.find_plugin("test-plugin").unwrap();
@@ -223,7 +223,7 @@ fn uninstall_specific_skill() {
 #[test]
 fn uninstall_bundle() {
     let (_source_dir, target_dir, registry, mut config) = setup_test_env();
-    let adapter = resolve_adapter(&config.target[0], &config.adapter).unwrap();
+    let adapter = resolve_adapter(&config.agent[0], &config.adapter).unwrap();
 
     config.bundle.insert(
         "dev".to_string(),

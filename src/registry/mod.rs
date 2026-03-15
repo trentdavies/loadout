@@ -96,8 +96,8 @@ pub fn reconcile_with_config(
                 }
 
                 // Update installed provenance records
-                for target_skills in registry.installed.values_mut() {
-                    for installed in target_skills.values_mut() {
+                for agent_skills in registry.installed.values_mut() {
+                    for installed in agent_skills.values_mut() {
                         if installed.source == old_name {
                             installed.source = new_name.clone();
                         }
@@ -757,7 +757,7 @@ mod tests {
             cache_path: ext_dir.clone(),
         });
         registry.installed.insert(
-            "my-target".to_string(),
+            "my-agent".to_string(),
             {
                 let mut m = std::collections::BTreeMap::new();
                 m.insert(
@@ -782,7 +782,7 @@ mod tests {
         }];
 
         reconcile_with_config(&mut registry, &config_sources, tmp.path()).unwrap();
-        let installed = &registry.installed["my-target"]["my-skill"];
+        let installed = &registry.installed["my-agent"]["my-skill"];
         assert_eq!(installed.source, "new-src");
     }
 

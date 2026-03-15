@@ -57,15 +57,15 @@ fn make_registry_with_skills(
     registry
 }
 
-fn make_adapter() -> loadout::target::Adapter {
-    let target = loadout::config::TargetConfig {
+fn make_adapter() -> loadout::agent::Adapter {
+    let agent = loadout::config::AgentConfig {
         name: "test".to_string(),
-        agent: "claude".to_string(),
+        agent_type: "claude".to_string(),
         path: PathBuf::from("/tmp"),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
     };
-    loadout::target::resolve_adapter(&target, &BTreeMap::new()).unwrap()
+    loadout::agent::resolve_adapter(&agent, &BTreeMap::new()).unwrap()
 }
 
 // ─── Bundle Config CRUD ─────────────────────────────────────────────────

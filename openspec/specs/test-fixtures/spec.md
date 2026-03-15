@@ -22,7 +22,7 @@ The fixtures SHALL include a `plugin-source/` directory with a `plugin.toml` (na
 - **THEN** it SHALL be detected as a single-plugin source with name "test-plugin" and 3 skills
 
 #### Scenario: Plugin-source apply skill has scripts
-- **WHEN** the "test-plugin/apply" skill is installed to a target
+- **WHEN** the "test-plugin/apply" skill is installed to an agent
 - **THEN** the `scripts/` directory SHALL be copied alongside the `SKILL.md`
 
 ### Requirement: Full multi-plugin source fixture

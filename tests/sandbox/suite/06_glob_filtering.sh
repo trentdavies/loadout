@@ -179,7 +179,7 @@ test_08_freeform_substring_finan() {
   fi
 }
 
-test_10_apply_glob_to_target() {
+test_10_apply_glob_to_agent() {
   # Pick a plugin with multiple skills and apply via glob
   local plugin_name
   plugin_name=$("$LOADOUT" list --json 2>/dev/null | jq -r \
@@ -193,11 +193,11 @@ test_10_apply_glob_to_target() {
   local expected_count
   expected_count=$("$LOADOUT" list --json "$plugin_name/*" 2>/dev/null | jq 'length')
 
-  # Clean target and apply via glob
+  # Clean agent and apply via glob
   find "$SANDBOX_TARGET_CODEX/skills" -mindepth 1 -maxdepth 1 -type d -exec rm -r {} + 2>/dev/null
   mkdir -p "$SANDBOX_TARGET_CODEX"
 
-  log_cmd "$LOADOUT" apply --force --skill "$plugin_name/*" --target sandbox-codex
+  log_cmd "$LOADOUT" apply --force --skill "$plugin_name/*" --agent sandbox-codex
 
   local installed
   installed=$(find "$SANDBOX_TARGET_CODEX" -name "SKILL.md" -type f 2>/dev/null | wc -l | tr -d ' ')

@@ -111,7 +111,7 @@ pub enum Command {
         r#ref: Option<String>,
     },
 
-    /// Apply skills to target(s)
+    /// Apply skills to agent(s)
     Apply {
         /// Apply all configured skills
         #[arg(long)]
@@ -129,13 +129,13 @@ pub enum Command {
         #[arg(long)]
         bundle: Option<String>,
 
-        /// Target name(s) to apply to (repeatable)
+        /// Agent name(s) to apply to (repeatable)
         #[arg(long, num_args = 1..)]
-        target: Option<Vec<String>>,
+        agent: Option<Vec<String>>,
 
-        /// Apply to all configured targets
-        #[arg(long, conflicts_with = "target")]
-        all_targets: bool,
+        /// Apply to all configured agents
+        #[arg(long, conflicts_with = "agent")]
+        all_agents: bool,
 
         /// Overwrite changed skills without prompting
         #[arg(long)]
@@ -146,7 +146,7 @@ pub enum Command {
         interactive: bool,
     },
 
-    /// Remove skills from target(s)
+    /// Remove skills from agent(s)
     Unapply {
         /// Skill identity (can be a glob pattern)
         #[arg(long, num_args = 1..)]
@@ -160,20 +160,20 @@ pub enum Command {
         #[arg(long)]
         bundle: Option<String>,
 
-        /// Target name(s) to remove from (repeatable)
+        /// Agent name(s) to remove from (repeatable)
         #[arg(long, num_args = 1..)]
-        target: Option<Vec<String>>,
+        agent: Option<Vec<String>>,
 
-        /// Remove from all configured targets
-        #[arg(long, conflicts_with = "target")]
-        all_targets: bool,
+        /// Remove from all configured agents
+        #[arg(long, conflicts_with = "agent")]
+        all_agents: bool,
 
         /// Execute removal (default is preview/dry-run)
         #[arg(long)]
         force: bool,
     },
 
-    /// Remove skills from targets (deprecated: use unapply)
+    /// Remove skills from agents (deprecated: use unapply)
     #[command(hide = true)]
     Uninstall {
         /// Uninstall a specific skill (plugin/skill)
@@ -188,24 +188,24 @@ pub enum Command {
         #[arg(long, value_name = "BUNDLE")]
         bundle: Option<String>,
 
-        /// Target to uninstall from
-        #[arg(long, value_name = "TARGET")]
-        target: Option<String>,
+        /// Agent to uninstall from
+        #[arg(long, value_name = "AGENT")]
+        agent: Option<String>,
 
         /// Actually perform the uninstall (default is dry run)
         #[arg(long)]
         force: bool,
     },
 
-    /// Collect skills from a target back to source
+    /// Collect skills from an agent back to source
     Collect {
         /// Skill name to collect
         #[arg(long, value_name = "SKILL")]
         skill: Option<String>,
 
-        /// Target to collect from
-        #[arg(long, value_name = "TARGET")]
-        target: String,
+        /// Agent to collect from
+        #[arg(long, value_name = "AGENT")]
+        agent: String,
 
         /// Adopt skill into plugins/ (make it yours)
         #[arg(long)]
@@ -226,11 +226,11 @@ pub enum Command {
         command: BundleCommand,
     },
 
-    /// Manage install targets
+    /// Manage agents
     #[command(subcommand_required = true, arg_required_else_help = true)]
-    Target {
+    Agent {
         #[command(subcommand)]
-        command: TargetCommand,
+        command: AgentCommand,
     },
 
     /// Manage configuration
@@ -254,7 +254,7 @@ pub enum Command {
     /// Output completion values (used internally by shell scripts)
     #[command(name = "_complete", hide = true)]
     Complete {
-        /// Completion type: sources, plugins, skills, targets, bundles
+        /// Completion type: sources, plugins, skills, agents, bundles
         kind: String,
     },
 }
@@ -319,10 +319,10 @@ pub enum BundleCommand {
         /// Bundle name
         name: String,
 
-        /// Target to activate on
-        target: Option<String>,
+        /// Agent to activate on
+        agent: Option<String>,
 
-        /// Activate on all configured targets
+        /// Activate on all configured agents
         #[arg(long)]
         all: bool,
 
@@ -336,10 +336,10 @@ pub enum BundleCommand {
         /// Bundle name
         name: String,
 
-        /// Target to deactivate from
-        target: Option<String>,
+        /// Agent to deactivate from
+        agent: Option<String>,
 
-        /// Deactivate from all configured targets
+        /// Deactivate from all configured agents
         #[arg(long)]
         all: bool,
 
@@ -350,16 +350,16 @@ pub enum BundleCommand {
 }
 
 #[derive(Subcommand)]
-pub enum TargetCommand {
-    /// Add an install target
+pub enum AgentCommand {
+    /// Add an agent
     Add {
         /// Agent type (claude, codex, cursor, etc.)
         agent: String,
 
-        /// Path to target directory
+        /// Path to agent directory
         path: Option<String>,
 
-        /// Name for this target
+        /// Name for this agent
         #[arg(long)]
         name: Option<String>,
 
@@ -371,25 +371,25 @@ pub enum TargetCommand {
         #[arg(long, default_value = "auto")]
         sync: String,
     },
-    /// Remove a target
+    /// Remove an agent
     Remove {
-        /// Target name
+        /// Agent name
         name: String,
 
         /// Actually perform the removal (default is dry run)
         #[arg(long)]
         force: bool,
     },
-    /// List all targets
+    /// List all agents
     List,
-    /// Show target details
+    /// Show agent details
     Show {
-        /// Target name
+        /// Agent name
         name: String,
     },
     /// Detect agent installations and prompt to add them
     Detect {
-        /// Automatically add all detected targets without prompting
+        /// Automatically add all detected agents without prompting
         #[arg(long)]
         force: bool,
     },
@@ -503,7 +503,7 @@ const AGENT_PREFIXES: &[(&str, &str)] = &[
 
 /// Scan home and cwd for agent installation directories.
 /// Returns (agent_type, path) for each found candidate.
-pub fn detect_agent_targets() -> Vec<(String, std::path::PathBuf)> {
+pub fn detect_agents() -> Vec<(String, std::path::PathBuf)> {
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
         .or_else(|_| dirs::home_dir().ok_or(()))
@@ -540,21 +540,21 @@ pub fn detect_agent_targets() -> Vec<(String, std::path::PathBuf)> {
     candidates
 }
 
-/// Add all detected agent targets to config (auto-add, no per-target prompt).
-/// Returns count of targets added.
-pub fn add_detected_targets(config: &mut crate::config::Config, quiet: bool) -> usize {
+/// Add all detected agents to config (auto-add, no per-agent prompt).
+/// Returns count of agents added.
+pub fn add_detected_agents(config: &mut crate::config::Config, quiet: bool) -> usize {
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
         .or_else(|_| dirs::home_dir().ok_or(()))
         .unwrap_or_else(|_| std::path::PathBuf::from("~"));
 
-    let candidates = detect_agent_targets();
+    let candidates = detect_agents();
     let mut added = 0;
     for (agent, path) in &candidates {
-        if config.target.iter().any(|t| t.path == *path) {
+        if config.agent.iter().any(|t| t.path == *path) {
             continue;
         }
-        let target_name = path
+        let agent_name = path
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or(agent)
@@ -566,9 +566,9 @@ pub fn add_detected_targets(config: &mut crate::config::Config, quiet: bool) -> 
             "repo"
         };
         let sync = if scope == "repo" { "explicit" } else { "auto" };
-        config.target.push(crate::config::TargetConfig {
-            name: target_name.clone(),
-            agent: agent.to_string(),
+        config.agent.push(crate::config::AgentConfig {
+            name: agent_name.clone(),
+            agent_type: agent.to_string(),
             path: path.clone(),
             scope: scope.to_string(),
             sync: sync.to_string(),
@@ -587,7 +587,7 @@ pub fn add_detected_targets(config: &mut crate::config::Config, quiet: bool) -> 
             println!(
                 "  {} {}  {}  {}",
                 "✓".green(),
-                target_name.bold(),
+                agent_name.bold(),
                 display_path.dimmed(),
                 skills_desc.dimmed(),
             );
@@ -597,38 +597,38 @@ pub fn add_detected_targets(config: &mut crate::config::Config, quiet: bool) -> 
     added
 }
 
-fn resolve_targets<'a>(
+fn resolve_agents<'a>(
     config: &'a crate::config::Config,
-    target_names: &Option<Vec<String>>,
-    all_targets: bool,
-) -> anyhow::Result<Vec<&'a crate::config::TargetConfig>> {
-    if all_targets {
-        if config.target.is_empty() {
-            anyhow::bail!("no targets configured. Use `loadout target add` first.");
+    agent_names: &Option<Vec<String>>,
+    all_agents: bool,
+) -> anyhow::Result<Vec<&'a crate::config::AgentConfig>> {
+    if all_agents {
+        if config.agent.is_empty() {
+            anyhow::bail!("no agents configured. Use `loadout agent add` first.");
         }
-        return Ok(config.target.iter().collect());
+        return Ok(config.agent.iter().collect());
     }
 
-    if let Some(names) = target_names {
-        let mut targets = Vec::new();
+    if let Some(names) = agent_names {
+        let mut agents = Vec::new();
         for name in names {
-            let tc = config
-                .target
+            let ac = config
+                .agent
                 .iter()
-                .find(|tc| tc.name == *name)
-                .ok_or_else(|| anyhow::anyhow!("target '{}' not found", name))?;
-            targets.push(tc);
+                .find(|ac| ac.name == *name)
+                .ok_or_else(|| anyhow::anyhow!("agent '{}' not found", name))?;
+            agents.push(ac);
         }
-        if targets.is_empty() {
-            anyhow::bail!("no targets specified");
+        if agents.is_empty() {
+            anyhow::bail!("no agents specified");
         }
-        return Ok(targets);
+        return Ok(agents);
     }
 
-    // Default: auto-sync targets
-    let auto: Vec<_> = config.target.iter().filter(|t| t.sync == "auto").collect();
+    // Default: auto-sync agents
+    let auto: Vec<_> = config.agent.iter().filter(|t| t.sync == "auto").collect();
     if auto.is_empty() {
-        anyhow::bail!("no targets configured. Use `loadout target add` first.");
+        anyhow::bail!("no agents configured. Use `loadout agent add` first.");
     }
     Ok(auto)
 }
@@ -642,8 +642,8 @@ fn do_unapply(
     skill: Option<Vec<String>>,
     plugin: Option<String>,
     bundle: Option<String>,
-    target: Option<Vec<String>>,
-    all_targets: bool,
+    agent: Option<Vec<String>>,
+    all_agents: bool,
     force: bool,
 ) -> anyhow::Result<()> {
     use colored::Colorize;
@@ -671,7 +671,7 @@ fn do_unapply(
     }
     let out = crate::output::Output::from_flags(json, quiet, verbose);
 
-    let targets = resolve_targets(&config, &target, all_targets)?;
+    let agents = resolve_agents(&config, &agent, all_agents)?;
 
     // Collect skill names to remove
     let mut skill_names: Vec<String> = Vec::new();
@@ -725,16 +725,16 @@ fn do_unapply(
     let mut total_removed = 0usize;
     let mut _total_skipped = 0usize;
 
-    for tc in &targets {
-        let adapter = crate::target::resolve_adapter(tc, &config.adapter)?;
-        let installed = adapter.installed_skills(&tc.path).unwrap_or_default();
+    for ac in &agents {
+        let adapter = crate::agent::resolve_adapter(ac, &config.adapter)?;
+        let installed = adapter.installed_skills(&ac.path).unwrap_or_default();
 
         for name in &skill_names {
             if installed.contains(name) {
                 // Look up provenance for colored identity
                 let identity = registry
                     .installed
-                    .get(&tc.name)
+                    .get(&ac.name)
                     .and_then(|m| m.get(name))
                     .map(|info| {
                         crate::output::format_identity(&info.source, &info.plugin, &info.skill)
@@ -742,18 +742,18 @@ fn do_unapply(
                     .unwrap_or_else(|| name.clone());
 
                 if execute {
-                    adapter.uninstall_skill(name, &tc.path)?;
-                    if let Some(target_map) = registry.installed.get_mut(&tc.name) {
-                        target_map.remove(name);
+                    adapter.uninstall_skill(name, &ac.path)?;
+                    if let Some(agent_map) = registry.installed.get_mut(&ac.name) {
+                        agent_map.remove(name);
                     }
                     out.success(&format!(
                         "Removed {} from {}",
                         identity,
-                        tc.name.bold()
+                        ac.name.bold()
                     ));
                     total_removed += 1;
                 } else {
-                    out.info(&format!("  {} from {}", identity, tc.name.bold()));
+                    out.info(&format!("  {} from {}", identity, ac.name.bold()));
                     total_removed += 1;
                 }
             } else {
@@ -771,13 +771,13 @@ fn do_unapply(
         crate::registry::save_registry(&registry, &data_dir)?;
         if !quiet {
             out.info(&format!(
-                "Removed {} skill(s) from {} target(s)",
+                "Removed {} skill(s) from {} agent(s)",
                 total_removed,
-                targets.len()
+                agents.len()
             ));
         }
     } else if total_removed == 0 && !quiet {
-        out.info("No matching skills found on target(s).");
+        out.info("No matching skills found on agent(s).");
     }
 
     Ok(())
@@ -912,12 +912,12 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
             }
 
-            // Step 2: detect and add targets
+            // Step 2: detect and add agents
             let should_detect = if cli.quiet || !crate::prompt::is_interactive() {
                 true
             } else {
                 crate::prompt::confirm_or_override(
-                    "Detect and add agent targets? [Y/n]",
+                    "Detect and add agents? [Y/n]",
                     "Y",
                     cli.quiet,
                 )
@@ -926,11 +926,11 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             };
             if should_detect {
                 let mut config = crate::config::load(cli.config.as_deref())?;
-                let added = add_detected_targets(&mut config, cli.quiet);
+                let added = add_detected_agents(&mut config, cli.quiet);
                 if added > 0 {
                     crate::config::save(&config, cli.config.as_deref())?;
                 } else if !cli.quiet {
-                    println!("  No agent targets found");
+                    println!("  No agents found");
                 }
             }
 
@@ -1559,8 +1559,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             skill,
             plugin,
             bundle,
-            target,
-            all_targets,
+            agent,
+            all_agents,
             force,
             interactive,
         } => {
@@ -1587,8 +1587,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
             }
 
-            // Determine which targets to apply to
-            let targets = resolve_targets(&config, &target, all_targets)?;
+            // Determine which agents to apply to
+            let agents = resolve_agents(&config, &agent, all_agents)?;
 
             // Collect skills to apply with provenance: (source, plugin, skill)
             let mut skills_to_apply: Vec<(&str, &str, &crate::registry::RegisteredSkill)> =
@@ -1641,7 +1641,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
             }
 
-            // Apply to each target with conflict detection
+            // Apply to each agent with conflict detection
             let mut new_count: usize = 0;
             let mut updated_count: usize = 0;
             let mut unchanged_count: usize = 0;
@@ -1649,23 +1649,23 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             let mut force_remaining = force;
             let mut reg = registry.clone();
 
-            for tc in &targets {
-                let adapter = crate::target::resolve_adapter(tc, &config.adapter)?;
+            for ac in &agents {
+                let adapter = crate::agent::resolve_adapter(ac, &config.adapter)?;
 
                 // First pass: detect conflicts in default mode (no --force, no -i)
                 if !force && !interactive && !cli.dry_run {
                     let mut conflicts = Vec::new();
                     for (_, _, s) in &skills_to_apply {
-                        let status = adapter.compare_skill(s, &tc.path)?;
-                        if status == crate::target::SkillStatus::Changed {
+                        let status = adapter.compare_skill(s, &ac.path)?;
+                        if status == crate::agent::SkillStatus::Changed {
                             conflicts.push(s.name.clone());
                         }
                     }
                     if !conflicts.is_empty() {
                         eprintln!(
-                            "error: {} skill(s) have changed at target '{}':",
+                            "error: {} skill(s) have changed at agent '{}':",
                             conflicts.len(),
-                            tc.name
+                            ac.name
                         );
                         for name in &conflicts {
                             eprintln!("  - {}", name);
@@ -1677,19 +1677,19 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
 
                 for (src_name, plug_name, s) in &skills_to_apply {
-                    let status = adapter.compare_skill(s, &tc.path)?;
+                    let status = adapter.compare_skill(s, &ac.path)?;
 
                     if cli.dry_run {
                         if !cli.quiet {
                             let label = match status {
-                                crate::target::SkillStatus::New => "new",
-                                crate::target::SkillStatus::Unchanged => "unchanged",
-                                crate::target::SkillStatus::Changed => "changed",
+                                crate::agent::SkillStatus::New => "new",
+                                crate::agent::SkillStatus::Unchanged => "unchanged",
+                                crate::agent::SkillStatus::Changed => "changed",
                             };
                             println!(
                                 "  (dry run) {} → {} [{}]",
                                 crate::output::format_identity(src_name, plug_name, &s.name),
-                                tc.name,
+                                ac.name,
                                 label
                             );
                         }
@@ -1697,37 +1697,37 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
 
                     match status {
-                        crate::target::SkillStatus::Unchanged => {
+                        crate::agent::SkillStatus::Unchanged => {
                             unchanged_count += 1;
                             continue;
                         }
-                        crate::target::SkillStatus::New => {
-                            adapter.install_skill(s, &tc.path)?;
-                            record_provenance(&mut reg, &data_dir, tc, src_name, plug_name, s);
+                        crate::agent::SkillStatus::New => {
+                            adapter.install_skill(s, &ac.path)?;
+                            record_provenance(&mut reg, &data_dir, ac, src_name, plug_name, s);
                             new_count += 1;
                         }
-                        crate::target::SkillStatus::Changed => {
+                        crate::agent::SkillStatus::Changed => {
                             if force_remaining {
-                                adapter.install_skill(s, &tc.path)?;
-                                record_provenance(&mut reg, &data_dir, tc, src_name, plug_name, s);
+                                adapter.install_skill(s, &ac.path)?;
+                                record_provenance(&mut reg, &data_dir, ac, src_name, plug_name, s);
                                 updated_count += 1;
                             } else if interactive {
-                                let action = prompt_conflict(s, &adapter, &tc.path)?;
+                                let action = prompt_conflict(s, &adapter, &ac.path)?;
                                 match action {
                                     ConflictAction::Skip => {
                                         conflict_skipped += 1;
                                     }
                                     ConflictAction::Overwrite => {
-                                        adapter.install_skill(s, &tc.path)?;
+                                        adapter.install_skill(s, &ac.path)?;
                                         record_provenance(
-                                            &mut reg, &data_dir, tc, src_name, plug_name, s,
+                                            &mut reg, &data_dir, ac, src_name, plug_name, s,
                                         );
                                         updated_count += 1;
                                     }
                                     ConflictAction::ForceAll => {
-                                        adapter.install_skill(s, &tc.path)?;
+                                        adapter.install_skill(s, &ac.path)?;
                                         record_provenance(
-                                            &mut reg, &data_dir, tc, src_name, plug_name, s,
+                                            &mut reg, &data_dir, ac, src_name, plug_name, s,
                                         );
                                         updated_count += 1;
                                         force_remaining = true;
@@ -1771,32 +1771,32 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             skill,
             plugin,
             bundle,
-            target,
-            all_targets,
+            agent,
+            all_agents,
             force,
         } => do_unapply(
             cli.config.as_deref(), cli.json, cli.quiet, cli.verbose, cli.dry_run,
-            skill, plugin, bundle, target, all_targets, force,
+            skill, plugin, bundle, agent, all_agents, force,
         ),
 
         Command::Uninstall {
             skill,
             plugin,
             bundle,
-            target,
+            agent,
             force,
         } => {
-            // Delegate to unapply logic, wrapping single skill/target into Vec form
+            // Delegate to unapply logic, wrapping single skill/agent into Vec form
             let skill_vec = skill.map(|s| vec![s]);
-            let target_vec = target.map(|t| vec![t]);
+            let agent_vec = agent.map(|a| vec![a]);
             do_unapply(
                 cli.config.as_deref(), cli.json, cli.quiet, cli.verbose, cli.dry_run,
-                skill_vec, plugin, bundle, target_vec, false, force,
+                skill_vec, plugin, bundle, agent_vec, false, force,
             )
         }
         Command::Collect {
             skill,
-            target,
+            agent,
             adopt,
             force,
         } => {
@@ -1818,26 +1818,26 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
             let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
 
-            let tc = config
-                .target
+            let ac = config
+                .agent
                 .iter()
-                .find(|t| t.name == target)
-                .ok_or_else(|| anyhow::anyhow!("target '{}' not found", target))?;
-            let adapter = crate::target::resolve_adapter(tc, &config.adapter)?;
-            let installed_on_target = adapter.installed_skills(&tc.path)?;
+                .find(|a| a.name == agent)
+                .ok_or_else(|| anyhow::anyhow!("agent '{}' not found", agent))?;
+            let adapter = crate::agent::resolve_adapter(ac, &config.adapter)?;
+            let installed_on_agent = adapter.installed_skills(&ac.path)?;
 
             if let Some(ref skill_name) = skill {
                 // Collect a specific skill
-                let target_skill_dir = tc.path.join("skills").join(skill_name);
-                if !target_skill_dir.exists() {
-                    anyhow::bail!("skill '{}' not found on target '{}'", skill_name, target);
+                let agent_skill_dir = ac.path.join("skills").join(skill_name);
+                if !agent_skill_dir.exists() {
+                    anyhow::bail!("skill '{}' not found on agent '{}'", skill_name, agent);
                 }
 
                 if adopt {
                     // Copy to plugins/
                     let provenance = registry
                         .installed
-                        .get(&target)
+                        .get(&agent)
                         .and_then(|m| m.get(skill_name));
                     let plugin_name = provenance
                         .map(|info| info.plugin.clone())
@@ -1849,7 +1849,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     let dest_plugin = crate::config::plugins_dir().join(&plugin_name);
                     let dest_skill = dest_plugin.join("skills").join(skill_name);
                     std::fs::create_dir_all(&dest_skill)?;
-                    copy_dir_all(&target_skill_dir, &dest_skill)?;
+                    copy_dir_all(&agent_skill_dir, &dest_skill)?;
 
                     // Create plugin.json if missing
                     let plugin_json_dir = dest_plugin.join(".claude-plugin");
@@ -1869,13 +1869,13 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     // Copy back to origin
                     let provenance = registry
                         .installed
-                        .get(&target)
+                        .get(&agent)
                         .and_then(|m| m.get(skill_name));
 
                     if let Some(info) = provenance {
                         let dest = data_dir.join(&info.origin);
                         std::fs::create_dir_all(&dest)?;
-                        copy_dir_all(&target_skill_dir, &dest)?;
+                        copy_dir_all(&agent_skill_dir, &dest)?;
                         let identity =
                             crate::output::format_identity(&info.source, &info.plugin, &info.skill);
                         out.success(&format!("Collected {} → {}", identity, info.origin));
@@ -1887,14 +1887,14 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
                 }
             } else {
-                // Scan target for all skills
-                let target_installs = registry.installed.get(&target).cloned().unwrap_or_default();
+                // Scan agent for all skills
+                let agent_installs = registry.installed.get(&agent).cloned().unwrap_or_default();
 
                 let mut tracked = Vec::new();
                 let mut untracked = Vec::new();
 
-                for skill_name in &installed_on_target {
-                    if let Some(info) = target_installs.get(skill_name) {
+                for skill_name in &installed_on_agent {
+                    if let Some(info) = agent_installs.get(skill_name) {
                         tracked.push((skill_name.clone(), info.clone()));
                     } else {
                         untracked.push(skill_name.clone());
@@ -1933,10 +1933,10 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     if should_adopt {
                         let local_plugin = crate::config::plugins_dir().join("local");
                         for name in &untracked {
-                            let target_skill_dir = tc.path.join("skills").join(name);
+                            let agent_skill_dir = ac.path.join("skills").join(name);
                             let dest = local_plugin.join("skills").join(name);
                             std::fs::create_dir_all(&dest)?;
-                            copy_dir_all(&target_skill_dir, &dest)?;
+                            copy_dir_all(&agent_skill_dir, &dest)?;
                             let identity = crate::output::format_identity("local", "local", name);
                             out.success(&format!("Adopted {}", identity));
                         }
@@ -1955,7 +1955,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
 
                 if tracked.is_empty() && untracked.is_empty() {
-                    out.info("No skills found on target.");
+                    out.info("No skills found on agent.");
                 }
             }
 
@@ -1980,12 +1980,12 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
             }
 
-            // Count installed skills across targets
+            // Count installed skills across agents
             let mut total_installed = 0;
-            for tc in &config.target {
-                let adapter = crate::target::resolve_adapter(tc, &config.adapter).ok();
+            for ac in &config.agent {
+                let adapter = crate::agent::resolve_adapter(ac, &config.adapter).ok();
                 if let Some(a) = adapter {
-                    if let Ok(skills) = a.installed_skills(&tc.path) {
+                    if let Ok(skills) = a.installed_skills(&ac.path) {
                         total_installed += skills.len();
                     }
                 }
@@ -2001,7 +2001,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             if cli.json {
                 let json = serde_json::json!({
                     "sources": config.source.len(),
-                    "targets": config.target.len(),
+                    "agents": config.agent.len(),
                     "plugins": registry.sources.iter().flat_map(|s| &s.plugins).count(),
                     "skills": total_skills,
                     "installed": total_installed,
@@ -2041,22 +2041,22 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
 
             // Targets section
-            out.header("Targets");
-            if config.target.is_empty() {
+            out.header("Agents");
+            if config.agent.is_empty() {
                 out.info("  (none)");
             } else {
-                for tc in &config.target {
-                    let adapter = crate::target::resolve_adapter(tc, &config.adapter).ok();
+                for ac in &config.agent {
+                    let adapter = crate::agent::resolve_adapter(ac, &config.adapter).ok();
                     let installed_count = adapter
                         .as_ref()
-                        .and_then(|a| a.installed_skills(&tc.path).ok())
+                        .and_then(|a| a.installed_skills(&ac.path).ok())
                         .map(|s| s.len())
                         .unwrap_or(0);
                     println!(
                         "  {} {} {}",
-                        tc.name.bold(),
-                        format!("({})", tc.agent).cyan(),
-                        format!("{} installed, scope: {}, sync: {}", installed_count, tc.scope, tc.sync).dimmed(),
+                        ac.name.bold(),
+                        format!("({})", ac.agent_type).cyan(),
+                        format!("{} installed, scope: {}, sync: {}", installed_count, ac.scope, ac.sync).dimmed(),
                     );
                 }
             }
@@ -2108,7 +2108,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 anyhow::bail!("source '{}' not found", name);
             }
 
-            // Check if any skills from this source are installed on targets
+            // Check if any skills from this source are installed on agents
             let registry = crate::registry::load_registry(&data_dir)?;
             let mut installed_on: Vec<String> = Vec::new();
             if let Some(reg_src) = registry.sources.iter().find(|s| s.name == name) {
@@ -2117,13 +2117,13 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     .iter()
                     .flat_map(|p| p.skills.iter().map(|s| s.name.as_str()))
                     .collect();
-                for tc in &config.target {
-                    let target_path = std::path::PathBuf::from(&tc.path);
-                    if let Ok(adapter) = crate::target::resolve_adapter(tc, &config.adapter) {
-                        if let Ok(installed) = adapter.installed_skills(&target_path) {
+                for ac in &config.agent {
+                    let agent_path = std::path::PathBuf::from(&ac.path);
+                    if let Ok(adapter) = crate::agent::resolve_adapter(ac, &config.adapter) {
+                        if let Ok(installed) = adapter.installed_skills(&agent_path) {
                             for sk in &skill_names {
                                 if installed.contains(&sk.to_string()) {
-                                    installed_on.push(tc.name.clone());
+                                    installed_on.push(ac.name.clone());
                                     break;
                                 }
                             }
@@ -2641,12 +2641,12 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
                 BundleCommand::Activate {
                     name,
-                    target,
+                    agent,
                     all,
                     force,
                 } => {
-                    if target.is_none() && !all {
-                        anyhow::bail!("provide a <target> or use --all");
+                    if agent.is_none() && !all {
+                        anyhow::bail!("provide an <agent> or use --all");
                     }
 
                     let bundle = config
@@ -2670,42 +2670,42 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
                     let mut reg = registry.clone();
 
-                    let targets: Vec<&crate::config::TargetConfig> = if all {
-                        config.target.iter().collect()
+                    let agents: Vec<&crate::config::AgentConfig> = if all {
+                        config.agent.iter().collect()
                     } else {
-                        let t = target.as_ref().unwrap();
-                        let tc = config
-                            .target
+                        let a = agent.as_ref().unwrap();
+                        let ac = config
+                            .agent
                             .iter()
-                            .find(|tc| tc.name == *t)
-                            .ok_or_else(|| anyhow::anyhow!("target '{}' not found", t))?;
-                        vec![tc]
+                            .find(|ac| ac.name == *a)
+                            .ok_or_else(|| anyhow::anyhow!("agent '{}' not found", a))?;
+                        vec![ac]
                     };
 
                     let mut new_count: usize = 0;
                     let mut unchanged_count: usize = 0;
                     let mut updated_count: usize = 0;
-                    let mut conflicts: Vec<(String, String)> = Vec::new(); // (skill_id, target)
+                    let mut conflicts: Vec<(String, String)> = Vec::new(); // (skill_id, agent)
 
-                    for tc in &targets {
-                        let adapter = crate::target::resolve_adapter(tc, &config.adapter)?;
+                    for ac in &agents {
+                        let adapter = crate::agent::resolve_adapter(ac, &config.adapter)?;
 
                         if !cli.quiet {
                             println!(
                                 "{} {} {}",
                                 "→".bold(),
-                                tc.name.bold(),
-                                tc.path.display().to_string().dimmed(),
+                                ac.name.bold(),
+                                ac.path.display().to_string().dimmed(),
                             );
                         }
 
                         for skill_id in &bundle.skills {
                             let (src_name, plug_name, s) = registry.find_skill(skill_id)?;
-                            let status = adapter.compare_skill(s, &tc.path)?;
-                            let dest = adapter.skill_dest(&tc.path, &s.name);
+                            let status = adapter.compare_skill(s, &ac.path)?;
+                            let dest = adapter.skill_dest(&ac.path, &s.name);
 
                             match status {
-                                crate::target::SkillStatus::New => {
+                                crate::agent::SkillStatus::New => {
                                     if cli.dry_run {
                                         if !cli.quiet {
                                             println!(
@@ -2716,8 +2716,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                             );
                                         }
                                     } else {
-                                        adapter.install_skill(s, &tc.path)?;
-                                        record_provenance(&mut reg, &data_dir, tc, src_name, plug_name, s);
+                                        adapter.install_skill(s, &ac.path)?;
+                                        record_provenance(&mut reg, &data_dir, ac, src_name, plug_name, s);
                                         new_count += 1;
                                         if !cli.quiet {
                                             println!(
@@ -2729,7 +2729,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                         }
                                     }
                                 }
-                                crate::target::SkillStatus::Unchanged => {
+                                crate::agent::SkillStatus::Unchanged => {
                                     unchanged_count += 1;
                                     if cli.verbose && !cli.quiet {
                                         println!(
@@ -2740,10 +2740,10 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                         );
                                     }
                                 }
-                                crate::target::SkillStatus::Changed => {
+                                crate::agent::SkillStatus::Changed => {
                                     if force && !cli.dry_run {
-                                        adapter.install_skill(s, &tc.path)?;
-                                        record_provenance(&mut reg, &data_dir, tc, src_name, plug_name, s);
+                                        adapter.install_skill(s, &ac.path)?;
+                                        record_provenance(&mut reg, &data_dir, ac, src_name, plug_name, s);
                                         updated_count += 1;
                                         if !cli.quiet {
                                             println!(
@@ -2755,7 +2755,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                             );
                                         }
                                     } else {
-                                        conflicts.push((skill_id.clone(), tc.name.clone()));
+                                        conflicts.push((skill_id.clone(), ac.name.clone()));
                                         if !cli.quiet {
                                             println!(
                                                 "  {} {} → {} {}",
@@ -2811,12 +2811,12 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
                 BundleCommand::Deactivate {
                     name,
-                    target,
+                    agent,
                     all,
                     force: _,
                 } => {
-                    if target.is_none() && !all {
-                        anyhow::bail!("provide a <target> or use --all");
+                    if agent.is_none() && !all {
+                        anyhow::bail!("provide an <agent> or use --all");
                     }
 
                     let bundle = config
@@ -2839,37 +2839,37 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         }
                     }
 
-                    let targets: Vec<&crate::config::TargetConfig> = if all {
-                        config.target.iter().collect()
+                    let agents: Vec<&crate::config::AgentConfig> = if all {
+                        config.agent.iter().collect()
                     } else {
-                        let t = target.as_ref().unwrap();
-                        let tc = config
-                            .target
+                        let a = agent.as_ref().unwrap();
+                        let ac = config
+                            .agent
                             .iter()
-                            .find(|tc| tc.name == *t)
-                            .ok_or_else(|| anyhow::anyhow!("target '{}' not found", t))?;
-                        vec![tc]
+                            .find(|ac| ac.name == *a)
+                            .ok_or_else(|| anyhow::anyhow!("agent '{}' not found", a))?;
+                        vec![ac]
                     };
 
                     let mut removed_count: usize = 0;
                     let mut skipped_count: usize = 0;
 
-                    for tc in &targets {
-                        let adapter = crate::target::resolve_adapter(tc, &config.adapter)?;
-                        let already = adapter.installed_skills(&tc.path).unwrap_or_default();
+                    for ac in &agents {
+                        let adapter = crate::agent::resolve_adapter(ac, &config.adapter)?;
+                        let already = adapter.installed_skills(&ac.path).unwrap_or_default();
 
                         if !cli.quiet {
                             println!(
                                 "{} {} {}",
                                 "→".bold(),
-                                tc.name.bold(),
-                                tc.path.display().to_string().dimmed(),
+                                ac.name.bold(),
+                                ac.path.display().to_string().dimmed(),
                             );
                         }
 
                         for skill_id in &bundle.skills {
                             let (src_name, plug_name, s) = registry.find_skill(skill_id)?;
-                            let dest = adapter.skill_dest(&tc.path, &s.name);
+                            let dest = adapter.skill_dest(&ac.path, &s.name);
 
                             if !already.contains(&s.name) {
                                 skipped_count += 1;
@@ -2894,7 +2894,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                     );
                                 }
                             } else {
-                                adapter.uninstall_skill(&s.name, &tc.path)?;
+                                adapter.uninstall_skill(&s.name, &ac.path)?;
                                 removed_count += 1;
                                 if !cli.quiet {
                                     println!(
@@ -2932,8 +2932,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
             }
         }
-        Command::Target {
-            command: target_cmd,
+        Command::Agent {
+            command: agent_cmd,
         } => {
             let config_path_str = cli.config.as_deref();
             let mut config = crate::config::load(config_path_str)?;
@@ -2941,8 +2941,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             // Known built-in agent types
             const KNOWN_AGENTS: &[&str] = &["claude", "codex", "cursor", "gemini", "vscode"];
 
-            match target_cmd {
-                TargetCommand::Add {
+            match agent_cmd {
+                AgentCommand::Add {
                     agent,
                     path,
                     name,
@@ -2965,15 +2965,15 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         );
                     }
 
-                    let target_name = name.unwrap_or_else(|| format!("{}-{}", agent, scope));
+                    let agent_name = name.unwrap_or_else(|| format!("{}-{}", agent, scope));
 
                     // Check for duplicate name
-                    if config.target.iter().any(|t| t.name == target_name) {
-                        anyhow::bail!("target '{}' already exists", target_name);
+                    if config.agent.iter().any(|t| t.name == agent_name) {
+                        anyhow::bail!("agent '{}' already exists", agent_name);
                     }
 
                     // Resolve path: default based on agent + scope
-                    let target_path = if let Some(p) = path {
+                    let agent_path = if let Some(p) = path {
                         std::path::PathBuf::from(p)
                     } else {
                         // Default: ~/.{agent} for machine scope
@@ -2990,10 +2990,10 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     };
 
                     if !cli.dry_run {
-                        config.target.push(crate::config::TargetConfig {
-                            name: target_name.clone(),
-                            agent: agent.clone(),
-                            path: target_path,
+                        config.agent.push(crate::config::AgentConfig {
+                            name: agent_name.clone(),
+                            agent_type: agent.clone(),
+                            path: agent_path,
                             scope,
                             sync: actual_sync,
                         });
@@ -3002,41 +3002,41 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                     if !cli.quiet {
                         if cli.dry_run {
-                            println!("  (dry run) would add target '{}'", target_name);
+                            println!("  (dry run) would add agent '{}'", agent_name);
                         } else {
-                            println!("Added target '{}'", target_name);
+                            println!("Added agent '{}'", agent_name);
                         }
                     }
                     Ok(())
                 }
-                TargetCommand::Remove { name, force } => {
-                    if !config.target.iter().any(|t| t.name == name) {
-                        anyhow::bail!("target '{}' not found", name);
+                AgentCommand::Remove { name, force } => {
+                    if !config.agent.iter().any(|t| t.name == name) {
+                        anyhow::bail!("agent '{}' not found", name);
                     }
 
                     let execute = force && !cli.dry_run;
                     if execute {
-                        config.target.retain(|t| t.name != name);
+                        config.agent.retain(|t| t.name != name);
                         crate::config::save(&config, config_path_str)?;
                     }
 
                     if !cli.quiet {
                         if execute {
-                            println!("Removed target '{}' (installed skills preserved)", name);
+                            println!("Removed agent '{}' (installed skills preserved)", name);
                         } else {
-                            println!("Would remove target '{}'", name);
+                            println!("Would remove agent '{}'", name);
                             println!("Use --force to remove");
                         }
                     }
                     Ok(())
                 }
-                TargetCommand::List => {
+                AgentCommand::List => {
                     if cli.json {
                         let entries: Vec<serde_json::Value> = config
-                            .target
+                            .agent
                             .iter()
                             .map(|t| {
-                                let adapter = crate::target::resolve_adapter(t, &config.adapter).ok();
+                                let adapter = crate::agent::resolve_adapter(t, &config.adapter).ok();
                                 let installed_count = adapter
                                     .as_ref()
                                     .and_then(|a| a.installed_skills(&t.path).ok())
@@ -3044,7 +3044,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                     .unwrap_or(0);
                                 serde_json::json!({
                                     "name": t.name,
-                                    "agent": t.agent,
+                                    "agent": t.agent_type,
                                     "path": t.path,
                                     "scope": t.scope,
                                     "sync": t.sync,
@@ -3057,61 +3057,61 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
 
                     let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
-                    if config.target.is_empty() {
-                        out.info("No targets configured. Use `loadout target add` to add one.");
+                    if config.agent.is_empty() {
+                        out.info("No agents configured. Use `loadout agent add` to add one.");
                         return Ok(());
                     }
 
-                    for tc in &config.target {
-                        let adapter = crate::target::resolve_adapter(tc, &config.adapter).ok();
+                    for ac in &config.agent {
+                        let adapter = crate::agent::resolve_adapter(ac, &config.adapter).ok();
                         let installed = adapter
                             .as_ref()
-                            .and_then(|a| a.installed_skills(&tc.path).ok())
+                            .and_then(|a| a.installed_skills(&ac.path).ok())
                             .unwrap_or_default();
 
                         println!(
                             "{} {} {}",
-                            tc.name.bold(),
-                            format!("({})", tc.agent).cyan(),
-                            format!("— {}", tc.path.display()).dimmed(),
+                            ac.name.bold(),
+                            format!("({})", ac.agent_type).cyan(),
+                            format!("— {}", ac.path.display()).dimmed(),
                         );
                         println!(
                             "  {} {} {}",
                             "scope:".dimmed(),
-                            tc.scope,
-                            format!("  sync: {}  installed: {}", tc.sync, installed.len()).dimmed(),
+                            ac.scope,
+                            format!("  sync: {}  installed: {}", ac.sync, installed.len()).dimmed(),
                         );
                     }
                     Ok(())
                 }
-                TargetCommand::Show { name } => {
-                    let target = config
-                        .target
+                AgentCommand::Show { name } => {
+                    let agent_cfg = config
+                        .agent
                         .iter()
                         .find(|t| t.name == name)
-                        .ok_or_else(|| anyhow::anyhow!("target '{}' not found", name))?;
+                        .ok_or_else(|| anyhow::anyhow!("agent '{}' not found", name))?;
 
                     if cli.json {
                         let json = serde_json::json!({
-                            "name": target.name,
-                            "agent": target.agent,
-                            "path": target.path,
-                            "scope": target.scope,
-                            "sync": target.sync,
+                            "name": agent_cfg.name,
+                            "type": agent_cfg.agent_type,
+                            "path": agent_cfg.path,
+                            "scope": agent_cfg.scope,
+                            "sync": agent_cfg.sync,
                         });
                         println!("{}", serde_json::to_string_pretty(&json)?);
                         return Ok(());
                     }
 
                     let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
-                    out.status("Name", &target.name);
-                    out.status("Agent", &target.agent);
-                    out.status("Path", &target.path.display().to_string());
-                    out.status("Scope", &target.scope);
-                    out.status("Sync", &target.sync);
+                    out.status("Name", &agent_cfg.name);
+                    out.status("Type", &agent_cfg.agent_type);
+                    out.status("Path", &agent_cfg.path.display().to_string());
+                    out.status("Scope", &agent_cfg.scope);
+                    out.status("Sync", &agent_cfg.sync);
 
                     // List installed skills if the directory exists
-                    let skills_dir = target.path.join("skills");
+                    let skills_dir = agent_cfg.path.join("skills");
                     if skills_dir.is_dir() {
                         let mut installed = Vec::new();
                         if let Ok(entries) = std::fs::read_dir(&skills_dir) {
@@ -3135,12 +3135,12 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                     Ok(())
                 }
-                TargetCommand::Detect { force } => {
-                    let candidates = detect_agent_targets();
+                AgentCommand::Detect { force } => {
+                    let candidates = detect_agents();
 
                     let mut found: Vec<(String, std::path::PathBuf, bool)> = Vec::new();
                     for (agent, path) in &candidates {
-                        let already = config.target.iter().any(|t| t.path == *path);
+                        let already = config.agent.iter().any(|t| t.path == *path);
                         found.push((agent.clone(), path.clone(), already));
                     }
 
@@ -3167,7 +3167,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
 
                     if force {
-                        let added = add_detected_targets(&mut config, cli.quiet);
+                        let added = add_detected_agents(&mut config, cli.quiet);
                         if added > 0 {
                             crate::config::save(&config, config_path_str)?;
                         }
@@ -3188,17 +3188,17 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                 ));
                                 continue;
                             }
-                            let target_name = path
+                            let agent_name = path
                                 .file_name()
                                 .and_then(|n| n.to_str())
                                 .unwrap_or(agent)
                                 .trim_start_matches('.')
                                 .to_string();
                             eprint!(
-                                "Add {} at {} as target '{}'? [y/N] ",
+                                "Add {} at {} as agent '{}'? [y/N] ",
                                 agent,
                                 path.display(),
-                                target_name
+                                agent_name
                             );
                             let mut input = String::new();
                             std::io::stdin().read_line(&mut input).unwrap_or(0);
@@ -3209,14 +3209,14 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                     "repo"
                                 };
                                 let sync = if scope == "repo" { "explicit" } else { "auto" };
-                                config.target.push(crate::config::TargetConfig {
-                                    name: target_name.clone(),
-                                    agent: agent.to_string(),
+                                config.agent.push(crate::config::AgentConfig {
+                                    name: agent_name.clone(),
+                                    agent_type: agent.to_string(),
                                     path: path.clone(),
                                     scope: scope.to_string(),
                                     sync: sync.to_string(),
                                 });
-                                out.success(&format!("Added target '{}'", target_name));
+                                out.success(&format!("Added agent '{}'", agent_name));
                                 added += 1;
                             }
                         }
@@ -3245,9 +3245,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         for s in &config.source {
                             println!("  {} ({})", s.name, s.url);
                         }
-                        println!("Targets: {}", config.target.len());
-                        for t in &config.target {
-                            println!("  {} ({} @ {})", t.name, t.agent, t.path.display());
+                        println!("Agents: {}", config.agent.len());
+                        for t in &config.agent {
+                            println!("  {} ({} @ {})", t.name, t.agent_type, t.path.display());
                         }
                         println!("Adapters: {}", config.adapter.len());
                         for name in config.adapter.keys() {
@@ -3326,8 +3326,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         }
                     }
                 }
-                "targets" => {
-                    for t in &config.target {
+                "agents" => {
+                    for t in &config.agent {
                         println!("{}", t.name);
                     }
                 }
@@ -3348,7 +3348,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 fn record_provenance(
     reg: &mut crate::registry::Registry,
     data_dir: &std::path::Path,
-    tc: &crate::config::TargetConfig,
+    ac: &crate::config::AgentConfig,
     src_name: &str,
     plug_name: &str,
     s: &crate::registry::RegisteredSkill,
@@ -3358,8 +3358,8 @@ fn record_provenance(
         .strip_prefix(data_dir)
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| s.path.display().to_string());
-    let target_map = reg.installed.entry(tc.name.clone()).or_default();
-    target_map.insert(
+    let agent_map = reg.installed.entry(ac.name.clone()).or_default();
+    agent_map.insert(
         s.name.clone(),
         crate::registry::InstalledSkill {
             source: src_name.to_string(),
@@ -3381,8 +3381,8 @@ enum ConflictAction {
 /// Prompt the user to resolve a conflict for a changed skill.
 fn prompt_conflict(
     skill: &crate::registry::RegisteredSkill,
-    adapter: &crate::target::Adapter,
-    target_path: &std::path::Path,
+    adapter: &crate::agent::Adapter,
+    agent_path: &std::path::Path,
 ) -> anyhow::Result<ConflictAction> {
     eprintln!();
     eprintln!("  {} — CHANGED", skill.name);
@@ -3400,7 +3400,7 @@ fn prompt_conflict(
             "f" => return Ok(ConflictAction::ForceAll),
             "q" => return Ok(ConflictAction::Quit),
             "d" => {
-                show_skill_diff(skill, adapter, target_path)?;
+                show_skill_diff(skill, adapter, agent_path)?;
                 eprintln!();
                 eprint!("    [s]kip  [o]verwrite  [q]uit: ");
                 // After diff, loop again for s/o/q only
@@ -3428,10 +3428,10 @@ fn prompt_conflict(
 /// Display a unified diff of all files in a skill directory.
 fn show_skill_diff(
     skill: &crate::registry::RegisteredSkill,
-    adapter: &crate::target::Adapter,
-    target_path: &std::path::Path,
+    adapter: &crate::agent::Adapter,
+    agent_path: &std::path::Path,
 ) -> anyhow::Result<()> {
-    let pairs = adapter.skill_file_pairs(skill, target_path)?;
+    let pairs = adapter.skill_file_pairs(skill, agent_path)?;
 
     for (label, src_path, dst_path) in &pairs {
         let src_content = if src_path.exists() {

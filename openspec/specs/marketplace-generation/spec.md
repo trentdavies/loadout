@@ -16,10 +16,10 @@ The system SHALL generate `.claude-plugin/marketplace.json` by scanning the `plu
 - **THEN** marketplace.json SHALL contain an empty `plugins` array
 
 ### Requirement: Marketplace regenerated on mutation
-The marketplace.json SHALL be regenerated after any operation that changes `plugins/`: `collect --adopt`, plugin creation, or skill adoption. It SHALL NOT be regenerated on operations that only affect `external/` or targets.
+The marketplace.json SHALL be regenerated after any operation that changes `plugins/`: `collect --adopt`, plugin creation, or skill adoption. It SHALL NOT be regenerated on operations that only affect `external/` or agents.
 
 #### Scenario: After adopt
-- **WHEN** user runs `skittle collect --skill foo --target claude --adopt`
+- **WHEN** user runs `skittle collect --skill foo --agent claude --adopt`
 - **THEN** marketplace.json SHALL be regenerated to include the newly adopted plugin
 
 ### Requirement: Marketplace is valid Claude format

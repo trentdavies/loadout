@@ -20,13 +20,13 @@ export SANDBOX_LOCAL="$HOME/repos"
 export SANDBOX_LOG="$XDG_DATA_HOME/loadout/sandbox.log"
 
 # ---------------------------------------------------------------------------
-# sandbox_init — init loadout + register both mock targets (idempotent)
+# sandbox_init — init loadout + register both mock agents (idempotent)
 # ---------------------------------------------------------------------------
 sandbox_init() {
   mkdir -p "$SANDBOX_LOCAL"
   "$LOADOUT" init >/dev/null 2>&1
-  "$LOADOUT" target add claude "$SANDBOX_TARGET_CLAUDE" --name sandbox-claude --scope machine --sync auto >/dev/null 2>&1
-  "$LOADOUT" target add codex "$SANDBOX_TARGET_CODEX" --name sandbox-codex --scope machine --sync auto >/dev/null 2>&1
+  "$LOADOUT" agent add claude "$SANDBOX_TARGET_CLAUDE" --name sandbox-claude --scope machine --sync auto >/dev/null 2>&1
+  "$LOADOUT" agent add codex "$SANDBOX_TARGET_CODEX" --name sandbox-codex --scope machine --sync auto >/dev/null 2>&1
 }
 
 # ---------------------------------------------------------------------------

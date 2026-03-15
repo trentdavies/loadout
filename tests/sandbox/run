@@ -94,7 +94,7 @@ case "$MODE" in
     echo "Inside the container:"
     echo "  loadout                                 # on PATH (~/.local/bin)"
     echo "  ~/run-tests                             # run the full test suite"
-    echo "  source ~/setup.sh && sandbox_init       # set up targets without running tests"
+    echo "  source ~/setup.sh && sandbox_init       # set up agents without running tests"
     echo ""
     echo "Cleanup: docker rm -f $CONTAINER"
     ;;

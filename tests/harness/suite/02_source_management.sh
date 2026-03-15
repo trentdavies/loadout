@@ -77,8 +77,8 @@ test_source_duplicate_name_error() {
 }
 
 test_source_remove_with_installed_skills_warns() {
-  setup_source_and_targets
-  "$LOADOUT" apply --force --skill test-plugin/explore --target test-claude >/dev/null 2>&1
+  setup_source_and_agents
+  "$LOADOUT" apply --force --skill test-plugin/explore --agent test-claude >/dev/null 2>&1
   # Without --force, should preview and warn about installed skills
   local output
   output=$("$LOADOUT" remove test-plugin 2>&1)

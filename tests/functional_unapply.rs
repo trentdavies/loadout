@@ -21,18 +21,18 @@ fn parse_unapply_bundle() {
         "unapply",
         "--bundle",
         "work",
-        "--all-targets",
+        "--all-agents",
         "--force",
     ])
     .unwrap();
     match cli.command {
         Command::Unapply {
             bundle,
-            all_targets,
+            all_agents,
             ..
         } => {
             assert_eq!(bundle, Some("work".to_string()));
-            assert!(all_targets);
+            assert!(all_agents);
         }
         _ => panic!("expected Unapply"),
     }
@@ -45,17 +45,17 @@ fn parse_unapply_multiple_targets() {
         "unapply",
         "--skill",
         "legal/review",
-        "--target",
+        "--agent",
         "claude",
-        "--target",
+        "--agent",
         "codex",
         "--force",
     ])
     .unwrap();
     match cli.command {
-        Command::Unapply { target, .. } => {
+        Command::Unapply { agent, .. } => {
             assert_eq!(
-                target,
+                agent,
                 Some(vec!["claude".to_string(), "codex".to_string()])
             );
         }
@@ -91,31 +91,31 @@ fn parse_unapply_multiple_skills() {
 #[test]
 fn parse_apply_multiple_targets() {
     let cli = Cli::try_parse_from([
-        "loadout", "apply", "--all", "--target", "claude", "--target", "codex",
+        "loadout", "apply", "--all", "--agent", "claude", "--agent", "codex",
     ])
     .unwrap();
     match cli.command {
         Command::Apply {
-            target,
-            all_targets,
+            agent,
+            all_agents,
             ..
         } => {
             assert_eq!(
-                target,
+                agent,
                 Some(vec!["claude".to_string(), "codex".to_string()])
             );
-            assert!(!all_targets);
+            assert!(!all_agents);
         }
         _ => panic!("expected Apply"),
     }
 }
 
 #[test]
-fn parse_apply_all_targets() {
-    let cli = Cli::try_parse_from(["loadout", "apply", "--all", "--all-targets"]).unwrap();
+fn parse_apply_all_agents() {
+    let cli = Cli::try_parse_from(["loadout", "apply", "--all", "--all-agents"]).unwrap();
     match cli.command {
-        Command::Apply { all_targets, .. } => {
-            assert!(all_targets);
+        Command::Apply { all_agents, .. } => {
+            assert!(all_agents);
         }
         _ => panic!("expected Apply"),
     }
@@ -148,10 +148,10 @@ fn parse_apply_multiple_skills() {
 #[test]
 fn parse_apply_single_target_still_works() {
     let cli =
-        Cli::try_parse_from(["loadout", "apply", "--all", "--target", "claude"]).unwrap();
+        Cli::try_parse_from(["loadout", "apply", "--all", "--agent", "claude"]).unwrap();
     match cli.command {
-        Command::Apply { target, .. } => {
-            assert_eq!(target, Some(vec!["claude".to_string()]));
+        Command::Apply { agent, .. } => {
+            assert_eq!(agent, Some(vec!["claude".to_string()]));
         }
         _ => panic!("expected Apply"),
     }
@@ -177,34 +177,34 @@ fn uninstall_still_parses_as_hidden_alias() {
 }
 
 #[test]
-fn apply_target_conflicts_with_all_targets() {
+fn apply_target_conflicts_with_all_agents() {
     let result = Cli::try_parse_from([
         "loadout",
         "apply",
         "--all",
-        "--target",
+        "--agent",
         "claude",
-        "--all-targets",
+        "--all-agents",
     ]);
     assert!(
         result.is_err(),
-        "--target and --all-targets should conflict"
+        "--agent and --all-agents should conflict"
     );
 }
 
 #[test]
-fn unapply_target_conflicts_with_all_targets() {
+fn unapply_target_conflicts_with_all_agents() {
     let result = Cli::try_parse_from([
         "loadout",
         "unapply",
         "--skill",
         "foo",
-        "--target",
+        "--agent",
         "claude",
-        "--all-targets",
+        "--all-agents",
     ]);
     assert!(
         result.is_err(),
-        "--target and --all-targets should conflict"
+        "--agent and --all-agents should conflict"
     );
 }

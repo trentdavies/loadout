@@ -50,7 +50,7 @@ The registry SHALL support lookup by any level of the hierarchy: list all source
 
 ### Requirement: Directory layout
 The skittle data directory SHALL use this layout:
-- `skittle.toml` — configuration (external sources, targets, bundles)
+- `skittle.toml` — configuration (external sources, agents, bundles)
 - `.claude-plugin/marketplace.json` — generated marketplace for managed plugins
 - `.skittle/registry.json` — internal registry (gitignored)
 - `plugins/` — managed plugins and skills (git tracked)
@@ -69,11 +69,11 @@ The skittle data directory SHALL use this layout:
 The registry SHALL track provenance for each installed skill: which source, plugin, and skill it came from, and the relative path to the origin within the skittle data directory.
 
 #### Scenario: Install records provenance
-- **WHEN** a skill is installed from an external source to a target
+- **WHEN** a skill is installed from an external source to an agent
 - **THEN** the registry SHALL record the source name, plugin name, skill name, and origin path (e.g., `external/anthropic-plugins/legal/skills/contract-review`)
 
 #### Scenario: Install from managed plugin records provenance
-- **WHEN** a skill is installed from `plugins/` to a target
+- **WHEN** a skill is installed from `plugins/` to an agent
 - **THEN** the registry SHALL record the origin path as `plugins/<plugin>/skills/<skill>`
 
 ### Requirement: Registry location

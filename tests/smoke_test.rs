@@ -78,10 +78,10 @@ fn full_lifecycle_smoke_test() {
         mode: None,
     });
 
-    // ── Step 3: Target add ──────────────────────────────────────────────
-    config.target.push(loadout::config::TargetConfig {
-        name: "smoke-target".to_string(),
-        agent: "claude".to_string(),
+    // ── Step 3: Agent add ───────────────────────────────────────────────
+    config.agent.push(loadout::config::AgentConfig {
+        name: "smoke-agent".to_string(),
+        agent_type: "claude".to_string(),
         path: target_dir.path().to_path_buf(),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
@@ -91,12 +91,12 @@ fn full_lifecycle_smoke_test() {
     // Verify config roundtrip
     let config = loadout::config::load_from(&config_path).unwrap();
     assert_eq!(config.source.len(), 1);
-    assert_eq!(config.target.len(), 1);
+    assert_eq!(config.agent.len(), 1);
 
     // ── Step 4: Install --all ───────────────────────────────────────────
     let registry = loadout::registry::load_registry(&data_dir).unwrap();
-    let target = &config.target[0];
-    let adapter = loadout::target::resolve_adapter(target, &config.adapter).unwrap();
+    let target = &config.agent[0];
+    let adapter = loadout::agent::resolve_adapter(target, &config.adapter).unwrap();
 
     let all_skills = registry.all_skills();
     assert_eq!(all_skills.len(), 3);
@@ -135,7 +135,7 @@ fn full_lifecycle_smoke_test() {
     assert_eq!(source_count, 1);
     assert_eq!(plugin_count, 1);
     assert_eq!(skill_count, 3);
-    assert_eq!(config.target.len(), 1);
+    assert_eq!(config.agent.len(), 1);
 
     // ── Step 6: Uninstall ───────────────────────────────────────────────
     for name in &installed {

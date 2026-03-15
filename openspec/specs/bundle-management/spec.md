@@ -15,7 +15,7 @@ The CLI SHALL support `skittle bundle delete <name>` to remove a bundle definiti
 #### Scenario: Delete existing bundle
 - **WHEN** user runs `skittle bundle delete work-dev --force`
 - **THEN** the bundle SHALL be removed from the config
-- **THEN** skills installed by that bundle SHALL NOT be uninstalled from targets (they remain installed)
+- **THEN** skills installed by that bundle SHALL NOT be uninstalled from agents (they remain installed)
 
 #### Scenario: Delete without force
 - **WHEN** user runs `skittle bundle delete work-dev` (no --force)
@@ -75,46 +75,45 @@ The CLI SHALL support `skittle bundle drop <bundle> <skill...>` to remove one or
 - **THEN** "openspec/explore" SHALL be removed from the bundle's skill list
 
 ### Requirement: Activate bundle
-The CLI SHALL support `skittle bundle activate <bundle> <target>` to install all skills from the bundle onto the target. The CLI SHALL also support `--all` in place of a target to install onto all configured targets. Exactly one of `<target>` or `--all` MUST be provided. The operation SHALL be idempotent — skills already installed on the target SHALL be silently skipped. The command SHALL require `--force` to execute; without it, the CLI SHALL display what would be installed (dry run). The global `-n`/`--dry-run` flag SHALL override `--force`.
+The CLI SHALL support `skittle bundle activate <bundle> <agent>` to install all skills from the bundle onto the agent. The CLI SHALL also support `--all` in place of an agent to install onto all configured agents. Exactly one of `<agent>` or `--all` MUST be provided. The operation SHALL be idempotent — skills already installed on the agent SHALL be silently skipped. The command SHALL require `--force` to execute; without it, the CLI SHALL display what would be installed (dry run). The global `-n`/`--dry-run` flag SHALL override `--force`.
 
-#### Scenario: Activate bundle on target
+#### Scenario: Activate bundle on agent
 - **WHEN** user runs `skittle bundle activate work-dev my-claude --force`
-- **THEN** all skills in "work-dev" SHALL be installed on the "my-claude" target
+- **THEN** all skills in "work-dev" SHALL be installed on the "my-claude" agent
 - **THEN** skills already installed on "my-claude" SHALL be silently skipped
 
-#### Scenario: Activate bundle on all targets
+#### Scenario: Activate bundle on all agents
 - **WHEN** user runs `skittle bundle activate work-dev --all --force`
-- **THEN** all skills in "work-dev" SHALL be installed on every configured target
+- **THEN** all skills in "work-dev" SHALL be installed on every configured agent
 
 #### Scenario: Activate dry run
 - **WHEN** user runs `skittle bundle activate work-dev my-claude` (no --force)
 - **THEN** the CLI SHALL display which skills would be installed without making changes
 
-#### Scenario: Activate with invalid target
+#### Scenario: Activate with invalid agent
 - **WHEN** user runs `skittle bundle activate work-dev nonexistent --force`
-- **THEN** the CLI SHALL exit with an error: "target 'nonexistent' not found"
+- **THEN** the CLI SHALL exit with an error: "agent 'nonexistent' not found"
 
 #### Scenario: Activate with invalid bundle
 - **WHEN** user runs `skittle bundle activate nonexistent my-claude --force`
 - **THEN** the CLI SHALL exit with an error: "bundle 'nonexistent' not found"
 
-#### Scenario: Activate with neither target nor --all
+#### Scenario: Activate with neither agent nor --all
 - **WHEN** user runs `skittle bundle activate work-dev`
-- **THEN** the CLI SHALL exit with an error indicating a target or --all is required
+- **THEN** the CLI SHALL exit with an error indicating an agent or --all is required
 
 ### Requirement: Deactivate bundle
-The CLI SHALL support `skittle bundle deactivate <bundle> <target>` to uninstall all skills from the bundle from the target. The CLI SHALL also support `--all` in place of a target to uninstall from all configured targets. Exactly one of `<target>` or `--all` MUST be provided. The operation SHALL be idempotent — skills not installed on the target SHALL be silently skipped. The command SHALL require `--force` to execute; without it, the CLI SHALL display what would be uninstalled (dry run).
+The CLI SHALL support `skittle bundle deactivate <bundle> <agent>` to uninstall all skills from the bundle from the agent. The CLI SHALL also support `--all` in place of an agent to uninstall from all configured agents. Exactly one of `<agent>` or `--all` MUST be provided. The operation SHALL be idempotent — skills not installed on the agent SHALL be silently skipped. The command SHALL require `--force` to execute; without it, the CLI SHALL display what would be uninstalled (dry run).
 
-#### Scenario: Deactivate bundle from target
+#### Scenario: Deactivate bundle from agent
 - **WHEN** user runs `skittle bundle deactivate work-dev my-claude --force`
-- **THEN** all skills in "work-dev" SHALL be uninstalled from the "my-claude" target
+- **THEN** all skills in "work-dev" SHALL be uninstalled from the "my-claude" agent
 - **THEN** skills not installed on "my-claude" SHALL be silently skipped
 
-#### Scenario: Deactivate bundle from all targets
+#### Scenario: Deactivate bundle from all agents
 - **WHEN** user runs `skittle bundle deactivate work-dev --all --force`
-- **THEN** all skills in "work-dev" SHALL be uninstalled from every configured target
+- **THEN** all skills in "work-dev" SHALL be uninstalled from every configured agent
 
 #### Scenario: Deactivate dry run
 - **WHEN** user runs `skittle bundle deactivate work-dev my-claude` (no --force)
 - **THEN** the CLI SHALL display which skills would be uninstalled without making changes
-

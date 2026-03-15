@@ -3,9 +3,9 @@ use std::path::PathBuf;
 
 use tempfile::TempDir;
 
-use loadout::config::{load_from, save_to, BundleConfig, Config, TargetConfig};
+use loadout::config::{load_from, save_to, BundleConfig, Config, AgentConfig};
 use loadout::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry};
-use loadout::target::resolve_adapter;
+use loadout::agent::resolve_adapter;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -15,10 +15,10 @@ fn make_bundle(skills: &[&str]) -> BundleConfig {
     }
 }
 
-fn make_target(name: &str, path: PathBuf) -> TargetConfig {
-    TargetConfig {
+fn make_agent(name: &str, path: PathBuf) -> AgentConfig {
+    AgentConfig {
         name: name.to_string(),
-        agent: "claude".to_string(),
+        agent_type: "claude".to_string(),
         path,
         scope: "machine".to_string(),
         sync: "auto".to_string(),
@@ -124,7 +124,7 @@ fn drop_skill_from_bundle() {
 }
 
 /// Create two bundles with different skills backed by real fixture files.
-/// Install bundle A's skills to a target, then swap to bundle B: uninstall A,
+/// Install bundle A's skills to an agent, then swap to bundle B: uninstall A,
 /// install B. Verify B's skills are present and A's are not.
 #[test]
 fn swap_bundle() {
@@ -148,8 +148,8 @@ fn swap_bundle() {
         make_bundle(&["p/skill-b1", "p/skill-b2"]),
     );
     config
-        .target
-        .push(make_target("tgt", target_dir.path().to_path_buf()));
+        .agent
+        .push(make_agent("tgt", target_dir.path().to_path_buf()));
 
     // Build registry with all skills
     let mut registry = Registry::default();
@@ -171,7 +171,7 @@ fn swap_bundle() {
         cache_path: source_dir.path().to_path_buf(),
     });
 
-    let adapter = resolve_adapter(&config.target[0], &config.adapter).unwrap();
+    let adapter = resolve_adapter(&config.agent[0], &config.adapter).unwrap();
 
     // Install bundle A
     adapter.install_skill(&skill_a1, target_dir.path()).unwrap();

@@ -31,28 +31,28 @@ The library API for source add, remove, list, show, and update SHALL be exercise
 - **WHEN** a source is updated after its content changes
 - **THEN** the registry reflects the updated plugin and skill structure
 
-### Requirement: Target operations have functional tests
-The library API for target add, remove, list, show, and detect SHALL be exercised through integration tests.
+### Requirement: Agent operations have functional tests
+The library API for agent add, remove, list, show, and detect SHALL be exercised through integration tests.
 
-#### Scenario: Add target with agent and path
-- **WHEN** a target is added with agent type and path
-- **THEN** the config contains the target entry
+#### Scenario: Add agent with type and path
+- **WHEN** an agent is added with agent type and path
+- **THEN** the config contains the agent entry
 
-#### Scenario: Add target with scope and sync defaults
-- **WHEN** a target is added without explicit scope or sync
-- **THEN** the target defaults to scope "machine" and sync "auto"
+#### Scenario: Add agent with scope and sync defaults
+- **WHEN** an agent is added without explicit scope or sync
+- **THEN** the agent defaults to scope "machine" and sync "auto"
 
-#### Scenario: Remove target
-- **WHEN** a target is removed
-- **THEN** the config no longer contains that target
+#### Scenario: Remove agent
+- **WHEN** an agent is removed
+- **THEN** the config no longer contains that agent
 
-#### Scenario: Add duplicate target name fails
-- **WHEN** a target is added with a name that already exists
+#### Scenario: Add duplicate agent name fails
+- **WHEN** an agent is added with a name that already exists
 - **THEN** the operation returns an error
 
-#### Scenario: List targets returns all configured targets
-- **WHEN** multiple targets are configured and listed
-- **THEN** all targets appear in the listing
+#### Scenario: List agents returns all configured agents
+- **WHEN** multiple agents are configured and listed
+- **THEN** all agents appear in the listing
 
 ### Requirement: Plugin and skill queries have functional tests
 The library API for plugin list/show and skill list/show SHALL be exercised through integration tests.
@@ -86,23 +86,23 @@ The library API for plugin list/show and skill list/show SHALL be exercised thro
 - **THEN** the operation returns an error
 
 ### Requirement: Install operations have functional tests for all flag combinations
-The install command SHALL be tested with `--skill`, `--plugin`, `--bundle`, and `--target` flags.
+The install command SHALL be tested with `--skill`, `--plugin`, `--bundle`, and `--agent` flags.
 
 #### Scenario: Install specific skill by identity
 - **WHEN** `install --skill plugin/skill-name` is executed
-- **THEN** only that skill is installed to all targets
+- **THEN** only that skill is installed to all agents
 
 #### Scenario: Install specific plugin
 - **WHEN** `install --plugin plugin-name` is executed
-- **THEN** all skills in that plugin are installed to all targets
+- **THEN** all skills in that plugin are installed to all agents
 
 #### Scenario: Install bundle
 - **WHEN** `install --bundle bundle-name` is executed with a configured bundle
 - **THEN** all skills in the bundle are installed and the bundle is set as active
 
-#### Scenario: Install to specific target
-- **WHEN** `install --all --target target-name` is executed
-- **THEN** skills are installed only to the specified target
+#### Scenario: Install to specific agent
+- **WHEN** `install --all --agent agent-name` is executed
+- **THEN** skills are installed only to the specified agent
 
 #### Scenario: Install nonexistent skill fails
 - **WHEN** `install --skill nonexistent/skill` is executed
@@ -114,7 +114,7 @@ The install command SHALL be tested with `--skill`, `--plugin`, `--bundle`, and 
 
 #### Scenario: Uninstall specific skill
 - **WHEN** `uninstall --skill plugin/skill-name` is executed after installation
-- **THEN** only that skill is removed from all targets
+- **THEN** only that skill is removed from all agents
 
 #### Scenario: Uninstall bundle
 - **WHEN** `uninstall --bundle bundle-name` is executed
@@ -150,12 +150,12 @@ Bundle create, delete, add, drop, swap, list, and show SHALL be tested through t
 ### Requirement: Status command has functional tests
 The status command SHALL be tested through the library API.
 
-#### Scenario: Status with sources, targets, and skills
-- **WHEN** status is queried with registered sources and targets
-- **THEN** it returns counts of sources, targets, plugins, skills, and installed skills
+#### Scenario: Status with sources, agents, and skills
+- **WHEN** status is queried with registered sources and agents
+- **THEN** it returns counts of sources, agents, plugins, skills, and installed skills
 
 #### Scenario: Status with empty config
-- **WHEN** status is queried with no sources or targets configured
+- **WHEN** status is queried with no sources or agents configured
 - **THEN** it returns zero counts
 
 ### Requirement: Config and cache operations have functional tests

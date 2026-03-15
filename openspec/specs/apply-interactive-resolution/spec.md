@@ -9,11 +9,11 @@ When `--interactive` or `-i` is specified and a skill has status CHANGED, the CL
 
 #### Scenario: Skip a skill
 - **WHEN** user selects `s` at the interactive prompt
-- **THEN** the skill SHALL not be modified at the target and the CLI SHALL proceed to the next skill
+- **THEN** the skill SHALL not be modified at the agent and the CLI SHALL proceed to the next skill
 
 #### Scenario: Overwrite a skill
 - **WHEN** user selects `o` at the interactive prompt
-- **THEN** the skill SHALL be overwritten at the target and the CLI SHALL proceed to the next skill
+- **THEN** the skill SHALL be overwritten at the agent and the CLI SHALL proceed to the next skill
 
 #### Scenario: Force-all remaining
 - **WHEN** user selects `f` at the interactive prompt

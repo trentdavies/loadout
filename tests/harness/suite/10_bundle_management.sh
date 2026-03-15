@@ -69,7 +69,7 @@ test_bundle_list_empty() {
 }
 
 test_bundle_show() {
-  setup_source_and_targets
+  setup_source_and_agents
   "$LOADOUT" bundle create work >/dev/null 2>&1
   "$LOADOUT" bundle add work test-plugin/explore test-plugin/apply >/dev/null 2>&1
   assert_exit_code 0 "$LOADOUT" bundle show work
@@ -83,14 +83,14 @@ test_bundle_show_nonexistent() {
 }
 
 test_bundle_add_skills() {
-  setup_source_and_targets
+  setup_source_and_agents
   "$LOADOUT" bundle create work >/dev/null 2>&1
   assert_exit_code 0 "$LOADOUT" bundle add work test-plugin/explore
   assert_stdout_contains "explore" "$LOADOUT" bundle show work
 }
 
 test_bundle_add_multiple_skills() {
-  setup_source_and_targets
+  setup_source_and_agents
   "$LOADOUT" bundle create work >/dev/null 2>&1
   assert_exit_code 0 "$LOADOUT" bundle add work test-plugin/explore test-plugin/apply test-plugin/verify
   assert_stdout_contains "explore" "$LOADOUT" bundle show work
@@ -99,13 +99,13 @@ test_bundle_add_multiple_skills() {
 }
 
 test_bundle_add_nonexistent_skill_errors() {
-  setup_source_and_targets
+  setup_source_and_agents
   "$LOADOUT" bundle create work >/dev/null 2>&1
   assert_exit_code 1 "$LOADOUT" bundle add work test-plugin/nonexistent
 }
 
 test_bundle_add_duplicate_skill_informational() {
-  setup_source_and_targets
+  setup_source_and_agents
   "$LOADOUT" bundle create work >/dev/null 2>&1
   "$LOADOUT" bundle add work test-plugin/explore >/dev/null 2>&1
   # Adding same skill again should not error
@@ -120,7 +120,7 @@ test_bundle_add_duplicate_skill_informational() {
 }
 
 test_bundle_drop_skill() {
-  setup_source_and_targets
+  setup_source_and_agents
   "$LOADOUT" bundle create work >/dev/null 2>&1
   "$LOADOUT" bundle add work test-plugin/explore test-plugin/apply >/dev/null 2>&1
   assert_exit_code 0 "$LOADOUT" bundle drop work test-plugin/explore
@@ -136,7 +136,7 @@ test_bundle_drop_skill() {
 }
 
 test_bundle_deactivate_activate() {
-  setup_source_and_targets
+  setup_source_and_agents
   # Create two bundles
   "$LOADOUT" bundle create bundle-a >/dev/null 2>&1
   "$LOADOUT" bundle add bundle-a test-plugin/explore test-plugin/apply >/dev/null 2>&1
@@ -144,7 +144,7 @@ test_bundle_deactivate_activate() {
   "$LOADOUT" bundle add bundle-b test-plugin/verify >/dev/null 2>&1
 
   # Install bundle-a
-  "$LOADOUT" apply --force --bundle bundle-a --target test-claude >/dev/null 2>&1
+  "$LOADOUT" apply --force --bundle bundle-a --agent test-claude >/dev/null 2>&1
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_exists "$TARGET_CLAUDE/skills/apply/SKILL.md"
 
@@ -159,7 +159,7 @@ test_bundle_deactivate_activate() {
 }
 
 test_bundle_activate_preview_default() {
-  setup_source_and_targets
+  setup_source_and_agents
   "$LOADOUT" bundle create ba >/dev/null 2>&1
   "$LOADOUT" bundle add ba test-plugin/explore >/dev/null 2>&1
 

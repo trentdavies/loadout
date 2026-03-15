@@ -9,7 +9,7 @@ pub struct Config {
     pub source: Vec<SourceConfig>,
 
     #[serde(default)]
-    pub target: Vec<TargetConfig>,
+    pub agent: Vec<AgentConfig>,
 
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub adapter: BTreeMap<String, AdapterConfig>,
@@ -40,11 +40,12 @@ fn default_source_type() -> String {
     "local".to_string()
 }
 
-/// An install target (agent installation directory).
+/// An agent installation directory where skills get applied.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TargetConfig {
+pub struct AgentConfig {
     pub name: String,
-    pub agent: String,
+    #[serde(rename = "type")]
+    pub agent_type: String,
     pub path: PathBuf,
 
     #[serde(default = "default_scope")]
@@ -62,7 +63,7 @@ fn default_sync() -> String {
     "auto".to_string()
 }
 
-/// Custom target adapter defined in TOML.
+/// Custom agent adapter defined in TOML.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AdapterConfig {
     pub skill_dir: String,
@@ -94,7 +95,7 @@ mod tests {
     fn config_deserialize_empty() {
         let config: Config = toml::from_str("").unwrap();
         assert!(config.source.is_empty());
-        assert!(config.target.is_empty());
+        assert!(config.agent.is_empty());
         assert!(config.adapter.is_empty());
         assert!(config.bundle.is_empty());
     }
@@ -114,16 +115,16 @@ type = "local"
     }
 
     #[test]
-    fn config_deserialize_target_defaults() {
+    fn config_deserialize_agent_defaults() {
         let toml = r#"
-[[target]]
+[[agent]]
 name = "test"
-agent = "claude"
+type = "claude"
 path = "/tmp/claude"
 "#;
         let config: Config = toml::from_str(toml).unwrap();
-        assert_eq!(config.target[0].scope, "machine");
-        assert_eq!(config.target[0].sync, "auto");
+        assert_eq!(config.agent[0].scope, "machine");
+        assert_eq!(config.agent[0].sync, "auto");
     }
 
     #[test]

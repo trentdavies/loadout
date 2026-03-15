@@ -22,16 +22,16 @@ The container SHALL set `XDG_CONFIG_HOME=/tmp/test-config` and `XDG_DATA_HOME=/t
 - **WHEN** sources are added
 - **THEN** cached content SHALL appear under `/tmp/test-data/skittle/`
 
-### Requirement: Mock target directories
-The container SHALL create mock target directories at `/tmp/test-targets/claude/` and `/tmp/test-targets/codex/` to simulate agent installations without real agent software.
+### Requirement: Mock agent directories
+The container SHALL create mock agent directories at `/tmp/test-agents/claude/` and `/tmp/test-agents/codex/` to simulate agent installations without real agent software.
 
-#### Scenario: Claude mock target exists
+#### Scenario: Claude mock agent exists
 - **WHEN** the test harness starts
-- **THEN** `/tmp/test-targets/claude/` SHALL exist and be empty
+- **THEN** `/tmp/test-agents/claude/` SHALL exist and be empty
 
-#### Scenario: Skills install into mock targets
-- **WHEN** a skill is installed to the claude mock target
-- **THEN** the skill SHALL appear at `/tmp/test-targets/claude/skills/<name>/SKILL.md`
+#### Scenario: Skills install into mock agents
+- **WHEN** a skill is installed to the claude mock agent
+- **THEN** the skill SHALL appear at `/tmp/test-agents/claude/skills/<name>/SKILL.md`
 
 ### Requirement: Test runner discovers and executes suites
 The `tests/harness/runner.sh` SHALL discover all `*.sh` files in `tests/harness/suite/`, source them in alphanumeric order, and execute all functions prefixed with `test_`. It SHALL print a summary at the end: total tests, passed, failed.
@@ -60,11 +60,11 @@ The `tests/harness/lib.sh` SHALL provide assertion functions: `assert_exit_code`
 - **THEN** it SHALL print "FAIL: ... expected exit code 0, got 1" and increment the fail counter without aborting
 
 ### Requirement: Per-suite isolation via setup
-The `tests/harness/setup.sh` SHALL provide a `reset_environment` function that: wipes `$XDG_CONFIG_HOME/skittle/`, wipes `$XDG_DATA_HOME/skittle/`, and recreates empty mock target directories. Each test function SHALL call `reset_environment` before executing.
+The `tests/harness/setup.sh` SHALL provide a `reset_environment` function that: wipes `$XDG_CONFIG_HOME/skittle/`, wipes `$XDG_DATA_HOME/skittle/`, and recreates empty mock agent directories. Each test function SHALL call `reset_environment` before executing.
 
 #### Scenario: Tests are isolated
 - **WHEN** test A creates a config and test B runs after it
-- **THEN** test B SHALL start with a clean environment (no config, no registry, empty targets)
+- **THEN** test B SHALL start with a clean environment (no config, no registry, empty agents)
 
 ### Requirement: Network test gating
 Tests that require network access (git clone of remote repos) SHALL be skipped when the `SKIP_NETWORK` environment variable is set to `1`.

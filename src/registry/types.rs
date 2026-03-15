@@ -48,7 +48,7 @@ pub struct InstalledSkill {
 pub struct Registry {
     pub sources: Vec<RegisteredSource>,
 
-    /// Installed skills per target: target_name → skill_name → provenance.
+    /// Installed skills per agent: agent_name → skill_name → provenance.
     #[serde(default)]
     pub installed:
         std::collections::BTreeMap<String, std::collections::BTreeMap<String, InstalledSkill>>,

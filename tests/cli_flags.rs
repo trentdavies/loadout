@@ -58,23 +58,23 @@ fn parse_apply_requires_flag() {
 }
 
 #[test]
-fn parse_target_add() {
+fn parse_agent_add() {
     let cli = Cli::try_parse_from([
         "loadout",
-        "target",
+        "agent",
         "add",
         "claude",
         "/tmp/t",
         "--scope",
         "repo",
         "--name",
-        "my-target",
+        "my-agent",
     ])
     .unwrap();
     match cli.command {
-        loadout::cli::Command::Target { command } => {
+        loadout::cli::Command::Agent { command } => {
             match command {
-                loadout::cli::TargetCommand::Add {
+                loadout::cli::AgentCommand::Add {
                     agent,
                     path,
                     scope,
@@ -83,14 +83,14 @@ fn parse_target_add() {
                 } => {
                     assert_eq!(agent, "claude");
                     assert_eq!(scope, "repo");
-                    assert_eq!(name, Some("my-target".to_string()));
+                    assert_eq!(name, Some("my-agent".to_string()));
                     assert!(path.is_some());
                     let _ = sync; // just verify it parsed
                 }
                 _ => panic!("expected Add"),
             }
         }
-        _ => panic!("expected Target"),
+        _ => panic!("expected Agent"),
     }
 }
 
@@ -285,12 +285,12 @@ fn parse_bundle_activate_with_target() {
         loadout::cli::Command::Bundle { command } => match command {
             loadout::cli::BundleCommand::Activate {
                 name,
-                target,
+                agent,
                 all,
                 force,
             } => {
                 assert_eq!(name, "dev");
-                assert_eq!(target, Some("my-claude".to_string()));
+                assert_eq!(agent, Some("my-claude".to_string()));
                 assert!(!all);
                 assert!(force);
             }
@@ -306,11 +306,11 @@ fn parse_bundle_activate_with_all() {
     match cli.command {
         loadout::cli::Command::Bundle { command } => match command {
             loadout::cli::BundleCommand::Activate {
-                name, all, target, ..
+                name, all, agent, ..
             } => {
                 assert_eq!(name, "dev");
                 assert!(all);
-                assert!(target.is_none());
+                assert!(agent.is_none());
             }
             _ => panic!("expected Activate"),
         },
@@ -333,12 +333,12 @@ fn parse_bundle_deactivate_with_target() {
         loadout::cli::Command::Bundle { command } => match command {
             loadout::cli::BundleCommand::Deactivate {
                 name,
-                target,
+                agent,
                 force,
                 ..
             } => {
                 assert_eq!(name, "dev");
-                assert_eq!(target, Some("my-claude".to_string()));
+                assert_eq!(agent, Some("my-claude".to_string()));
                 assert!(force);
             }
             _ => panic!("expected Deactivate"),
@@ -377,9 +377,9 @@ fn multi_select_returns_empty_non_interactive() {
 }
 
 #[test]
-fn detect_agent_targets_returns_vec() {
+fn detect_agents_returns_vec() {
     // In a tempdir with no agent dirs, should return empty
-    let result = loadout::cli::detect_agent_targets();
+    let result = loadout::cli::detect_agents();
     // Can't assert empty because the test runner's home may have agents
     // Just verify it returns without error
     let _ = result;

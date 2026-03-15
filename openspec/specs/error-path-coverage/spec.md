@@ -7,8 +7,8 @@ Operations receiving invalid input SHALL return descriptive errors rather than p
 - **WHEN** a source is added with an empty string as the name
 - **THEN** the operation returns an error
 
-#### Scenario: Add target with unknown agent type
-- **WHEN** a target is added with an agent type that has no adapter
+#### Scenario: Add agent with unknown agent type
+- **WHEN** an agent is added with an agent type that has no adapter
 - **THEN** the operation returns an error or warning about the unknown agent
 
 #### Scenario: Install with no flags shows guidance
@@ -51,11 +51,11 @@ Operations executed with `dry_run: true` SHALL not create, modify, or delete any
 
 #### Scenario: Dry-run install writes nothing
 - **WHEN** install is executed with dry-run enabled
-- **THEN** no skill files are created in the target directory
+- **THEN** no skill files are created in the agent directory
 
 #### Scenario: Dry-run uninstall removes nothing
 - **WHEN** uninstall is executed with dry-run enabled
-- **THEN** installed skill files remain in the target directory
+- **THEN** installed skill files remain in the agent directory
 
 #### Scenario: Dry-run source add modifies nothing
 - **WHEN** source add is executed with dry-run enabled

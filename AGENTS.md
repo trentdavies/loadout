@@ -1,6 +1,6 @@
 # Loadout — Agent Skill Manager
 
-Loadout is a Rust CLI that sources, caches, and installs agent skills across coding agents (Claude, Codex, Cursor). It treats skill management as a package management problem: sources provide skills, targets consume them, a registry tracks provenance.
+Loadout is a Rust CLI that sources, caches, and installs agent skills across coding agents (Claude, Codex, Cursor). It treats skill management as a package management problem: sources provide skills, agents consume them, a registry tracks provenance.
 
 ## Build & Test Commands
 
@@ -25,7 +25,7 @@ All Rust tests require `LOADOUT_NON_INTERACTIVE=1` (the Justfile sets this).
 | `src/config/` | `loadout.toml` serialization, XDG path resolution |
 | `src/registry/` | Provenance tracking — which skill from which source (JSON) |
 | `src/source/` | Fetch (git/HTTP/zip), detect structure, discover skills, normalize |
-| `src/target/` | Install/uninstall skills to agent directories, diff comparison |
+| `src/agent/` | Install/uninstall skills to agent directories, diff comparison |
 | `src/bundle/` | Named groups of skills for batch operations |
 | `src/marketplace.rs` | Marketplace manifest generation and operations |
 | `src/prompt.rs` | Interactive prompts (dialoguer) |
@@ -43,7 +43,7 @@ Loadout auto-detects what a URL points to. The hierarchy matters:
 
 - Config: `~/.local/share/loadout/loadout.toml`
 - Registry: `~/.local/share/loadout/registry.json`
-- Targets: agent-specific directories like `~/.claude/skills/`, `~/.codex/skills/`
+- Agents: agent-specific directories like `~/.claude/skills/`, `~/.codex/skills/`
 
 ## Test Infrastructure
 
@@ -55,8 +55,8 @@ Library-level tests using `tempfile::TempDir` for isolation. Call module functio
 
 - `smoke_test.rs` — basic sanity checks
 - `cli_flags.rs` — clap argument parsing
-- `functional_*.rs` — module-level behavior (source ops, target ops, install, bundles, dry-run, etc.)
-- `integration_*.rs` — cross-module workflows (config→source→target→install)
+- `functional_*.rs` — module-level behavior (source ops, agent ops, install, bundles, dry-run, etc.)
+- `integration_*.rs` — cross-module workflows (config→source→agent→install)
 
 Run with: `just test`
 
@@ -66,7 +66,7 @@ Black-box CLI tests that invoke the built binary as a subprocess. Runs in Docker
 
 - **`lib.sh`** — assertion library: `assert_exit_code`, `assert_stdout_contains`, `assert_stderr_contains`, `assert_file_exists`, `assert_file_contains`, `assert_json_field`
 - **`runner.sh`** — discovers and runs all `test_*` functions, resets environment between tests
-- **`setup.sh`** — creates mock target directories, sets env vars
+- **`setup.sh`** — creates mock agent directories, sets env vars
 - **`suite/`** — 12 numbered test files (`00_cli_framework.sh` through `11_end_to_end.sh`)
 
 Run with: `just harness`
@@ -76,7 +76,7 @@ Run with: `just harness`
 Network-enabled functional tests that clone real git repos and test SSH workflows.
 
 - **`run`** — container launcher with 3 modes: interactive, `--test`, `--keep-alive`
-- **`suite/`** — 6 executable test scripts covering git sources, detection, install-to-targets, local clone, overwrite protection, glob filtering
+- **`suite/`** — 6 executable test scripts covering git sources, detection, install-to-agents, local clone, overwrite protection, glob filtering
 - Uses the same assertion library from the harness
 
 Run with: `just sandbox-test` or `just sandbox-keep` (for post-test exploration)

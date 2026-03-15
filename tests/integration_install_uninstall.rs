@@ -36,15 +36,15 @@ fn create_mock_skills(
     skills
 }
 
-fn make_adapter() -> loadout::target::Adapter {
-    let target = loadout::config::TargetConfig {
+fn make_adapter() -> loadout::agent::Adapter {
+    let agent = loadout::config::AgentConfig {
         name: "test".to_string(),
-        agent: "claude".to_string(),
+        agent_type: "claude".to_string(),
         path: PathBuf::from("/tmp"),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
     };
-    loadout::target::resolve_adapter(&target, &BTreeMap::new()).unwrap()
+    loadout::agent::resolve_adapter(&agent, &BTreeMap::new()).unwrap()
 }
 
 // ─── Install ────────────────────────────────────────────────────────────
@@ -225,14 +225,14 @@ fn custom_adapter_installs_to_custom_path() {
         },
     );
 
-    let target = loadout::config::TargetConfig {
+    let target = loadout::config::AgentConfig {
         name: "custom".to_string(),
-        agent: "my-agent".to_string(),
+        agent_type: "my-agent".to_string(),
         path: target_dir.path().to_path_buf(),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
     };
-    let adapter = loadout::target::resolve_adapter(&target, &adapters).unwrap();
+    let adapter = loadout::agent::resolve_adapter(&target, &adapters).unwrap();
 
     adapter
         .install_skill(&skills[0], target_dir.path())

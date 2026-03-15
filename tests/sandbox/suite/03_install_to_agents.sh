@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Suite 03: Apply to Targets — apply skills to mock claude/codex targets
+# Suite 03: Apply to Agents — apply skills to mock claude/codex agents
 # Depends on Suite 01+02 having sources populated.
 
 # Helper: extract a non-ambiguous plugin/skill identity from `loadout list --json`.
@@ -24,7 +24,7 @@ test_01_apply_single_skill() {
     return
   fi
 
-  log_cmd "$LOADOUT" apply --force --skill "$skill" --target sandbox-claude
+  log_cmd "$LOADOUT" apply --force --skill "$skill" --agent sandbox-claude
 
   local short_name
   short_name=$(echo "$skill" | awk -F/ '{print $NF}')
@@ -33,11 +33,11 @@ test_01_apply_single_skill() {
   found=$(find "$SANDBOX_TARGET_CLAUDE" -name "SKILL.md" -path "*$short_name*" 2>/dev/null | head -1)
 
   if [ -n "$found" ]; then
-    _pass "applied $short_name to claude target"
+    _pass "applied $short_name to claude agent"
     log_check 1 "applied $short_name — SKILL.md at $found"
   else
-    _fail "SKILL.md not found for $short_name in claude target" "file exists" "not found"
-    log_check 0 "applied $short_name — SKILL.md not found in claude target"
+    _fail "SKILL.md not found for $short_name in claude agent" "file exists" "not found"
+    log_check 0 "applied $short_name — SKILL.md not found in claude agent"
   fi
 }
 
@@ -51,7 +51,7 @@ test_02_apply_plugin() {
     return
   fi
 
-  log_cmd "$LOADOUT" apply --force --plugin "$plugin_name" --target sandbox-claude
+  log_cmd "$LOADOUT" apply --force --plugin "$plugin_name" --agent sandbox-claude
 
   local installed
   installed=$(find "$SANDBOX_TARGET_CLAUDE" -name "SKILL.md" -type f 2>/dev/null | wc -l | tr -d ' ')
@@ -65,18 +65,18 @@ test_02_apply_plugin() {
   fi
 }
 
-test_03_apply_both_targets() {
+test_03_apply_both_agents() {
   local skill
   skill=$(_first_skill_from_source "knowledge-work")
   [ -z "$skill" ] || [ "$skill" = "null/null" ] && skill=$(_first_skill)
 
   if [ -z "$skill" ] || [ "$skill" = "null/null" ]; then
-    _fail "no skill found to apply to both targets" "plugin/skill" "empty"
+    _fail "no skill found to apply to both agents" "plugin/skill" "empty"
     return
   fi
 
-  log_cmd "$LOADOUT" apply --force --skill "$skill" --target sandbox-claude
-  log_cmd "$LOADOUT" apply --force --skill "$skill" --target sandbox-codex
+  log_cmd "$LOADOUT" apply --force --skill "$skill" --agent sandbox-claude
+  log_cmd "$LOADOUT" apply --force --skill "$skill" --agent sandbox-codex
 
   local short_name
   short_name=$(echo "$skill" | awk -F/ '{print $NF}')
@@ -86,12 +86,12 @@ test_03_apply_both_targets() {
   codex_found=$(find "$SANDBOX_TARGET_CODEX" -name "SKILL.md" -path "*$short_name*" 2>/dev/null | head -1)
 
   if [ -n "$claude_found" ] && [ -n "$codex_found" ]; then
-    _pass "$short_name applied to both claude and codex targets"
-    log_check 1 "$short_name present in both targets"
+    _pass "$short_name applied to both claude and codex agents"
+    log_check 1 "$short_name present in both agents"
   else
-    [ -z "$claude_found" ] && _fail "$short_name missing from claude target" "present" "not found"
-    [ -z "$codex_found" ] && _fail "$short_name missing from codex target" "present" "not found"
-    log_check 0 "$short_name in both targets"
+    [ -z "$claude_found" ] && _fail "$short_name missing from claude agent" "present" "not found"
+    [ -z "$codex_found" ] && _fail "$short_name missing from codex agent" "present" "not found"
+    log_check 0 "$short_name in both agents"
   fi
 }
 
@@ -113,7 +113,7 @@ test_04_installed_content_valid() {
   fi
 }
 
-test_05_uninstall_one_target() {
+test_05_uninstall_one_agent() {
   local skill
   skill=$(_first_skill_from_source "knowledge-work")
   [ -z "$skill" ] || [ "$skill" = "null/null" ] && skill=$(_first_skill)
@@ -126,12 +126,12 @@ test_05_uninstall_one_target() {
   local short_name
   short_name=$(echo "$skill" | awk -F/ '{print $NF}')
 
-  # Ensure it's in both targets
-  "$LOADOUT" apply --force --skill "$skill" --target sandbox-claude >/dev/null 2>&1
-  "$LOADOUT" apply --force --skill "$skill" --target sandbox-codex >/dev/null 2>&1
+  # Ensure it's in both agents
+  "$LOADOUT" apply --force --skill "$skill" --agent sandbox-claude >/dev/null 2>&1
+  "$LOADOUT" apply --force --skill "$skill" --agent sandbox-codex >/dev/null 2>&1
 
   # Uninstall from claude only
-  log_cmd "$LOADOUT" uninstall --skill "$skill" --target sandbox-claude --force
+  log_cmd "$LOADOUT" uninstall --skill "$skill" --agent sandbox-claude --force
 
   local claude_found codex_found
   claude_found=$(find "$SANDBOX_TARGET_CLAUDE" -name "SKILL.md" -path "*$short_name*" 2>/dev/null | head -1)
@@ -161,9 +161,9 @@ test_06_status_reflects_state() {
     log_check 0 "loadout status exits cleanly"
   fi
 
-  if echo "$output" | grep -qiE "claude|codex|skill|target"; then
+  if echo "$output" | grep -qiE "claude|codex|skill|agent"; then
     _pass "status output reflects installed state"
-    log_check 1 "status mentions targets/skills"
+    log_check 1 "status mentions agents/skills"
   else
     _pass "status returned (format may vary)"
     log_check 1 "status returned output"

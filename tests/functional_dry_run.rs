@@ -16,7 +16,7 @@ fn make_skill_fixture(parent: &std::path::Path, name: &str) {
     .unwrap();
 }
 
-/// Helper: set up config with a source and target, and a populated registry.
+/// Helper: set up config with a source and agent, and a populated registry.
 fn setup_env() -> (TempDir, TempDir, TempDir, PathBuf, PathBuf) {
     let env_dir = TempDir::new().unwrap();
     let source_dir = TempDir::new().unwrap();
@@ -47,9 +47,9 @@ fn setup_env() -> (TempDir, TempDir, TempDir, PathBuf, PathBuf) {
         r#ref: None,
         mode: None,
     });
-    config.target.push(loadout::config::TargetConfig {
-        name: "test-target".to_string(),
-        agent: "claude".to_string(),
+    config.agent.push(loadout::config::AgentConfig {
+        name: "test-agent".to_string(),
+        agent_type: "claude".to_string(),
         path: target_dir.path().to_path_buf(),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
@@ -65,8 +65,8 @@ fn not_calling_install_writes_nothing() {
 
     let config = loadout::config::load_from(&config_path).unwrap();
     let registry = loadout::registry::load_registry(&data_dir).unwrap();
-    let target = &config.target[0];
-    let adapter = loadout::target::resolve_adapter(target, &config.adapter).unwrap();
+    let target = &config.agent[0];
+    let adapter = loadout::agent::resolve_adapter(target, &config.adapter).unwrap();
 
     // Without --force, destructive commands skip adapter calls.
     // Verify that NOT calling install_skill means nothing is written.
@@ -88,8 +88,8 @@ fn not_calling_uninstall_removes_nothing() {
 
     let config = loadout::config::load_from(&config_path).unwrap();
     let registry = loadout::registry::load_registry(&data_dir).unwrap();
-    let target = &config.target[0];
-    let adapter = loadout::target::resolve_adapter(target, &config.adapter).unwrap();
+    let target = &config.agent[0];
+    let adapter = loadout::agent::resolve_adapter(target, &config.adapter).unwrap();
 
     // First, actually install skills
     for (_, _, skill) in &registry.all_skills() {

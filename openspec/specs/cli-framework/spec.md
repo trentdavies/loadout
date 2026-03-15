@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Top-level command structure
-The CLI SHALL provide these top-level commands: `init`, `add`, `remove`, `update`, `list`, `install`, `uninstall`, `status`, `bundle`, `target`, `config`.
+The CLI SHALL provide these top-level commands: `init`, `add`, `remove`, `update`, `list`, `install`, `uninstall`, `status`, `bundle`, `agent`, `config`.
 
 #### Scenario: Running skittle with no arguments
 - **WHEN** user runs `skittle` with no arguments
@@ -19,18 +19,18 @@ The CLI SHALL support `help`, `-h`, and `--help` at every command and subcommand
 - **THEN** the CLI SHALL display the top-level help text with all commands listed
 
 #### Scenario: Help on subcommand
-- **WHEN** user runs `skittle bundle --help` or `skittle target --help`
+- **WHEN** user runs `skittle bundle --help` or `skittle agent --help`
 - **THEN** the CLI SHALL display help for that command with all its subcommands listed
 
 ### Requirement: Global flags
 The CLI SHALL support these global flags on all commands: `-n` / `--dry-run`, `-v` / `--verbose`, `-q` / `--quiet`, `--json`, `--config <path>`.
 
 #### Scenario: Dry run flag on additive command
-- **WHEN** user passes `-n` or `--dry-run` to an additive command (install, source add, source update, target add)
+- **WHEN** user passes `-n` or `--dry-run` to an additive command (install, source add, source update, agent add)
 - **THEN** the CLI SHALL display what would change without making any modifications
 
 #### Scenario: Dry run flag on destructive command
-- **WHEN** user passes `-n` or `--dry-run` to a destructive command (uninstall, source remove, bundle delete, bundle swap, target remove, cache clean)
+- **WHEN** user passes `-n` or `--dry-run` to a destructive command (uninstall, source remove, bundle delete, bundle swap, agent remove, cache clean)
 - **THEN** the flag SHALL be accepted but has no additional effect since destructive commands already default to preview mode
 
 #### Scenario: JSON output
@@ -122,7 +122,7 @@ The CLI SHALL support `skittle remove [name]` to unregister a source and remove 
 - **THEN** the CLI SHALL exit with a non-zero code and an error message indicating a source name is required
 
 #### Scenario: Remove source with installed skills
-- **WHEN** user runs `skittle remove my-skills` and skills from that source are installed on targets
+- **WHEN** user runs `skittle remove my-skills` and skills from that source are installed on agents
 - **THEN** the CLI SHALL warn about installed skills and require `--force` to proceed
 
 ### Requirement: Update command
@@ -157,19 +157,19 @@ The CLI SHALL support `skittle list` to display all registered sources with thei
 - **THEN** the CLI SHALL display the source URL, version, description, and a tree of plugins and their skills
 
 ### Requirement: Collect command
-The CLI SHALL support `skittle collect` as a top-level command for copying skills from targets back to their origin.
+The CLI SHALL support `skittle collect` as a top-level command for copying skills from agents back to their origin.
 
 #### Scenario: Collect specific skill
-- **WHEN** user runs `skittle collect --skill <name> --target <target>`
-- **THEN** the skill SHALL be copied from the target back to its origin path
+- **WHEN** user runs `skittle collect --skill <name> --agent <agent>`
+- **THEN** the skill SHALL be copied from the agent back to its origin path
 
 #### Scenario: Collect with adopt
-- **WHEN** user runs `skittle collect --skill <name> --target <target> --adopt`
+- **WHEN** user runs `skittle collect --skill <name> --agent <agent> --adopt`
 - **THEN** the skill SHALL be copied into `plugins/` as a managed skill
 
-#### Scenario: Collect all from target
-- **WHEN** user runs `skittle collect --target <target>`
-- **THEN** the CLI SHALL scan the target and show tracked vs untracked skills
+#### Scenario: Collect all from agent
+- **WHEN** user runs `skittle collect --agent <agent>`
+- **THEN** the CLI SHALL scan the agent and show tracked vs untracked skills
 
 #### Scenario: Collect help
 - **WHEN** user runs `skittle collect --help`
@@ -191,7 +191,7 @@ The CLI SHALL automatically detect whether to use color output. Color SHALL be d
 - **THEN** the CLI SHALL not emit ANSI color codes regardless of TTY status
 
 ### Requirement: Destructive commands default to preview
-Destructive commands (uninstall, source remove, bundle delete, bundle swap, target remove, cache clean) SHALL default to preview mode — showing what would happen without executing. These commands SHALL require `--force` to actually perform the operation.
+Destructive commands (uninstall, source remove, bundle delete, bundle swap, agent remove, cache clean) SHALL default to preview mode — showing what would happen without executing. These commands SHALL require `--force` to actually perform the operation.
 
 #### Scenario: Destructive command without --force
 - **WHEN** user runs a destructive command without `--force` (e.g., `skittle uninstall --skill foo`)

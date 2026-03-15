@@ -249,18 +249,18 @@ fn remove_source_with_installed_skills_detected() {
         &config_path,
     );
 
-    // Set up a target and install the skill
+    // Set up an agent and install the skill
     let mut config = loadout::config::load_from(&config_path).unwrap();
-    config.target.push(loadout::config::TargetConfig {
-        name: "test-target".to_string(),
-        agent: "claude".to_string(),
+    config.agent.push(loadout::config::AgentConfig {
+        name: "test-agent".to_string(),
+        agent_type: "claude".to_string(),
         path: target_dir.path().to_path_buf(),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
     });
     loadout::config::save_to(&config, &config_path).unwrap();
 
-    let adapter = loadout::target::resolve_adapter(&config.target[0], &BTreeMap::new()).unwrap();
+    let adapter = loadout::agent::resolve_adapter(&config.agent[0], &BTreeMap::new()).unwrap();
 
     // Install skills from the registry
     let all_skills = registry.all_skills();

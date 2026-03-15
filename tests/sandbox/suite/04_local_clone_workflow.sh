@@ -69,11 +69,11 @@ test_04_apply_from_local() {
     return
   fi
 
-  # Clean codex target first so we can verify the apply
+  # Clean codex agent first so we can verify the apply
   rm -rf "$SANDBOX_TARGET_CODEX/skills"
   mkdir -p "$SANDBOX_TARGET_CODEX"
 
-  log_cmd "$LOADOUT" apply --force --plugin "$plugin_name" --target sandbox-codex
+  log_cmd "$LOADOUT" apply --force --plugin "$plugin_name" --agent sandbox-codex
 
   local installed
   installed=$(find "$SANDBOX_TARGET_CODEX" -name "SKILL.md" -type f 2>/dev/null | wc -l | tr -d ' ')
@@ -103,13 +103,13 @@ test_05_bundle_across_sources() {
     return
   fi
 
-  # Clean codex target
+  # Clean codex agent
   rm -rf "$SANDBOX_TARGET_CODEX/skills"
   mkdir -p "$SANDBOX_TARGET_CODEX"
 
   log_cmd "$LOADOUT" bundle create cross-source-bundle
   log_cmd "$LOADOUT" bundle add cross-source-bundle "$skill_a" "$skill_b"
-  log_cmd "$LOADOUT" apply --force --bundle cross-source-bundle --target sandbox-codex
+  log_cmd "$LOADOUT" apply --force --bundle cross-source-bundle --agent sandbox-codex
 
   local short_a short_b
   short_a=$(echo "$skill_a" | awk -F/ '{print $NF}')

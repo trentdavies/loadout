@@ -114,34 +114,34 @@ pub const DEFAULT_CONFIG: &str = r#"# Loadout — Agent Skill Manager
 # url = "git@github.com:myorg/agent-skills.git"
 # type = "git"
 
-# ─── Targets ────────────────────────────────────────────────────────────────
-# Where skills get installed. Targets with sync = "auto" receive skills
+# ─── Agents ─────────────────────────────────────────────────────────────────
+# Where skills get installed. Agents with sync = "auto" receive skills
 # from `loadout install --all`.
 #
 # CLI:
-#   loadout target add claude                  # add a target (auto-detects path)
-#   loadout target add claude ./project/.claude --scope repo
-#   loadout target remove <name> --force       # remove a target
-#   loadout target list                        # list all targets
-#   loadout target detect                      # auto-detect installed agents
+#   loadout agent add claude                   # add an agent (auto-detects path)
+#   loadout agent add claude ./project/.claude --scope repo
+#   loadout agent remove <name> --force        # remove an agent
+#   loadout agent list                         # list all agents
+#   loadout agent detect                       # auto-detect installed agents
 #
-# [[target]]
+# [[agent]]
 # name = "claude"
-# agent = "claude"
+# type = "claude"
 # path = "~/.claude"
 # scope = "machine"
 # sync = "auto"
 #
-# [[target]]
+# [[agent]]
 # name = "codex"
-# agent = "codex"
+# type = "codex"
 # path = "~/.codex"
 # scope = "machine"
 # sync = "auto"
 #
-# [[target]]
+# [[agent]]
 # name = "project-claude"
-# agent = "claude"
+# type = "claude"
 # path = "./my-project/.claude"
 # scope = "repo"
 # sync = "explicit"
@@ -202,7 +202,7 @@ mod tests {
         let path = tmp.path().join("nonexistent.toml");
         let config = load_from(&path).unwrap();
         assert!(config.source.is_empty());
-        assert!(config.target.is_empty());
+        assert!(config.agent.is_empty());
     }
 
     #[test]
@@ -226,9 +226,9 @@ mod tests {
             r#ref: None,
             mode: None,
         });
-        config.target.push(TargetConfig {
+        config.agent.push(AgentConfig {
             name: "test-tgt".to_string(),
-            agent: "claude".to_string(),
+            agent_type: "claude".to_string(),
             path: PathBuf::from("/tmp/claude"),
             scope: "machine".to_string(),
             sync: "auto".to_string(),
@@ -238,8 +238,8 @@ mod tests {
         let loaded = load_from(&path).unwrap();
         assert_eq!(loaded.source.len(), 1);
         assert_eq!(loaded.source[0].name, "test-src");
-        assert_eq!(loaded.target.len(), 1);
-        assert_eq!(loaded.target[0].name, "test-tgt");
+        assert_eq!(loaded.agent.len(), 1);
+        assert_eq!(loaded.agent[0].name, "test-tgt");
     }
 
     #[test]

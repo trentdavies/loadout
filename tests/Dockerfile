@@ -37,7 +37,7 @@ WORKDIR /root
 # Simulate agent config directories
 RUN mkdir -p ~/.claude ~/.codex ~/.cursor
 
-# Mock install targets (harness uses these)
+# Mock install agents (harness uses these)
 RUN mkdir -p /tmp/test-targets/claude /tmp/test-targets/codex
 
 # Copy full test directory and fixtures

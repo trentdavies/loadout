@@ -2,17 +2,17 @@ use anyhow::{Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::config::{AdapterConfig, TargetConfig};
+use crate::config::{AdapterConfig, AgentConfig};
 use crate::registry::RegisteredSkill;
 
-/// Status of a skill at a target relative to the source.
+/// Status of a skill at an agent relative to the source.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SkillStatus {
-    /// Skill directory does not exist at the target.
+    /// Skill directory does not exist at the agent.
     New,
-    /// All files match byte-for-byte between source and target.
+    /// All files match byte-for-byte between source and agent.
     Unchanged,
-    /// At least one file differs between source and target.
+    /// At least one file differs between source and agent.
     Changed,
 }
 
@@ -22,7 +22,7 @@ const BUILTIN_AGENTS: &[&str] = &["claude", "codex", "cursor", "gemini", "vscode
 /// Default directories to copy from a skill source.
 const DEFAULT_COPY_DIRS: &[&str] = &["scripts", "references", "assets"];
 
-/// Adapter for installing/uninstalling skills to a target.
+/// Adapter for installing/uninstalling skills to an agent.
 pub struct Adapter {
     /// Template for skill directory: e.g., "skills/{name}" or "prompts/{name}".
     skill_dir_template: String,
@@ -35,7 +35,7 @@ pub struct Adapter {
 }
 
 impl Adapter {
-    /// Install a skill to the target directory.
+    /// Install a skill to the agent directory.
     pub fn install_skill(&self, skill: &RegisteredSkill, target_path: &Path) -> Result<()> {
         if self.format != "agentskills" {
             anyhow::bail!(
@@ -66,7 +66,7 @@ impl Adapter {
         Ok(())
     }
 
-    /// Compare a source skill against what's installed at the target.
+    /// Compare a source skill against what's installed at the agent.
     pub fn compare_skill(
         &self,
         skill: &RegisteredSkill,
@@ -125,7 +125,7 @@ impl Adapter {
         Ok(pairs)
     }
 
-    /// Uninstall a skill from the target directory.
+    /// Uninstall a skill from the agent directory.
     pub fn uninstall_skill(&self, skill_name: &str, target_path: &Path) -> Result<()> {
         let dest_dir = self.skill_dest(target_path, skill_name);
         if dest_dir.exists() {
@@ -135,7 +135,7 @@ impl Adapter {
         Ok(())
     }
 
-    /// List installed skill names at the target.
+    /// List installed skill names at the agent.
     pub fn installed_skills(&self, target_path: &Path) -> Result<Vec<String>> {
         // Extract the parent dir from the template (e.g., "skills" from "skills/{name}")
         let base = self.skills_base_dir(target_path);
@@ -175,19 +175,19 @@ impl Adapter {
     }
 }
 
-/// Resolve the adapter for a target configuration.
+/// Resolve the adapter for an agent configuration.
 /// Uses built-in adapters for known agents, custom TOML adapters otherwise.
 pub fn resolve_adapter(
-    target: &TargetConfig,
+    agent: &AgentConfig,
     custom_adapters: &std::collections::BTreeMap<String, AdapterConfig>,
 ) -> Result<Adapter> {
     // Check for custom adapter first (overrides built-in)
-    if let Some(custom) = custom_adapters.get(&target.agent) {
+    if let Some(custom) = custom_adapters.get(&agent.agent_type) {
         if custom.format != "agentskills" {
             anyhow::bail!(
                 "unsupported adapter format '{}' for agent '{}'. Only 'agentskills' is supported.",
                 custom.format,
-                target.agent
+                agent.agent_type
             );
         }
         return Ok(Adapter {
@@ -199,8 +199,8 @@ pub fn resolve_adapter(
     }
 
     // Built-in adapters
-    if BUILTIN_AGENTS.contains(&target.agent.as_str()) {
-        return Ok(builtin_adapter(&target.agent));
+    if BUILTIN_AGENTS.contains(&agent.agent_type.as_str()) {
+        return Ok(builtin_adapter(&agent.agent_type));
     }
 
     let available: Vec<String> = BUILTIN_AGENTS
@@ -211,7 +211,7 @@ pub fn resolve_adapter(
 
     anyhow::bail!(
         "no adapter for agent type '{}'. Available: {}",
-        target.agent,
+        agent.agent_type,
         available.join(", ")
     );
 }

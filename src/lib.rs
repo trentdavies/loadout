@@ -7,7 +7,7 @@ pub mod output;
 pub mod prompt;
 pub mod registry;
 pub mod source;
-pub mod target;
+pub mod agent;
 
 // Re-export for convenience
 pub use cli::Cli;

@@ -26,7 +26,7 @@ fn config_load_default_when_missing() {
     let (_tmp, config_path, _) = setup_env();
     let config = loadout::config::load_from(&config_path).unwrap();
     assert!(config.source.is_empty());
-    assert!(config.target.is_empty());
+    assert!(config.agent.is_empty());
 }
 
 #[test]
@@ -40,9 +40,9 @@ fn config_save_and_reload() {
         r#ref: None,
         mode: None,
     });
-    config.target.push(loadout::config::TargetConfig {
+    config.agent.push(loadout::config::AgentConfig {
         name: "my-claude".to_string(),
-        agent: "claude".to_string(),
+        agent_type: "claude".to_string(),
         path: PathBuf::from("/tmp/targets/claude"),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
@@ -52,8 +52,8 @@ fn config_save_and_reload() {
     let reloaded = loadout::config::load_from(&config_path).unwrap();
     assert_eq!(reloaded.source.len(), 1);
     assert_eq!(reloaded.source[0].name, "test");
-    assert_eq!(reloaded.target.len(), 1);
-    assert_eq!(reloaded.target[0].agent, "claude");
+    assert_eq!(reloaded.agent.len(), 1);
+    assert_eq!(reloaded.agent[0].agent_type, "claude");
 }
 
 #[test]
@@ -276,21 +276,21 @@ fn registry_find_skill_not_found() {
     assert!(registry.find_skill("nope/nada").is_err());
 }
 
-// ─── Target Adapter ─────────────────────────────────────────────────────
+// ─── Agent Adapter ──────────────────────────────────────────────────────
 
 #[test]
 fn adapter_resolve_builtin_agents() {
     let adapters = std::collections::BTreeMap::new();
     for agent in &["claude", "codex", "cursor", "gemini", "vscode"] {
-        let target = loadout::config::TargetConfig {
+        let target = loadout::config::AgentConfig {
             name: "t".to_string(),
-            agent: agent.to_string(),
+            agent_type: agent.to_string(),
             path: PathBuf::from("/tmp"),
             scope: "machine".to_string(),
             sync: "auto".to_string(),
         };
         assert!(
-            loadout::target::resolve_adapter(&target, &adapters).is_ok(),
+            loadout::agent::resolve_adapter(&target, &adapters).is_ok(),
             "built-in agent '{}' should resolve",
             agent
         );
@@ -300,14 +300,14 @@ fn adapter_resolve_builtin_agents() {
 #[test]
 fn adapter_resolve_unknown_agent_fails() {
     let adapters = std::collections::BTreeMap::new();
-    let target = loadout::config::TargetConfig {
+    let target = loadout::config::AgentConfig {
         name: "t".to_string(),
-        agent: "unknown-agent".to_string(),
+        agent_type: "unknown-agent".to_string(),
         path: PathBuf::from("/tmp"),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
     };
-    assert!(loadout::target::resolve_adapter(&target, &adapters).is_err());
+    assert!(loadout::agent::resolve_adapter(&target, &adapters).is_err());
 }
 
 #[test]
@@ -324,14 +324,14 @@ fn adapter_install_uninstall_skill() {
     .unwrap();
 
     let adapters = std::collections::BTreeMap::new();
-    let target = loadout::config::TargetConfig {
+    let target = loadout::config::AgentConfig {
         name: "t".to_string(),
-        agent: "claude".to_string(),
+        agent_type: "claude".to_string(),
         path: target_path.to_path_buf(),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
     };
-    let adapter = loadout::target::resolve_adapter(&target, &adapters).unwrap();
+    let adapter = loadout::agent::resolve_adapter(&target, &adapters).unwrap();
 
     let skill = loadout::registry::RegisteredSkill {
         name: "test-skill".to_string(),
@@ -367,12 +367,12 @@ fn adapter_custom_toml() {
         },
     );
 
-    let target = loadout::config::TargetConfig {
+    let target = loadout::config::AgentConfig {
         name: "t".to_string(),
-        agent: "my-agent".to_string(),
+        agent_type: "my-agent".to_string(),
         path: PathBuf::from("/tmp"),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
     };
-    assert!(loadout::target::resolve_adapter(&target, &adapters).is_ok());
+    assert!(loadout::agent::resolve_adapter(&target, &adapters).is_ok());
 }

@@ -5,7 +5,7 @@ Suite `00_cli_framework.sh` SHALL test: `skittle --help` exits 0 and lists all c
 
 #### Scenario: Help flags work
 - **WHEN** `skittle --help` is run
-- **THEN** exit code SHALL be 0 and stdout SHALL contain "install", "uninstall", "add", "remove", "update", "list", "target", "bundle", "status", "config", "init"
+- **THEN** exit code SHALL be 0 and stdout SHALL contain "install", "uninstall", "add", "remove", "update", "list", "agent", "bundle", "status", "config", "init"
 
 #### Scenario: Unknown command errors
 - **WHEN** `skittle foobar` is run
@@ -99,45 +99,45 @@ Suite `05_local_registry.sh` SHALL test: XDG paths are used correctly, registry.
 - **WHEN** two sources contain a plugin/skill with the same name
 - **THEN** `skittle list <ambiguous>` SHALL exit non-zero and list the conflicting sources
 
-### Requirement: Target management tests
-Suite `06_target_management.sh` SHALL test: add target with agent type and path, remove target, list targets, show target, target scope and sync mode defaults.
+### Requirement: Agent management tests
+Suite `06_agent_management.sh` SHALL test: add agent with agent type and path, remove agent, list agents, show agent, agent scope and sync mode defaults.
 
-#### Scenario: Add claude target
-- **WHEN** `skittle target add claude /tmp/test-targets/claude --name test-claude --scope machine --sync auto` is run
-- **THEN** exit code SHALL be 0 and `skittle target list` SHALL show "test-claude"
+#### Scenario: Add claude agent
+- **WHEN** `skittle agent add claude /tmp/test-agents/claude --name test-claude --scope machine --sync auto` is run
+- **THEN** exit code SHALL be 0 and `skittle agent list` SHALL show "test-claude"
 
-#### Scenario: Add codex target
-- **WHEN** `skittle target add codex /tmp/test-targets/codex --name test-codex` is run
+#### Scenario: Add codex agent
+- **WHEN** `skittle agent add codex /tmp/test-agents/codex --name test-codex` is run
 - **THEN** exit code SHALL be 0
 
-#### Scenario: Remove target
-- **WHEN** `skittle target remove test-claude` is run
-- **THEN** `skittle target list` SHALL NOT show "test-claude"
-- **THEN** `/tmp/test-targets/claude/` SHALL still exist (not deleted)
+#### Scenario: Remove agent
+- **WHEN** `skittle agent remove test-claude` is run
+- **THEN** `skittle agent list` SHALL NOT show "test-claude"
+- **THEN** `/tmp/test-agents/claude/` SHALL still exist (not deleted)
 
-#### Scenario: Show target details
-- **WHEN** `skittle target show test-claude` is run after adding and installing skills
+#### Scenario: Show agent details
+- **WHEN** `skittle agent show test-claude` is run after adding and installing skills
 - **THEN** stdout SHALL list installed skills
 
 #### Scenario: Unknown agent type
-- **WHEN** `skittle target add unknown-agent /tmp/test-targets/x` is run with no custom adapter
+- **WHEN** `skittle agent add unknown-agent /tmp/test-agents/x` is run with no custom adapter
 - **THEN** exit code SHALL be non-zero
 
-### Requirement: Target adapter tests
-Suite `07_target_adapters.sh` SHALL test: claude adapter installs SKILL.md + supporting dirs, codex adapter works identically, custom TOML adapter respects config, unknown format errors.
+### Requirement: Agent adapter tests
+Suite `07_agent_adapters.sh` SHALL test: claude adapter installs SKILL.md + supporting dirs, codex adapter works identically, custom TOML adapter respects config, unknown format errors.
 
 #### Scenario: Claude adapter copies skill correctly
-- **WHEN** a skill with `scripts/` is installed to claude target
-- **THEN** `/tmp/test-targets/claude/skills/<name>/SKILL.md` SHALL exist
-- **THEN** `/tmp/test-targets/claude/skills/<name>/scripts/` SHALL exist
+- **WHEN** a skill with `scripts/` is installed to claude agent
+- **THEN** `/tmp/test-agents/claude/skills/<name>/SKILL.md` SHALL exist
+- **THEN** `/tmp/test-agents/claude/skills/<name>/scripts/` SHALL exist
 
 #### Scenario: Codex adapter copies skill correctly
-- **WHEN** a skill is installed to codex target
-- **THEN** `/tmp/test-targets/codex/skills/<name>/SKILL.md` SHALL exist
+- **WHEN** a skill is installed to codex agent
+- **THEN** `/tmp/test-agents/codex/skills/<name>/SKILL.md` SHALL exist
 
 #### Scenario: Custom adapter uses configured paths
 - **WHEN** a custom adapter is defined with `skill_dir = "prompts/{name}"` and a skill is installed
-- **THEN** the skill SHALL appear at `<target>/prompts/<name>/SKILL.md`
+- **THEN** the skill SHALL appear at `<agent>/prompts/<name>/SKILL.md`
 
 ### Requirement: Skill operations tests
 Suite `08_skill_operations.sh` SHALL test: skill list, skill show via `list <name>`, Agent Skills spec validation (skip invalid frontmatter).
@@ -155,31 +155,31 @@ Suite `08_skill_operations.sh` SHALL test: skill list, skill show via `list <nam
 - **THEN** stderr SHALL contain a warning and the invalid skill SHALL NOT appear in `skittle list`
 
 ### Requirement: Install engine tests
-Suite `09_install_engine.sh` SHALL test: install --all, install --skill, install --plugin, install --bundle, install --target, uninstall --skill, uninstall --bundle, dry run (-n), idempotent install, install with no flags errors.
+Suite `09_install_engine.sh` SHALL test: install --all, install --skill, install --plugin, install --bundle, install --agent, uninstall --skill, uninstall --bundle, dry run (-n), idempotent install, install with no flags errors.
 
 #### Scenario: Install requires flags
 - **WHEN** `skittle install` is run with no flags
 - **THEN** exit code SHALL be non-zero and stdout SHALL contain help text
 
-#### Scenario: Install all to auto targets
-- **WHEN** config has skills and auto-sync targets, and `skittle install --all` is run
-- **THEN** skills SHALL appear in auto-sync target directories
+#### Scenario: Install all to auto agents
+- **WHEN** config has skills and auto-sync agents, and `skittle install --all` is run
+- **THEN** skills SHALL appear in auto-sync agent directories
 
 #### Scenario: Install specific skill
-- **WHEN** `skittle install --skill test-plugin/explore --target test-claude` is run
-- **THEN** `/tmp/test-targets/claude/skills/explore/SKILL.md` SHALL exist
+- **WHEN** `skittle install --skill test-plugin/explore --agent test-claude` is run
+- **THEN** `/tmp/test-agents/claude/skills/explore/SKILL.md` SHALL exist
 
 #### Scenario: Install plugin
-- **WHEN** `skittle install --plugin test-plugin --target test-claude` is run
+- **WHEN** `skittle install --plugin test-plugin --agent test-claude` is run
 - **THEN** all 3 skills from test-plugin SHALL be installed
 
 #### Scenario: Uninstall skill
-- **WHEN** `skittle uninstall --skill test-plugin/explore --target test-claude` is run
-- **THEN** `/tmp/test-targets/claude/skills/explore/` SHALL NOT exist
+- **WHEN** `skittle uninstall --skill test-plugin/explore --agent test-claude` is run
+- **THEN** `/tmp/test-agents/claude/skills/explore/` SHALL NOT exist
 
 #### Scenario: Dry run writes nothing
 - **WHEN** `skittle install --all -n` is run
-- **THEN** exit code SHALL be 0 and no files SHALL be created in target directories
+- **THEN** exit code SHALL be 0 and no files SHALL be created in agent directories
 
 #### Scenario: Idempotent install
 - **WHEN** `skittle install --skill test-plugin/explore` is run twice
@@ -196,12 +196,12 @@ Suite `10_bundle_management.sh` SHALL test: create, delete, list, show, add skil
 - **WHEN** `skittle bundle add test-bundle test-plugin/explore test-plugin/apply` is run
 - **THEN** `skittle bundle show test-bundle` SHALL list both skills
 
-#### Scenario: Install bundle to target
-- **WHEN** `skittle install --bundle test-bundle --target test-claude` is run
+#### Scenario: Install bundle to agent
+- **WHEN** `skittle install --bundle test-bundle --agent test-claude` is run
 - **THEN** both skills SHALL be installed and `skittle status` SHALL show "test-bundle" as active on test-claude
 
 #### Scenario: Swap bundles
-- **WHEN** bundle-a has skills [explore, apply] and bundle-b has skills [verify], and `skittle bundle swap bundle-a bundle-b --target test-claude` is run
+- **WHEN** bundle-a has skills [explore, apply] and bundle-b has skills [verify], and `skittle bundle swap bundle-a bundle-b --agent test-claude` is run
 - **THEN** explore and apply SHALL be uninstalled, verify SHALL be installed, and active bundle on test-claude SHALL be "bundle-b"
 
 #### Scenario: Delete bundle
@@ -213,7 +213,7 @@ Suite `10_bundle_management.sh` SHALL test: create, delete, list, show, add skil
 - **THEN** `skittle bundle show test-bundle` SHALL NOT list "test-plugin/explore"
 
 ### Requirement: End-to-end workflow test
-Suite `11_end_to_end.sh` SHALL test the complete workflow: `skittle init` → `skittle add` (local fixture) → `skittle target add` (mock claude + codex) → `skittle bundle create` + `skittle bundle add` → `skittle install --bundle` → `skittle status` (verify) → `skittle bundle swap` → `skittle uninstall --bundle` → `skittle remove`.
+Suite `11_end_to_end.sh` SHALL test the complete workflow: `skittle init` → `skittle add` (local fixture) → `skittle agent add` (mock claude + codex) → `skittle bundle create` + `skittle bundle add` → `skittle install --bundle` → `skittle status` (verify) → `skittle bundle swap` → `skittle uninstall --bundle` → `skittle remove`.
 
 #### Scenario: Full lifecycle
 - **WHEN** the complete workflow is executed in sequence
@@ -221,4 +221,4 @@ Suite `11_end_to_end.sh` SHALL test the complete workflow: `skittle init` → `s
 
 #### Scenario: Status reflects state at each step
 - **WHEN** `skittle status --json` is run after each workflow step
-- **THEN** the JSON SHALL reflect the current number of sources, targets, installed skills, and active bundles
+- **THEN** the JSON SHALL reflect the current number of sources, agents, installed skills, and active bundles

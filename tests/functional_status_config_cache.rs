@@ -4,12 +4,12 @@ use std::path::PathBuf;
 use tempfile::TempDir;
 
 use loadout::config::{
-    load_from, save_to, AdapterConfig, BundleConfig, Config, SourceConfig, TargetConfig,
+    load_from, save_to, AdapterConfig, BundleConfig, Config, SourceConfig, AgentConfig,
 };
 use loadout::registry::{
     load_registry, save_registry, RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry,
 };
-use loadout::target::resolve_adapter;
+use loadout::agent::resolve_adapter;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
@@ -23,10 +23,10 @@ fn make_source(name: &str, url: &str) -> SourceConfig {
     }
 }
 
-fn make_target(name: &str, agent: &str, path: PathBuf) -> TargetConfig {
-    TargetConfig {
+fn make_agent(name: &str, agent_type: &str, path: PathBuf) -> AgentConfig {
+    AgentConfig {
         name: name.to_string(),
-        agent: agent.to_string(),
+        agent_type: agent_type.to_string(),
         path,
         scope: "machine".to_string(),
         sync: "auto".to_string(),
@@ -89,18 +89,18 @@ fn status_with_sources_targets_skills() {
     let source_dir = TempDir::new().unwrap();
     let target_dir = TempDir::new().unwrap();
 
-    // Build config with 2 sources and 1 target
+    // Build config with 2 sources and 1 agent
     let mut config = Config::default();
     config.source.push(make_source("src-alpha", "/tmp/alpha"));
     config.source.push(make_source("src-beta", "/tmp/beta"));
-    config.target.push(make_target(
-        "my-target",
+    config.agent.push(make_agent(
+        "my-agent",
         "claude",
         target_dir.path().to_path_buf(),
     ));
 
     assert_eq!(config.source.len(), 2);
-    assert_eq!(config.target.len(), 1);
+    assert_eq!(config.agent.len(), 1);
 
     // Build registry: 2 sources, each with 1 plugin containing 2 skills
     let skill_a1_path = create_skill_fixture(source_dir.path(), "skill-a1");
@@ -144,7 +144,7 @@ fn status_with_sources_targets_skills() {
     assert_eq!(skill_count, 4);
 
     // Install 2 skills and verify installed count
-    let adapter = resolve_adapter(&config.target[0], &config.adapter).unwrap();
+    let adapter = resolve_adapter(&config.agent[0], &config.adapter).unwrap();
 
     let skills_to_install: Vec<&RegisteredSkill> = registry
         .sources
@@ -173,7 +173,7 @@ fn status_with_empty_config() {
     let registry = Registry::default();
 
     assert_eq!(config.source.len(), 0);
-    assert_eq!(config.target.len(), 0);
+    assert_eq!(config.agent.len(), 0);
     assert!(config.adapter.is_empty());
     assert!(config.bundle.is_empty());
 
@@ -193,8 +193,8 @@ fn config_show_returns_content() {
 
     let mut config = Config::default();
     config.source.push(make_source("my-source", "/opt/skills"));
-    config.target.push(make_target(
-        "my-target",
+    config.agent.push(make_agent(
+        "my-agent",
         "claude",
         PathBuf::from("/home/agent"),
     ));
@@ -212,11 +212,11 @@ fn config_show_returns_content() {
         "should contain source url"
     );
     assert!(
-        content.contains("name = \"my-target\""),
-        "should contain target name"
+        content.contains("name = \"my-agent\""),
+        "should contain agent name"
     );
     assert!(
-        content.contains("agent = \"claude\""),
+        content.contains("type = \"claude\""),
         "should contain agent type"
     );
     assert!(
@@ -224,8 +224,8 @@ fn config_show_returns_content() {
         "should contain TOML source section header"
     );
     assert!(
-        content.contains("[[target]]"),
-        "should contain TOML target section header"
+        content.contains("[[agent]]"),
+        "should contain TOML agent section header"
     );
 }
 
@@ -273,12 +273,12 @@ fn config_roundtrip_with_all_sections() {
         .push(make_source("remote-skills", "https://github.com/org/repo"));
 
     // Targets
-    config.target.push(make_target(
+    config.agent.push(make_agent(
         "claude-dev",
         "claude",
         PathBuf::from("/home/claude"),
     ));
-    config.target.push(make_target(
+    config.agent.push(make_agent(
         "cursor-work",
         "cursor",
         PathBuf::from("/home/cursor"),
@@ -319,15 +319,15 @@ fn config_roundtrip_with_all_sections() {
     assert_eq!(loaded.source[1].url, "https://github.com/org/repo");
 
     // Targets roundtrip
-    assert_eq!(loaded.target.len(), 2);
-    assert_eq!(loaded.target[0].name, "claude-dev");
-    assert_eq!(loaded.target[0].agent, "claude");
-    assert_eq!(loaded.target[0].path, PathBuf::from("/home/claude"));
-    assert_eq!(loaded.target[0].scope, "machine");
-    assert_eq!(loaded.target[0].sync, "auto");
-    assert_eq!(loaded.target[1].name, "cursor-work");
-    assert_eq!(loaded.target[1].agent, "cursor");
-    assert_eq!(loaded.target[1].path, PathBuf::from("/home/cursor"));
+    assert_eq!(loaded.agent.len(), 2);
+    assert_eq!(loaded.agent[0].name, "claude-dev");
+    assert_eq!(loaded.agent[0].agent_type, "claude");
+    assert_eq!(loaded.agent[0].path, PathBuf::from("/home/claude"));
+    assert_eq!(loaded.agent[0].scope, "machine");
+    assert_eq!(loaded.agent[0].sync, "auto");
+    assert_eq!(loaded.agent[1].name, "cursor-work");
+    assert_eq!(loaded.agent[1].agent_type, "cursor");
+    assert_eq!(loaded.agent[1].path, PathBuf::from("/home/cursor"));
 
     // Adapters roundtrip
     assert_eq!(loaded.adapter.len(), 1);
