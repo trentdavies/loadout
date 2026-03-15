@@ -22,3 +22,4 @@ Thumbs.db
 
 # Debug
 *.pdb
+.claude/worktrees/
