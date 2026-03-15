@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use colored::Colorize;
 
 #[derive(Parser)]
@@ -203,6 +203,31 @@ pub enum Command {
         #[command(subcommand)]
         command: ConfigCommand,
     },
+
+    /// Generate shell completions
+    #[command(after_long_help = crate::completions::AFTER_HELP)]
+    Completions {
+        /// Shell to generate completions for
+        shell: CompletionShell,
+
+        /// Auto-install to the standard location for your shell
+        #[arg(long)]
+        install: bool,
+    },
+
+    /// Output completion values (used internally by shell scripts)
+    #[command(name = "_complete", hide = true)]
+    Complete {
+        /// Completion type: sources, plugins, skills, targets, bundles
+        kind: String,
+    },
+}
+
+#[derive(Clone, ValueEnum)]
+pub enum CompletionShell {
+    Bash,
+    Zsh,
+    Fish,
 }
 
 #[derive(Subcommand)]
@@ -2745,6 +2770,70 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     Ok(())
                 }
             }
+        }
+        Command::Completions { shell, install } => {
+            if install {
+                match shell {
+                    CompletionShell::Zsh => {
+                        crate::completions::install_zsh(cli.quiet)?;
+                    }
+                    CompletionShell::Bash => {
+                        crate::completions::install_bash(cli.quiet)?;
+                    }
+                    CompletionShell::Fish => {
+                        crate::completions::install_fish(cli.quiet)?;
+                    }
+                }
+            } else {
+                let script = match shell {
+                    CompletionShell::Zsh => crate::completions::ZSH_SCRIPT,
+                    CompletionShell::Bash => crate::completions::BASH_SCRIPT,
+                    CompletionShell::Fish => crate::completions::FISH_SCRIPT,
+                };
+                print!("{}", script);
+            }
+            Ok(())
+        }
+        Command::Complete { kind } => {
+            let config = crate::config::load(cli.config.as_deref())?;
+            let data_dir = crate::config::data_dir();
+            let registry = crate::registry::load_registry(&data_dir)?;
+
+            match kind.as_str() {
+                "sources" => {
+                    for s in &config.source {
+                        println!("{}", s.name);
+                    }
+                }
+                "plugins" => {
+                    for src in &registry.sources {
+                        for p in &src.plugins {
+                            println!("{}:{}", src.name, p.name);
+                        }
+                    }
+                }
+                "skills" => {
+                    for src in &registry.sources {
+                        for p in &src.plugins {
+                            for s in &p.skills {
+                                println!("{}:{}/{}", src.name, p.name, s.name);
+                            }
+                        }
+                    }
+                }
+                "targets" => {
+                    for t in &config.target {
+                        println!("{}", t.name);
+                    }
+                }
+                "bundles" => {
+                    for name in config.bundle.keys() {
+                        println!("{}", name);
+                    }
+                }
+                _ => {}
+            }
+            Ok(())
         }
     }
 }

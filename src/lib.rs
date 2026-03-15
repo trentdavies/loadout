@@ -1,5 +1,6 @@
 pub mod bundle;
 pub mod cli;
+pub mod completions;
 pub mod config;
 pub mod marketplace;
 pub mod output;
