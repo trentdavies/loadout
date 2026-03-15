@@ -339,22 +339,39 @@ pub enum ConfigCommand {
 
 /// Extract the domain from a URL. Returns empty string for local paths.
 fn extract_domain(url: &str) -> String {
-    // git@github.com:org/repo.git → github.com
-    if let Some(rest) = url.strip_prefix("git@") {
-        return rest.split(':').next().unwrap_or("").to_string();
-    }
-    // https://github.com/... → github.com
-    if let Some(after_scheme) = url
+    // Try to extract host and path from the URL
+    let (host, path) = if let Some(rest) = url.strip_prefix("git@") {
+        // git@github.com:org/repo.git → ("github.com", "org/repo.git")
+        let mut parts = rest.splitn(2, ':');
+        let h = parts.next().unwrap_or("");
+        let p = parts.next().unwrap_or("");
+        (h.to_string(), p.to_string())
+    } else if let Some(after_scheme) = url
         .strip_prefix("https://")
         .or_else(|| url.strip_prefix("http://"))
         .or_else(|| url.strip_prefix("git://"))
         .or_else(|| url.strip_prefix("ssh://"))
     {
-        let host = after_scheme.split('/').next().unwrap_or("");
+        // https://github.com/org/repo.git → ("github.com", "org/repo.git")
+        let mut parts = after_scheme.splitn(2, '/');
+        let h = parts.next().unwrap_or("");
         // strip user@ prefix (ssh://git@github.com/...)
-        return host.split('@').next_back().unwrap_or(host).to_string();
+        let h = h.split('@').next_back().unwrap_or(h);
+        let p = parts.next().unwrap_or("");
+        (h.to_string(), p.to_string())
+    } else {
+        return String::new();
+    };
+
+    // For GitHub repos, show "Github: org/repo" instead of the domain
+    if host == "github.com" {
+        let slug = path.trim_end_matches(".git");
+        if !slug.is_empty() {
+            return format!("Github: {slug}");
+        }
     }
-    String::new()
+
+    host
 }
 
 const AGENT_PREFIXES: &[(&str, &str)] = &[
