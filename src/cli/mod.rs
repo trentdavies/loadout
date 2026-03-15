@@ -2195,7 +2195,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                             .map(|(name, b)| {
                                 serde_json::json!({
                                     "name": name,
-                                    "skills": b.skills.len(),
+                                    "skills": b.skills,
                                 })
                             })
                             .collect();
@@ -2213,12 +2213,22 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         return Ok(());
                     }
 
-                    let rows: Vec<Vec<String>> = bundles
-                        .iter()
-                        .map(|(name, b)| vec![(*name).clone(), b.skills.len().to_string()])
-                        .collect();
-
-                    out.table(&["BUNDLE", "SKILLS"], &rows);
+                    for (name, b) in &bundles {
+                        println!("{} {}", name.bold(), format!("({})", b.skills.len()).dimmed());
+                        for (i, skill_id) in b.skills.iter().enumerate() {
+                            let connector = if i == b.skills.len() - 1 { "└──" } else { "├──" };
+                            let display = if let Some((source, rest)) = skill_id.split_once(':') {
+                                if let Some((plugin, skill)) = rest.split_once('/') {
+                                    crate::output::format_identity(source, plugin, skill)
+                                } else {
+                                    skill_id.clone()
+                                }
+                            } else {
+                                skill_id.clone()
+                            };
+                            println!("  {} {}", connector.dimmed(), display);
+                        }
+                    }
                     Ok(())
                 }
                 BundleCommand::Show { name } => {
