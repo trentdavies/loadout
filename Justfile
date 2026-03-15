@@ -28,7 +28,19 @@ sandbox-test:
 sandbox-keep:
     tests/sandbox/run --keep-alive
 
-# Connect to a running sandbox container
+# Launch sandbox with SSH server and mounted git credentials
+sandbox-ssh port="2222":
+    tests/sandbox/run --ssh {{port}}
+
+# Run sandbox tests with SSH git auth available
+sandbox-test-ssh:
+    tests/sandbox/run --test --ssh
+
+# SSH into the running sandbox container
+sandbox-connect port="2222":
+    ssh -o StrictHostKeyChecking=no -p {{port}} root@localhost
+
+# Connect to a running sandbox container (docker exec)
 sandbox-exec:
     docker exec -it loadout-sandbox bash
 

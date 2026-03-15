@@ -20,12 +20,13 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 # Symlink so loadout is available at ~/.local/bin too
 RUN mkdir -p /root/.local/bin && ln -s /usr/local/bin/loadout /root/.local/bin/loadout
 
-# SSH setup
-RUN mkdir -p /run/sshd \
-    && echo 'root:loadout' | chpasswd \
-    && sed -i 's/#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config \
-    && sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config \
-    && sed -i 's/#AllowAgentForwarding.*/AllowAgentForwarding yes/' /etc/ssh/sshd_config
+# SSH setup — key-based auth only (keys mounted at runtime via --ssh)
+RUN mkdir -p /run/sshd /root/.ssh \
+    && sed -i 's/#PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config \
+    && sed -i 's/#PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config \
+    && sed -i 's/#AllowAgentForwarding.*/AllowAgentForwarding yes/' /etc/ssh/sshd_config \
+    && ssh-keyscan github.com >> /root/.ssh/known_hosts 2>/dev/null \
+    && chmod 700 /root/.ssh && chmod 644 /root/.ssh/known_hosts
 
 # Environment
 ENV HOME=/root
