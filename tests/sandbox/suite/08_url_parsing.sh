@@ -13,10 +13,12 @@ _add_and_list() {
   local source_name="$2"
   # Remove if leftover from a previous run
   "$LOADOUT" -q remove "$source_name" --force 2>/dev/null || true
-  "$LOADOUT" -q add "$url" --source "$source_name" 2>&1
+  # Capture add output separately so stderr warnings don't corrupt the JSON
+  local add_output
+  add_output=$("$LOADOUT" -q add "$url" --source "$source_name" 2>&1)
   local exit_code=$?
   if [ "$exit_code" -ne 0 ]; then
-    echo "EXIT:$exit_code"
+    echo "EXIT:$exit_code:$add_output"
     return "$exit_code"
   fi
   "$LOADOUT" list --json 2>/dev/null

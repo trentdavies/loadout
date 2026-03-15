@@ -23,6 +23,9 @@ pub struct MarketplacePlugin {
     pub source: PluginSource,
     pub description: Option<String>,
     pub author: Option<MarketplaceAuthor>,
+    /// Explicit skill paths belonging to this plugin (e.g. `["./skills/xlsx"]`).
+    /// When present, only these skills are included in the plugin.
+    pub skills: Option<Vec<String>>,
 }
 
 /// A marketplace plugin source — either a local path or an external reference.

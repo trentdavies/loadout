@@ -149,9 +149,21 @@ fn scan_marketplace(path: &Path) -> Result<Vec<RegisteredPlugin>> {
 
         match scan_plugin_dir(&plugin_path) {
             Ok(mut plugin) => {
+                // Marketplace entry name takes precedence over plugin.json/dir name
+                plugin.name = mp.name.clone();
                 // Marketplace description supplements plugin.json description
                 if plugin.description.is_none() {
                     plugin.description = mp.description.clone();
+                }
+                // Filter skills to those listed in the marketplace entry
+                if let Some(ref skill_paths) = mp.skills {
+                    let allowed: Vec<std::path::PathBuf> = skill_paths
+                        .iter()
+                        .map(|sp| path.join(sp.trim_start_matches("./")))
+                        .collect();
+                    plugin
+                        .skills
+                        .retain(|s| allowed.iter().any(|a| s.path.starts_with(a)));
                 }
                 plugins.push(plugin);
             }

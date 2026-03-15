@@ -3,8 +3,9 @@
 # Depends on Suite 03 having applied skills to sandbox-claude.
 
 _first_skill() {
+  # Pick a skill from knowledge-work (unambiguous — not duplicated by local-skills)
   "$LOADOUT" list --json 2>/dev/null | jq -r \
-    '[.[] | select(.plugin != .source)] | .[0] | "\(.plugin)/\(.name)"'
+    '[.[] | select(.source == "knowledge-work")] | .[0] | "\(.plugin)/\(.name)"'
 }
 
 _skill_short_name() {
