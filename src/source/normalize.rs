@@ -22,6 +22,9 @@ pub fn normalize(
 }
 
 /// Normalize with optional name overrides for plugin and skill.
+///
+/// The `url` field on the returned `RegisteredSource` is left empty here;
+/// callers that have the source URL should set it after construction.
 pub fn normalize_with(
     source_name: &str,
     cache_path: &Path,
@@ -116,6 +119,7 @@ pub fn normalize_with(
 
     Ok(RegisteredSource {
         name: source_name.to_string(),
+        url: String::new(),
         plugins,
         cache_path: cache_path.to_path_buf(),
     })

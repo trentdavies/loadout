@@ -38,6 +38,76 @@ pub fn save_registry(registry: &Registry, data_dir: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Reconcile registry source names with config.
+/// Config is the source of truth for source names. If a source was renamed
+/// in config (matched by URL), update the registry and rename the cache directory.
+pub fn reconcile_with_config(
+    registry: &mut Registry,
+    config_sources: &[crate::config::SourceConfig],
+    data_dir: &std::path::Path,
+) -> Result<Vec<String>> {
+    let mut renames = Vec::new();
+
+    for reg_src in &mut registry.sources {
+        // Skip sources without URL (legacy entries)
+        if reg_src.url.is_empty() {
+            continue;
+        }
+
+        // Find matching config source by URL
+        let config_match = config_sources.iter().find(|cs| cs.url == reg_src.url);
+
+        if let Some(cs) = config_match {
+            if cs.name != reg_src.name {
+                let old_name = reg_src.name.clone();
+                let new_name = cs.name.clone();
+
+                // Rename cache directory
+                let old_cache = data_dir.join("external").join(&old_name);
+                let new_cache = data_dir.join("external").join(&new_name);
+                if old_cache.exists() && !new_cache.exists() {
+                    std::fs::rename(&old_cache, &new_cache)?;
+                }
+
+                // Update cache_path in registry
+                if reg_src.cache_path.starts_with(&old_cache) {
+                    reg_src.cache_path = new_cache.clone();
+                }
+
+                // Update plugin paths
+                for plugin in &mut reg_src.plugins {
+                    if plugin.path.starts_with(&old_cache) {
+                        if let Ok(suffix) = plugin.path.strip_prefix(&old_cache) {
+                            plugin.path = new_cache.join(suffix);
+                        }
+                    }
+                    for skill in &mut plugin.skills {
+                        if skill.path.starts_with(&old_cache) {
+                            if let Ok(suffix) = skill.path.strip_prefix(&old_cache) {
+                                skill.path = new_cache.join(suffix);
+                            }
+                        }
+                    }
+                }
+
+                // Update installed provenance records
+                for target_skills in registry.installed.values_mut() {
+                    for installed in target_skills.values_mut() {
+                        if installed.source == old_name {
+                            installed.source = new_name.clone();
+                        }
+                    }
+                }
+
+                renames.push(format!("{} → {}", old_name, new_name));
+                reg_src.name = new_name;
+            }
+        }
+    }
+
+    Ok(renames)
+}
+
 impl Registry {
     /// Find a plugin by name across all sources.
     /// Returns (source_name, plugin) tuple.
@@ -243,6 +313,7 @@ mod tests {
         for src_name in &["a", "b"] {
             registry.sources.push(RegisteredSource {
                 name: src_name.to_string(),
+                url: String::new(),
                 plugins: vec![RegisteredPlugin {
                     name: "shared".to_string(),
                     version: None,
@@ -262,6 +333,7 @@ mod tests {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
             name: "s".to_string(),
+            url: String::new(),
             plugins: vec![RegisteredPlugin {
                 name: "p".to_string(),
                 version: None,
@@ -294,6 +366,7 @@ mod tests {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
             name: "src".to_string(),
+            url: String::new(),
             plugins: vec![RegisteredPlugin {
                 name: "my-plugin".to_string(),
                 version: None,
@@ -327,6 +400,7 @@ mod tests {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
             name: "s".to_string(),
+            url: String::new(),
             plugins: vec![RegisteredPlugin {
                 name: "p".to_string(),
                 version: Some("1.0".to_string()),
@@ -422,6 +496,7 @@ mod tests {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
             name: "alpha".to_string(),
+            url: String::new(),
             plugins: vec![RegisteredPlugin {
                 name: "legal".to_string(),
                 version: None,
@@ -448,6 +523,7 @@ mod tests {
         });
         registry.sources.push(RegisteredSource {
             name: "beta".to_string(),
+            url: String::new(),
             plugins: vec![RegisteredPlugin {
                 name: "sales".to_string(),
                 version: None,
@@ -586,6 +662,7 @@ mod tests {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
             name: "s".to_string(),
+            url: String::new(),
             plugins: vec![RegisteredPlugin {
                 name: "p".to_string(),
                 version: None,
@@ -605,5 +682,151 @@ mod tests {
         assert_eq!(src, "s");
         assert_eq!(plug, "p");
         assert_eq!(skill.name, "sk");
+    }
+
+    #[test]
+    fn reconcile_renames_source() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let ext_dir = tmp.path().join("external").join("old-name");
+        std::fs::create_dir_all(&ext_dir).unwrap();
+
+        let mut registry = Registry::default();
+        registry.sources.push(RegisteredSource {
+            name: "old-name".to_string(),
+            url: "https://github.com/example/skills.git".to_string(),
+            plugins: vec![RegisteredPlugin {
+                name: "plug".to_string(),
+                version: None,
+                description: None,
+                skills: vec![RegisteredSkill {
+                    name: "sk".to_string(),
+                    description: None,
+                    author: None,
+                    version: None,
+                    path: ext_dir.join("plug/skills/sk"),
+                }],
+                path: ext_dir.join("plug"),
+            }],
+            cache_path: ext_dir.clone(),
+        });
+
+        let config_sources = vec![crate::config::SourceConfig {
+            name: "new-name".to_string(),
+            url: "https://github.com/example/skills.git".to_string(),
+            source_type: "git".to_string(),
+            r#ref: None,
+            mode: None,
+        }];
+
+        let renames =
+            reconcile_with_config(&mut registry, &config_sources, tmp.path()).unwrap();
+        assert_eq!(renames.len(), 1);
+        assert_eq!(registry.sources[0].name, "new-name");
+
+        // Cache dir should be renamed
+        assert!(!ext_dir.exists());
+        assert!(tmp.path().join("external/new-name").exists());
+
+        // Paths inside the registry should be updated
+        let new_ext = tmp.path().join("external").join("new-name");
+        assert_eq!(registry.sources[0].cache_path, new_ext);
+        assert_eq!(registry.sources[0].plugins[0].path, new_ext.join("plug"));
+        assert_eq!(
+            registry.sources[0].plugins[0].skills[0].path,
+            new_ext.join("plug/skills/sk")
+        );
+    }
+
+    #[test]
+    fn reconcile_updates_installed_provenance() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let ext_dir = tmp.path().join("external").join("old-src");
+        std::fs::create_dir_all(&ext_dir).unwrap();
+
+        let mut registry = Registry::default();
+        registry.sources.push(RegisteredSource {
+            name: "old-src".to_string(),
+            url: "https://example.com/repo.git".to_string(),
+            plugins: vec![],
+            cache_path: ext_dir.clone(),
+        });
+        registry.installed.insert(
+            "my-target".to_string(),
+            {
+                let mut m = std::collections::BTreeMap::new();
+                m.insert(
+                    "my-skill".to_string(),
+                    InstalledSkill {
+                        source: "old-src".to_string(),
+                        plugin: "plug".to_string(),
+                        skill: "my-skill".to_string(),
+                        origin: "external/old-src/plug/skills/my-skill".to_string(),
+                    },
+                );
+                m
+            },
+        );
+
+        let config_sources = vec![crate::config::SourceConfig {
+            name: "new-src".to_string(),
+            url: "https://example.com/repo.git".to_string(),
+            source_type: "git".to_string(),
+            r#ref: None,
+            mode: None,
+        }];
+
+        reconcile_with_config(&mut registry, &config_sources, tmp.path()).unwrap();
+        let installed = &registry.installed["my-target"]["my-skill"];
+        assert_eq!(installed.source, "new-src");
+    }
+
+    #[test]
+    fn reconcile_noop_when_names_match() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut registry = Registry::default();
+        registry.sources.push(RegisteredSource {
+            name: "same".to_string(),
+            url: "https://example.com/repo.git".to_string(),
+            plugins: vec![],
+            cache_path: tmp.path().join("external/same"),
+        });
+
+        let config_sources = vec![crate::config::SourceConfig {
+            name: "same".to_string(),
+            url: "https://example.com/repo.git".to_string(),
+            source_type: "git".to_string(),
+            r#ref: None,
+            mode: None,
+        }];
+
+        let renames =
+            reconcile_with_config(&mut registry, &config_sources, tmp.path()).unwrap();
+        assert!(renames.is_empty());
+        assert_eq!(registry.sources[0].name, "same");
+    }
+
+    #[test]
+    fn reconcile_skips_legacy_entries_without_url() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut registry = Registry::default();
+        registry.sources.push(RegisteredSource {
+            name: "legacy".to_string(),
+            url: String::new(),
+            plugins: vec![],
+            cache_path: tmp.path().join("external/legacy"),
+        });
+
+        let config_sources = vec![crate::config::SourceConfig {
+            name: "renamed".to_string(),
+            url: "https://example.com/repo.git".to_string(),
+            source_type: "git".to_string(),
+            r#ref: None,
+            mode: None,
+        }];
+
+        let renames =
+            reconcile_with_config(&mut registry, &config_sources, tmp.path()).unwrap();
+        assert!(renames.is_empty());
+        assert_eq!(registry.sources[0].name, "legacy");
     }
 }

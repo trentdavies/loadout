@@ -193,6 +193,7 @@ fn registry_save_load_roundtrip() {
     let mut registry = loadout::registry::Registry::default();
     registry.sources.push(loadout::registry::RegisteredSource {
         name: "test-src".to_string(),
+        url: String::new(),
         plugins: vec![loadout::registry::RegisteredPlugin {
             name: "test-plugin".to_string(),
             version: Some("1.0.0".to_string()),
@@ -220,6 +221,7 @@ fn registry_find_skill_short_form() {
     let mut registry = loadout::registry::Registry::default();
     registry.sources.push(loadout::registry::RegisteredSource {
         name: "src".to_string(),
+        url: String::new(),
         plugins: vec![loadout::registry::RegisteredPlugin {
             name: "plug".to_string(),
             version: None,
@@ -247,6 +249,7 @@ fn registry_find_skill_full_form() {
     let mut registry = loadout::registry::Registry::default();
     registry.sources.push(loadout::registry::RegisteredSource {
         name: "mysrc".to_string(),
+        url: String::new(),
         plugins: vec![loadout::registry::RegisteredPlugin {
             name: "plug".to_string(),
             version: None,

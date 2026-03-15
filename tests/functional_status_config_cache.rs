@@ -60,6 +60,7 @@ fn make_registered_source(
 ) -> RegisteredSource {
     RegisteredSource {
         name: name.to_string(),
+        url: String::new(),
         plugins,
         cache_path,
     }

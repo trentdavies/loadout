@@ -985,12 +985,13 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     skill: overrides.1.as_deref(),
                 };
 
-                let registered = crate::source::normalize::normalize_with(
+                let mut registered = crate::source::normalize::normalize_with(
                     &source_name,
                     &detect_path,
                     &structure,
                     &norm_overrides,
                 )?;
+                registered.url = source_url.url_string();
 
                 // In non-interactive/quiet mode, show what was resolved
                 if !cli.quiet && !crate::prompt::is_interactive() {
@@ -1077,7 +1078,20 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
         Command::List { patterns, external, fzf } => {
             let data_dir = crate::config::data_dir();
             let config_for_list = crate::config::load(cli.config.as_deref())?;
-            let registry = crate::registry::load_registry(&data_dir)?;
+            let mut registry = crate::registry::load_registry(&data_dir)?;
+            let renames = crate::registry::reconcile_with_config(
+                &mut registry,
+                &config_for_list.source,
+                &data_dir,
+            )?;
+            if !renames.is_empty() {
+                crate::registry::save_registry(&registry, &data_dir)?;
+                if !cli.quiet {
+                    for r in &renames {
+                        eprintln!("source renamed: {}", r);
+                    }
+                }
+            }
 
             if external {
                 // List external sources in table format
@@ -1337,7 +1351,20 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             let config_path_str = cli.config.as_deref();
             let config = crate::config::load(config_path_str)?;
             let data_dir = crate::config::data_dir();
-            let registry = crate::registry::load_registry(&data_dir)?;
+            let mut registry = crate::registry::load_registry(&data_dir)?;
+            let renames = crate::registry::reconcile_with_config(
+                &mut registry,
+                &config.source,
+                &data_dir,
+            )?;
+            if !renames.is_empty() {
+                crate::registry::save_registry(&registry, &data_dir)?;
+                if !cli.quiet {
+                    for r in &renames {
+                        eprintln!("source renamed: {}", r);
+                    }
+                }
+            }
 
             // Determine which targets to apply to
             let targets: Vec<&crate::config::TargetConfig> = if let Some(ref t) = target {
@@ -1545,7 +1572,20 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             let config_path_str = cli.config.as_deref();
             let config = crate::config::load(config_path_str)?;
             let data_dir = crate::config::data_dir();
-            let registry = crate::registry::load_registry(&data_dir)?;
+            let mut registry = crate::registry::load_registry(&data_dir)?;
+            let renames = crate::registry::reconcile_with_config(
+                &mut registry,
+                &config.source,
+                &data_dir,
+            )?;
+            if !renames.is_empty() {
+                crate::registry::save_registry(&registry, &data_dir)?;
+                if !cli.quiet {
+                    for r in &renames {
+                        eprintln!("source renamed: {}", r);
+                    }
+                }
+            }
 
             // Determine targets
             let targets: Vec<&crate::config::TargetConfig> = if let Some(ref t) = target {
@@ -1641,7 +1681,20 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
         } => {
             let config = crate::config::load(cli.config.as_deref())?;
             let data_dir = crate::config::data_dir();
-            let registry = crate::registry::load_registry(&data_dir)?;
+            let mut registry = crate::registry::load_registry(&data_dir)?;
+            let renames = crate::registry::reconcile_with_config(
+                &mut registry,
+                &config.source,
+                &data_dir,
+            )?;
+            if !renames.is_empty() {
+                crate::registry::save_registry(&registry, &data_dir)?;
+                if !cli.quiet {
+                    for r in &renames {
+                        eprintln!("source renamed: {}", r);
+                    }
+                }
+            }
             let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
 
             let tc = config
@@ -1791,7 +1844,20 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Status => {
             let config = crate::config::load(cli.config.as_deref())?;
             let data_dir = crate::config::data_dir();
-            let registry = crate::registry::load_registry(&data_dir)?;
+            let mut registry = crate::registry::load_registry(&data_dir)?;
+            let renames = crate::registry::reconcile_with_config(
+                &mut registry,
+                &config.source,
+                &data_dir,
+            )?;
+            if !renames.is_empty() {
+                crate::registry::save_registry(&registry, &data_dir)?;
+                if !cli.quiet {
+                    for r in &renames {
+                        eprintln!("source renamed: {}", r);
+                    }
+                }
+            }
 
             // Count installed skills across targets
             let mut total_installed = 0;
@@ -1988,7 +2054,20 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             let config_path_str = cli.config.as_deref();
             let mut config = crate::config::load(config_path_str)?;
             let data_dir = crate::config::data_dir();
-            let registry = crate::registry::load_registry(&data_dir)?;
+            let mut registry = crate::registry::load_registry(&data_dir)?;
+            let renames = crate::registry::reconcile_with_config(
+                &mut registry,
+                &config.source,
+                &data_dir,
+            )?;
+            if !renames.is_empty() {
+                crate::registry::save_registry(&registry, &data_dir)?;
+                if !cli.quiet {
+                    for r in &renames {
+                        eprintln!("source renamed: {}", r);
+                    }
+                }
+            }
 
             if update_ref.is_some() && name.is_none() {
                 anyhow::bail!(
@@ -2152,7 +2231,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 };
 
                 match crate::source::normalize::normalize(&src.name, &cache_path, &structure) {
-                    Ok(registered) => {
+                    Ok(mut registered) => {
+                        registered.url = src.url.clone();
                         updated_registry.sources.retain(|s| s.name != src.name);
                         updated_registry.sources.push(registered);
                         updated_count += 1;
@@ -2371,7 +2451,20 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         anyhow::bail!("bundle '{}' not found", name);
                     }
 
-                    let registry = crate::registry::load_registry(&data_dir)?;
+                    let mut registry = crate::registry::load_registry(&data_dir)?;
+                    let renames = crate::registry::reconcile_with_config(
+                        &mut registry,
+                        &config.source,
+                        &data_dir,
+                    )?;
+                    if !renames.is_empty() {
+                        crate::registry::save_registry(&registry, &data_dir)?;
+                        if !cli.quiet {
+                            for r in &renames {
+                                eprintln!("source renamed: {}", r);
+                            }
+                        }
+                    }
                     let ext_sources = external_source_set(&config);
 
                     let bundle = config.bundle.get_mut(&name).unwrap();
@@ -2440,7 +2533,20 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         .get(&name)
                         .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", name))?
                         .clone();
-                    let registry = crate::registry::load_registry(&data_dir)?;
+                    let mut registry = crate::registry::load_registry(&data_dir)?;
+                    let renames = crate::registry::reconcile_with_config(
+                        &mut registry,
+                        &config.source,
+                        &data_dir,
+                    )?;
+                    if !renames.is_empty() {
+                        crate::registry::save_registry(&registry, &data_dir)?;
+                        if !cli.quiet {
+                            for r in &renames {
+                                eprintln!("source renamed: {}", r);
+                            }
+                        }
+                    }
                     let mut reg = registry.clone();
 
                     let targets: Vec<&crate::config::TargetConfig> = if all {
@@ -2597,7 +2703,20 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         .get(&name)
                         .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", name))?
                         .clone();
-                    let registry = crate::registry::load_registry(&data_dir)?;
+                    let mut registry = crate::registry::load_registry(&data_dir)?;
+                    let renames = crate::registry::reconcile_with_config(
+                        &mut registry,
+                        &config.source,
+                        &data_dir,
+                    )?;
+                    if !renames.is_empty() {
+                        crate::registry::save_registry(&registry, &data_dir)?;
+                        if !cli.quiet {
+                            for r in &renames {
+                                eprintln!("source renamed: {}", r);
+                            }
+                        }
+                    }
 
                     let targets: Vec<&crate::config::TargetConfig> = if all {
                         config.target.iter().collect()

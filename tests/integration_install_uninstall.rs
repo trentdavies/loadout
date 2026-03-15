@@ -264,6 +264,7 @@ fn full_install_uninstall_lifecycle() {
     let mut registry = loadout::registry::Registry::default();
     registry.sources.push(loadout::registry::RegisteredSource {
         name: "test-src".to_string(),
+        url: String::new(),
         plugins: vec![loadout::registry::RegisteredPlugin {
             name: "test-plugin".to_string(),
             version: Some("1.0.0".to_string()),

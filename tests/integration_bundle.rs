@@ -44,6 +44,7 @@ fn make_registry_with_skills(
     let mut registry = loadout::registry::Registry::default();
     registry.sources.push(loadout::registry::RegisteredSource {
         name: "src".to_string(),
+        url: String::new(),
         plugins: vec![loadout::registry::RegisteredPlugin {
             name: "plug".to_string(),
             version: None,
