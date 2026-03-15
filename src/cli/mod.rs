@@ -85,6 +85,10 @@ pub enum Command {
         /// List external sources instead of skills
         #[arg(long)]
         external: bool,
+
+        /// Interactive fuzzy finder with skill preview (requires fzf)
+        #[arg(long)]
+        fzf: bool,
     },
 
     /// Remove a skill source
@@ -1070,7 +1074,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
             Ok(())
         }
-        Command::List { patterns, external } => {
+        Command::List { patterns, external, fzf } => {
             let data_dir = crate::config::data_dir();
             let config_for_list = crate::config::load(cli.config.as_deref())?;
             let registry = crate::registry::load_registry(&data_dir)?;
@@ -1192,6 +1196,61 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
                 result
             };
+
+            // Interactive fzf mode
+            if fzf {
+                if skills.is_empty() {
+                    let output = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
+                    output.info("No skills to browse.");
+                    return Ok(());
+                }
+
+                // Build lines: "identity\tpath" — fzf shows identity, preview uses path
+                let mut lines = Vec::new();
+                for (source_name, plugin, skill) in &skills {
+                    let identity = crate::output::plain_identity(source_name, &plugin.name, &skill.name);
+                    let skill_md = skill.path.join("SKILL.md");
+                    lines.push(format!("{}\t{}", identity, skill_md.display()));
+                }
+
+                let input = lines.join("\n");
+
+                let mut child = std::process::Command::new("fzf")
+                    .args([
+                        "--ansi",
+                        "--delimiter=\t",
+                        "--with-nth=1",
+                        "--preview=cat {2}",
+                        "--preview-window=right:60%:wrap",
+                        "--header=Skills (tab to preview)",
+                    ])
+                    .stdin(std::process::Stdio::piped())
+                    .stdout(std::process::Stdio::piped())
+                    .spawn()
+                    .map_err(|e| {
+                        if e.kind() == std::io::ErrorKind::NotFound {
+                            anyhow::anyhow!("fzf not found in PATH. Install fzf: https://github.com/junegunn/fzf")
+                        } else {
+                            anyhow::anyhow!("failed to spawn fzf: {}", e)
+                        }
+                    })?;
+
+                if let Some(ref mut stdin) = child.stdin {
+                    use std::io::Write;
+                    let _ = stdin.write_all(input.as_bytes());
+                }
+                drop(child.stdin.take());
+
+                let output = child.wait_with_output()?;
+                if output.status.success() {
+                    let selected = String::from_utf8_lossy(&output.stdout);
+                    let selected = selected.trim();
+                    if let Some(identity) = selected.split('\t').next() {
+                        println!("{}", identity);
+                    }
+                }
+                return Ok(());
+            }
 
             // Single result → show detail view
             if skills.len() == 1 {
