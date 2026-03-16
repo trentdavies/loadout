@@ -1,4 +1,5 @@
 use clap::Parser;
+use loadout::cli::args::preprocess;
 use loadout::cli::Cli;
 
 /// Verify clap parsing of global flags at the Rust level.
@@ -397,4 +398,103 @@ fn detect_agents_returns_vec() {
     // Can't assert empty because the test runner's home may have agents
     // Just verify it returns without error
     let _ = result;
+}
+
+// --- Shorthand argument syntax integration tests ---
+
+fn pp(args: &[&str]) -> Vec<String> {
+    preprocess(args.iter().map(|s| s.to_string()).collect())
+}
+
+#[test]
+fn shorthand_top_level_at_parses() {
+    let processed = pp(&["loadout", "@claude", "dev*"]);
+    let cli = Cli::try_parse_from(&processed).unwrap();
+    match cli.command {
+        loadout::cli::Command::Agent { command } => match command {
+            loadout::cli::AgentCommand::Equip {
+                agent, patterns, ..
+            } => {
+                assert_eq!(agent, Some(vec!["claude".to_string()]));
+                assert_eq!(patterns, vec!["dev*".to_string()]);
+            }
+            _ => panic!("expected Equip"),
+        },
+        _ => panic!("expected Agent"),
+    }
+}
+
+#[test]
+fn shorthand_top_level_plus_parses() {
+    let processed = pp(&["loadout", "+developer"]);
+    let cli = Cli::try_parse_from(&processed).unwrap();
+    match cli.command {
+        loadout::cli::Command::Agent { command } => match command {
+            loadout::cli::AgentCommand::Equip { kit, .. } => {
+                assert_eq!(kit, Some("developer".to_string()));
+            }
+            _ => panic!("expected Equip"),
+        },
+        _ => panic!("expected Agent"),
+    }
+}
+
+#[test]
+fn shorthand_at_plus_with_save() {
+    let processed = pp(&["loadout", "@claude", "+developer", "-s", "dev*", "legal/*"]);
+    let cli = Cli::try_parse_from(&processed).unwrap();
+    match cli.command {
+        loadout::cli::Command::Agent { command } => match command {
+            loadout::cli::AgentCommand::Equip {
+                agent,
+                kit,
+                save,
+                patterns,
+                ..
+            } => {
+                assert_eq!(agent, Some(vec!["claude".to_string()]));
+                assert_eq!(kit, Some("developer".to_string()));
+                assert!(save);
+                assert_eq!(
+                    patterns,
+                    vec!["dev*".to_string(), "legal/*".to_string()]
+                );
+            }
+            _ => panic!("expected Equip"),
+        },
+        _ => panic!("expected Agent"),
+    }
+}
+
+#[test]
+fn shorthand_global_flags_preserved() {
+    let processed = pp(&["loadout", "-n", "--verbose", "@claude"]);
+    let cli = Cli::try_parse_from(&processed).unwrap();
+    assert!(cli.dry_run);
+    assert!(cli.verbose);
+    match cli.command {
+        loadout::cli::Command::Agent { command } => match command {
+            loadout::cli::AgentCommand::Equip { agent, .. } => {
+                assert_eq!(agent, Some(vec!["claude".to_string()]));
+            }
+            _ => panic!("expected Equip"),
+        },
+        _ => panic!("expected Agent"),
+    }
+}
+
+#[test]
+fn save_is_bool_flag() {
+    let processed = pp(&["loadout", "agent", "equip", "-s", "-k", "mykit", "dev*"]);
+    let cli = Cli::try_parse_from(&processed).unwrap();
+    match cli.command {
+        loadout::cli::Command::Agent { command } => match command {
+            loadout::cli::AgentCommand::Equip { save, kit, .. } => {
+                assert!(save);
+                assert_eq!(kit, Some("mykit".to_string()));
+            }
+            _ => panic!("expected Equip"),
+        },
+        _ => panic!("expected Agent"),
+    }
 }

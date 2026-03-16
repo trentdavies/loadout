@@ -1,3 +1,5 @@
+pub mod args;
+
 use clap::{Parser, Subcommand, ValueEnum};
 use colored::Colorize;
 
@@ -272,9 +274,9 @@ pub enum AgentCommand {
         #[arg(short, long)]
         kit: Option<String>,
 
-        /// After equipping, save the resolved skill set as a named kit
+        /// Save the resolved skill set as the kit given by --kit
         #[arg(short, long)]
-        save_kit: Option<String>,
+        save: bool,
 
         /// Overwrite changed skills without prompting
         #[arg(short, long)]
@@ -2315,7 +2317,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     agent,
                     all,
                     kit,
-                    save_kit,
+                    save,
                     force,
                     interactive,
                 } => {
@@ -2519,8 +2521,11 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         crate::registry::save_registry(&reg, &data_dir)?;
                     }
 
-                    // --save-kit: persist the resolved skill set
-                    if let Some(ref kit_name) = save_kit {
+                    // --save: persist the resolved skill set under the --kit name
+                    if save {
+                        let Some(ref kit_name) = kit else {
+                            anyhow::bail!("--save requires --kit to specify the kit name");
+                        };
                         let mut config = crate::config::load(cli.config.as_deref())?;
                         let mut skill_ids: Vec<String> = Vec::new();
                         for (src, plug, s) in &skills_to_apply {
