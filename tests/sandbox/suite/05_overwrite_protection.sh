@@ -29,7 +29,7 @@ test_01_apply_blocks_on_changed_skill() {
   short_name=$(_skill_short_name "$skill")
 
   # Ensure skill is installed first
-  "$LOADOUT" apply --force --skill "$skill" --agent sandbox-claude >/dev/null 2>&1
+  "$LOADOUT" agent equip "$skill" -a sandbox-claude -f >/dev/null 2>&1
 
   local skill_file
   skill_file=$(_find_installed_skill_md "$short_name")
@@ -43,7 +43,7 @@ test_01_apply_blocks_on_changed_skill() {
 
   # Apply WITHOUT --force — should be blocked
   local output exit_code
-  output=$("$LOADOUT" apply --skill "$skill" --agent sandbox-claude 2>&1)
+  output=$("$LOADOUT" agent equip "$skill" -a sandbox-claude 2>&1)
   exit_code=$?
 
   if [ "$exit_code" -ne 0 ]; then
@@ -75,12 +75,12 @@ test_02_unchanged_skill_applies_without_force() {
   local short_name
   short_name=$(_skill_short_name "$skill")
 
-  # Force-apply to ensure agent matches source exactly
-  "$LOADOUT" apply --force --skill "$skill" --agent sandbox-claude >/dev/null 2>&1
+  # Force-equip to ensure agent matches source exactly
+  "$LOADOUT" agent equip "$skill" -a sandbox-claude -f >/dev/null 2>&1
 
   # Apply again WITHOUT --force — should succeed (UNCHANGED)
   local output exit_code
-  output=$("$LOADOUT" apply --skill "$skill" --agent sandbox-claude 2>&1)
+  output=$("$LOADOUT" agent equip "$skill" -a sandbox-claude 2>&1)
   exit_code=$?
 
   if [ "$exit_code" -eq 0 ]; then
@@ -112,7 +112,7 @@ test_03_new_skill_applies_without_force() {
 
   # Apply WITHOUT --force — should succeed (NEW skill)
   local output exit_code
-  output=$("$LOADOUT" apply --skill "$skill" --agent sandbox-claude 2>&1)
+  output=$("$LOADOUT" agent equip "$skill" -a sandbox-claude 2>&1)
   exit_code=$?
 
   if [ "$exit_code" -eq 0 ]; then
@@ -147,7 +147,7 @@ test_04_force_flag_overwrites_changed() {
   short_name=$(_skill_short_name "$skill")
 
   # Ensure skill is installed cleanly
-  "$LOADOUT" apply --force --skill "$skill" --agent sandbox-claude >/dev/null 2>&1
+  "$LOADOUT" agent equip "$skill" -a sandbox-claude -f >/dev/null 2>&1
 
   local skill_file
   skill_file=$(_find_installed_skill_md "$short_name")
@@ -160,7 +160,7 @@ test_04_force_flag_overwrites_changed() {
   echo "# local edit that should be overwritten" >> "$skill_file"
 
   # Apply WITH --force — should overwrite
-  log_cmd "$LOADOUT" apply --force --skill "$skill" --agent sandbox-claude
+  log_cmd "$LOADOUT" agent equip "$skill" -a sandbox-claude -f
 
   # Verify the local modification is gone (overwritten by source)
   if grep -qF "local edit that should be overwritten" "$skill_file"; then
@@ -184,7 +184,7 @@ test_05_error_suggests_force_or_interactive() {
   short_name=$(_skill_short_name "$skill")
 
   # Ensure skill is installed cleanly, then tamper
-  "$LOADOUT" apply --force --skill "$skill" --agent sandbox-claude >/dev/null 2>&1
+  "$LOADOUT" agent equip "$skill" -a sandbox-claude -f >/dev/null 2>&1
 
   local skill_file
   skill_file=$(_find_installed_skill_md "$short_name")
@@ -196,7 +196,7 @@ test_05_error_suggests_force_or_interactive() {
   echo "# tampered for error message test" >> "$skill_file"
 
   local output
-  output=$("$LOADOUT" apply --skill "$skill" --agent sandbox-claude 2>&1)
+  output=$("$LOADOUT" agent equip "$skill" -a sandbox-claude 2>&1)
 
   local has_force=0 has_interactive=0
   echo "$output" | grep -qF -- "--force" && has_force=1

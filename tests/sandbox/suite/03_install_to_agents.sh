@@ -24,7 +24,7 @@ test_01_apply_single_skill() {
     return
   fi
 
-  log_cmd "$LOADOUT" apply --force --skill "$skill" --agent sandbox-claude
+  log_cmd "$LOADOUT" agent equip "$skill" -a sandbox-claude -f
 
   local short_name
   short_name=$(echo "$skill" | awk -F/ '{print $NF}')
@@ -51,7 +51,7 @@ test_02_apply_plugin() {
     return
   fi
 
-  log_cmd "$LOADOUT" apply --force --plugin "$plugin_name" --agent sandbox-claude
+  log_cmd "$LOADOUT" agent equip "$plugin_name/*" -a sandbox-claude -f
 
   local installed
   installed=$(find "$SANDBOX_TARGET_CLAUDE" -name "SKILL.md" -type f 2>/dev/null | wc -l | tr -d ' ')
@@ -75,8 +75,8 @@ test_03_apply_both_agents() {
     return
   fi
 
-  log_cmd "$LOADOUT" apply --force --skill "$skill" --agent sandbox-claude
-  log_cmd "$LOADOUT" apply --force --skill "$skill" --agent sandbox-codex
+  log_cmd "$LOADOUT" agent equip "$skill" -a sandbox-claude -f
+  log_cmd "$LOADOUT" agent equip "$skill" -a sandbox-codex -f
 
   local short_name
   short_name=$(echo "$skill" | awk -F/ '{print $NF}')
@@ -127,11 +127,11 @@ test_05_uninstall_one_agent() {
   short_name=$(echo "$skill" | awk -F/ '{print $NF}')
 
   # Ensure it's in both agents
-  "$LOADOUT" apply --force --skill "$skill" --agent sandbox-claude >/dev/null 2>&1
-  "$LOADOUT" apply --force --skill "$skill" --agent sandbox-codex >/dev/null 2>&1
+  "$LOADOUT" agent equip "$skill" -a sandbox-claude -f >/dev/null 2>&1
+  "$LOADOUT" agent equip "$skill" -a sandbox-codex -f >/dev/null 2>&1
 
   # Uninstall from claude only
-  log_cmd "$LOADOUT" uninstall --skill "$skill" --agent sandbox-claude --force
+  log_cmd "$LOADOUT" agent unequip "$skill" -a sandbox-claude -f
 
   local claude_found codex_found
   claude_found=$(find "$SANDBOX_TARGET_CLAUDE" -name "SKILL.md" -path "*$short_name*" 2>/dev/null | head -1)

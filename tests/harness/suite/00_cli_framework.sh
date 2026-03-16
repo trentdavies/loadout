@@ -4,14 +4,12 @@
 
 test_help_long_flag() {
   assert_exit_code 0 "$LOADOUT" --help
-  assert_stdout_contains "apply" "$LOADOUT" --help
-  assert_stdout_contains "uninstall" "$LOADOUT" --help
+  assert_stdout_contains "agent" "$LOADOUT" --help
   assert_stdout_contains "add" "$LOADOUT" --help
   assert_stdout_contains "remove" "$LOADOUT" --help
   assert_stdout_contains "update" "$LOADOUT" --help
   assert_stdout_contains "list" "$LOADOUT" --help
-  assert_stdout_contains "agent" "$LOADOUT" --help
-  assert_stdout_contains "bundle" "$LOADOUT" --help
+  assert_stdout_contains "kit" "$LOADOUT" --help
   assert_stdout_contains "status" "$LOADOUT" --help
   assert_stdout_contains "config" "$LOADOUT" --help
   assert_stdout_contains "init" "$LOADOUT" --help
@@ -39,16 +37,16 @@ test_agent_subcommand_help() {
   assert_stdout_contains "detect" "$LOADOUT" agent --help
 }
 
-test_bundle_subcommand_help() {
-  assert_exit_code 0 "$LOADOUT" bundle --help
-  assert_stdout_contains "create" "$LOADOUT" bundle --help
-  assert_stdout_contains "delete" "$LOADOUT" bundle --help
-  assert_stdout_contains "list" "$LOADOUT" bundle --help
-  assert_stdout_contains "show" "$LOADOUT" bundle --help
-  assert_stdout_contains "add" "$LOADOUT" bundle --help
-  assert_stdout_contains "drop" "$LOADOUT" bundle --help
-  assert_stdout_contains "activate" "$LOADOUT" bundle --help
-  assert_stdout_contains "deactivate" "$LOADOUT" bundle --help
+test_kit_subcommand_help() {
+  assert_exit_code 0 "$LOADOUT" kit --help
+  assert_stdout_contains "create" "$LOADOUT" kit --help
+  assert_stdout_contains "delete" "$LOADOUT" kit --help
+  assert_stdout_contains "list" "$LOADOUT" kit --help
+  assert_stdout_contains "show" "$LOADOUT" kit --help
+  assert_stdout_contains "add" "$LOADOUT" kit --help
+  assert_stdout_contains "drop" "$LOADOUT" kit --help
+  assert_stdout_contains "activate" "$LOADOUT" kit --help
+  assert_stdout_contains "deactivate" "$LOADOUT" kit --help
 }
 
 test_config_subcommand_help() {
@@ -57,14 +55,14 @@ test_config_subcommand_help() {
   assert_stdout_contains "edit" "$LOADOUT" config --help
 }
 
-test_apply_no_flags_errors() {
-  # apply with no flags should show help and exit non-zero
-  assert_exit_code 2 "$LOADOUT" apply
+test_agent_equip_no_flags_errors() {
+  # agent equip with no flags should show help and exit non-zero
+  assert_exit_code 2 "$LOADOUT" agent equip
 }
 
-test_uninstall_no_flags_errors() {
-  # uninstall with no flags should show help and exit non-zero
-  assert_exit_code 2 "$LOADOUT" uninstall
+test_agent_unequip_no_flags_errors() {
+  # agent unequip with no flags should show help and exit non-zero
+  assert_exit_code 2 "$LOADOUT" agent unequip
 }
 
 test_global_json_flag() {
@@ -83,9 +81,9 @@ test_global_json_flag() {
 }
 
 test_global_dry_run_flag() {
-  # apply --all -n should succeed without writing files
+  # agent equip "*" --all -n should succeed without writing files
   setup_source_and_agents
-  assert_exit_code 0 "$LOADOUT" apply --all -n
+  assert_exit_code 0 "$LOADOUT" agent equip "*" --all -n
   # Verify no skills were actually installed
   assert_file_not_exists "$TARGET_CLAUDE/skills"
 }

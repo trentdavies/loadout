@@ -87,7 +87,7 @@ test_agent_show() {
 
 test_agent_show_with_installed_skills() {
   setup_source_and_agents
-  "$LOADOUT" apply --force --skill test-plugin/explore --agent test-claude >/dev/null 2>&1
+  "$LOADOUT" agent equip test-plugin/explore -a test-claude -f >/dev/null 2>&1
   # Show should list installed skills
   assert_stdout_contains "explore" "$LOADOUT" agent show test-claude
 }

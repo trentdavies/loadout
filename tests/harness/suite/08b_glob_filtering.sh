@@ -142,7 +142,7 @@ test_glob_freeform_no_match() {
 
 test_glob_apply_wildcard() {
   setup_source_and_agents
-  "$LOADOUT" apply --force --skill "test-plugin/*" --agent test-claude >/dev/null 2>&1
+  "$LOADOUT" agent equip "test-plugin/*" -a test-claude -f >/dev/null 2>&1
   local exit_code=$?
 
   if [ "$exit_code" -eq 0 ]; then
@@ -159,7 +159,7 @@ test_glob_apply_wildcard() {
 test_glob_apply_partial() {
   setup_source_and_agents
   # "test-plugin/v*" should only install verify
-  "$LOADOUT" apply --force --skill "test-plugin/v*" --agent test-claude >/dev/null 2>&1
+  "$LOADOUT" agent equip "test-plugin/v*" -a test-claude -f >/dev/null 2>&1
 
   assert_file_exists "$TARGET_CLAUDE/skills/verify/SKILL.md"
   assert_file_not_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
@@ -168,12 +168,12 @@ test_glob_apply_partial() {
 
 test_glob_bundle_add() {
   setup_source_and_agents
-  "$LOADOUT" bundle create glob-b >/dev/null 2>&1
-  "$LOADOUT" bundle add glob-b "test-plugin/e*" >/dev/null 2>&1
+  "$LOADOUT" kit create glob-b >/dev/null 2>&1
+  "$LOADOUT" kit add glob-b "test-plugin/e*" >/dev/null 2>&1
   local exit_code=$?
 
   if [ "$exit_code" -eq 0 ]; then
-    "$LOADOUT" apply --force --bundle glob-b --agent test-claude >/dev/null 2>&1
+    "$LOADOUT" agent equip -k glob-b -a test-claude -f >/dev/null 2>&1
     assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
     assert_file_not_exists "$TARGET_CLAUDE/skills/apply/SKILL.md"
     assert_file_not_exists "$TARGET_CLAUDE/skills/verify/SKILL.md"

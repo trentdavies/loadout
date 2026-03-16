@@ -73,14 +73,14 @@ test_04_apply_from_local() {
   rm -rf "$SANDBOX_TARGET_CODEX/skills"
   mkdir -p "$SANDBOX_TARGET_CODEX"
 
-  log_cmd "$LOADOUT" apply --force --plugin "$plugin_name" --agent sandbox-codex
+  log_cmd "$LOADOUT" agent equip "$plugin_name/*" -a sandbox-codex -f
 
   local installed
   installed=$(find "$SANDBOX_TARGET_CODEX" -name "SKILL.md" -type f 2>/dev/null | wc -l | tr -d ' ')
 
   if [ "$installed" -gt 0 ]; then
     _pass "applied $installed skills from local source plugin $plugin_name"
-    log_check 1 "local source apply — $installed skills to codex via --plugin"
+    log_check 1 "local source equip — $installed skills to codex via plugin glob"
   else
     _fail "apply from local source produced 0 skills" "at least 1" "0"
     log_check 0 "apply from local source"
@@ -107,9 +107,9 @@ test_05_bundle_across_sources() {
   rm -rf "$SANDBOX_TARGET_CODEX/skills"
   mkdir -p "$SANDBOX_TARGET_CODEX"
 
-  log_cmd "$LOADOUT" bundle create cross-source-bundle
-  log_cmd "$LOADOUT" bundle add cross-source-bundle "$skill_a" "$skill_b"
-  log_cmd "$LOADOUT" apply --force --bundle cross-source-bundle --agent sandbox-codex
+  log_cmd "$LOADOUT" kit create cross-source-bundle
+  log_cmd "$LOADOUT" kit add cross-source-bundle "$skill_a" "$skill_b"
+  log_cmd "$LOADOUT" agent equip -k cross-source-bundle -a sandbox-codex -f
 
   local short_a short_b
   short_a=$(echo "$skill_a" | awk -F/ '{print $NF}')

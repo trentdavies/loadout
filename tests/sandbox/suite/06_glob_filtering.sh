@@ -197,7 +197,7 @@ test_10_apply_glob_to_agent() {
   find "$SANDBOX_TARGET_CODEX/skills" -mindepth 1 -maxdepth 1 -type d -exec rm -r {} + 2>/dev/null
   mkdir -p "$SANDBOX_TARGET_CODEX"
 
-  log_cmd "$LOADOUT" apply --force --skill "$plugin_name/*" --agent sandbox-codex
+  log_cmd "$LOADOUT" agent equip "$plugin_name/*" -a sandbox-codex -f
 
   local installed
   installed=$(find "$SANDBOX_TARGET_CODEX" -name "SKILL.md" -type f 2>/dev/null | wc -l | tr -d ' ')
