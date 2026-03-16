@@ -1,7 +1,7 @@
 use std::fs;
 use tempfile::TempDir;
 
-use loadout::config::{BundleConfig, Config, SourceConfig, AgentConfig};
+use loadout::config::{KitConfig, Config, SourceConfig, AgentConfig};
 use loadout::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry};
 use loadout::agent::resolve_adapter;
 
@@ -107,9 +107,9 @@ fn install_bundle() {
     let (_source_dir, target_dir, registry, mut config) = setup_test_env();
     let adapter = resolve_adapter(&config.agent[0], &config.adapter).unwrap();
 
-    config.bundle.insert(
+    config.kit.insert(
         "dev".to_string(),
-        BundleConfig {
+        KitConfig {
             skills: vec![
                 "test-plugin/skill-a".to_string(),
                 "test-plugin/skill-b".to_string(),
@@ -117,7 +117,7 @@ fn install_bundle() {
         },
     );
 
-    let bundle = &config.bundle["dev"];
+    let bundle = &config.kit["dev"];
     for identity in &bundle.skills {
         let (_src, _plug, skill) = registry.find_skill(identity).unwrap();
         adapter.install_skill(skill, target_dir.path()).unwrap();
@@ -225,9 +225,9 @@ fn uninstall_bundle() {
     let (_source_dir, target_dir, registry, mut config) = setup_test_env();
     let adapter = resolve_adapter(&config.agent[0], &config.adapter).unwrap();
 
-    config.bundle.insert(
+    config.kit.insert(
         "dev".to_string(),
-        BundleConfig {
+        KitConfig {
             skills: vec![
                 "test-plugin/skill-a".to_string(),
                 "test-plugin/skill-b".to_string(),
@@ -236,7 +236,7 @@ fn uninstall_bundle() {
     );
 
     // Install bundle skills
-    let bundle = &config.bundle["dev"];
+    let bundle = &config.kit["dev"];
     for identity in &bundle.skills {
         let (_src, _plug, skill) = registry.find_skill(identity).unwrap();
         adapter.install_skill(skill, target_dir.path()).unwrap();
@@ -247,7 +247,7 @@ fn uninstall_bundle() {
     );
 
     // Uninstall bundle skills
-    for identity in &config.bundle["dev"].skills {
+    for identity in &config.kit["dev"].skills {
         let (_src, _plug, skill) = registry.find_skill(identity).unwrap();
         adapter
             .uninstall_skill(&skill.name, target_dir.path())

@@ -146,28 +146,28 @@ pub const DEFAULT_CONFIG: &str = r#"# Loadout — Agent Skill Manager
 # scope = "repo"
 # sync = "explicit"
 
-# ─── Bundles ────────────────────────────────────────────────────────────────
-# Named groups of skills you can activate/deactivate together.
+# ─── Kits ──────────────────────────────────────────────────────────────────
+# Named groups of skills you can equip/unequip together.
 #
 # CLI:
-#   loadout bundle create <name> [skills...]    # create a bundle, optionally with skills
-#   loadout bundle add <name> <skills...>      # add skills to a bundle
-#   loadout bundle drop <name> <skills...>     # remove skills from a bundle
-#   loadout bundle activate <name> --all       # install all skills in a bundle
-#   loadout bundle deactivate <name> --all     # uninstall all skills in a bundle
-#   loadout bundle swap <from> <to> --force    # switch between bundles
-#   loadout bundle list                        # list all bundles
-#   loadout bundle delete <name> --force       # delete a bundle
+#   loadout kit create <name> [skills...]      # create a kit, optionally with skills
+#   loadout kit add <name> <skills...>         # add skills to a kit
+#   loadout kit drop <name> <skills...>        # remove skills from a kit
+#   loadout kit list                           # list all kits
+#   loadout kit delete <name> --force          # delete a kit
+#
+#   loadout agent equip -k <kit> --all         # equip a kit on all agents
+#   loadout agent unequip -k <kit> --all       # unequip a kit from all agents
 #
 # Example: context-switch between work and personal skill sets:
 #
-# [bundle.work]
+# [kit.work]
 # skills = ["legal/contract-review", "legal/compliance", "sales/call-prep"]
 #
-# [bundle.personal]
+# [kit.personal]
 # skills = ["productivity/daily-planner", "engineering/code-review"]
 #
-# [bundle.minimal]
+# [kit.minimal]
 # skills = ["productivity/daily-planner"]
 "#;
 

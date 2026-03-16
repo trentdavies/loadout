@@ -16,7 +16,7 @@ fn parse_help_flag() {
 
 #[test]
 fn parse_dry_run_flag() {
-    let cli = Cli::try_parse_from(["loadout", "-n", "apply", "--all"]).unwrap();
+    let cli = Cli::try_parse_from(["loadout", "-n", "status"]).unwrap();
     assert!(cli.dry_run);
 }
 
@@ -51,9 +51,9 @@ fn parse_config_override() {
 }
 
 #[test]
-fn parse_apply_requires_flag() {
-    // apply with no flags should parse OK at clap level (error is in run())
-    let result = Cli::try_parse_from(["loadout", "apply"]);
+fn parse_equip_parses_ok() {
+    // equip with no flags should parse OK at clap level (error is in run())
+    let result = Cli::try_parse_from(["loadout", "agent", "equip"]);
     assert!(result.is_ok());
 }
 
@@ -271,89 +271,103 @@ fn parse_init_without_url() {
 }
 
 #[test]
-fn parse_bundle_activate_with_target() {
+fn parse_kit_create() {
     let cli = Cli::try_parse_from([
         "loadout",
-        "bundle",
-        "activate",
+        "kit",
+        "create",
         "dev",
-        "my-claude",
-        "--force",
+        "plugin/skill-a",
+        "plugin/skill-b",
     ])
     .unwrap();
     match cli.command {
-        loadout::cli::Command::Bundle { command } => match command {
-            loadout::cli::BundleCommand::Activate {
-                name,
-                agent,
-                all,
-                force,
-            } => {
+        loadout::cli::Command::Kit { command } => match command {
+            loadout::cli::KitCommand::Create { name, skills } => {
                 assert_eq!(name, "dev");
-                assert_eq!(agent, Some("my-claude".to_string()));
-                assert!(!all);
+                assert_eq!(
+                    skills,
+                    vec!["plugin/skill-a".to_string(), "plugin/skill-b".to_string()]
+                );
+            }
+            _ => panic!("expected Create"),
+        },
+        _ => panic!("expected Kit"),
+    }
+}
+
+#[test]
+fn parse_kit_delete() {
+    let cli =
+        Cli::try_parse_from(["loadout", "kit", "delete", "dev", "--force"]).unwrap();
+    match cli.command {
+        loadout::cli::Command::Kit { command } => match command {
+            loadout::cli::KitCommand::Delete { name, force } => {
+                assert_eq!(name, "dev");
                 assert!(force);
             }
-            _ => panic!("expected Activate"),
+            _ => panic!("expected Delete"),
         },
-        _ => panic!("expected Bundle"),
+        _ => panic!("expected Kit"),
     }
 }
 
 #[test]
-fn parse_bundle_activate_with_all() {
-    let cli = Cli::try_parse_from(["loadout", "bundle", "activate", "dev", "--all"]).unwrap();
+fn parse_kit_show() {
+    let cli = Cli::try_parse_from(["loadout", "kit", "show", "dev"]).unwrap();
     match cli.command {
-        loadout::cli::Command::Bundle { command } => match command {
-            loadout::cli::BundleCommand::Activate {
-                name, all, agent, ..
-            } => {
+        loadout::cli::Command::Kit { command } => match command {
+            loadout::cli::KitCommand::Show { name } => {
                 assert_eq!(name, "dev");
-                assert!(all);
-                assert!(agent.is_none());
             }
-            _ => panic!("expected Activate"),
+            _ => panic!("expected Show"),
         },
-        _ => panic!("expected Bundle"),
+        _ => panic!("expected Kit"),
     }
 }
 
 #[test]
-fn parse_bundle_deactivate_with_target() {
+fn parse_kit_add_skills() {
     let cli = Cli::try_parse_from([
         "loadout",
-        "bundle",
-        "deactivate",
+        "kit",
+        "add",
         "dev",
-        "my-claude",
-        "--force",
+        "plugin/skill-a",
     ])
     .unwrap();
     match cli.command {
-        loadout::cli::Command::Bundle { command } => match command {
-            loadout::cli::BundleCommand::Deactivate {
-                name,
-                agent,
-                force,
-                ..
-            } => {
+        loadout::cli::Command::Kit { command } => match command {
+            loadout::cli::KitCommand::Add { name, skills } => {
                 assert_eq!(name, "dev");
-                assert_eq!(agent, Some("my-claude".to_string()));
-                assert!(force);
+                assert_eq!(skills, vec!["plugin/skill-a".to_string()]);
             }
-            _ => panic!("expected Deactivate"),
+            _ => panic!("expected Add"),
         },
-        _ => panic!("expected Bundle"),
+        _ => panic!("expected Kit"),
     }
 }
 
 #[test]
-fn parse_bundle_swap_no_longer_exists() {
-    let result = Cli::try_parse_from(["loadout", "bundle", "swap", "a", "b"]);
-    assert!(
-        result.is_err(),
-        "bundle swap should no longer be a valid subcommand"
-    );
+fn parse_kit_drop_skills() {
+    let cli = Cli::try_parse_from([
+        "loadout",
+        "kit",
+        "drop",
+        "dev",
+        "plugin/skill-a",
+    ])
+    .unwrap();
+    match cli.command {
+        loadout::cli::Command::Kit { command } => match command {
+            loadout::cli::KitCommand::Drop { name, skills } => {
+                assert_eq!(name, "dev");
+                assert_eq!(skills, vec!["plugin/skill-a".to_string()]);
+            }
+            _ => panic!("expected Drop"),
+        },
+        _ => panic!("expected Kit"),
+    }
 }
 
 #[test]

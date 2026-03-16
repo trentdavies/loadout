@@ -60,9 +60,9 @@ fn config_save_and_reload() {
 fn config_roundtrip_with_bundles_and_adapters() {
     let (_tmp, config_path, _) = setup_env();
     let mut config = loadout::config::Config::default();
-    config.bundle.insert(
+    config.kit.insert(
         "dev".to_string(),
-        loadout::config::BundleConfig {
+        loadout::config::KitConfig {
             skills: vec!["plugin/skill-a".to_string(), "plugin/skill-b".to_string()],
         },
     );
@@ -78,8 +78,8 @@ fn config_roundtrip_with_bundles_and_adapters() {
     loadout::config::save_to(&config, &config_path).unwrap();
 
     let reloaded = loadout::config::load_from(&config_path).unwrap();
-    assert_eq!(reloaded.bundle.len(), 1);
-    assert_eq!(reloaded.bundle["dev"].skills.len(), 2);
+    assert_eq!(reloaded.kit.len(), 1);
+    assert_eq!(reloaded.kit["dev"].skills.len(), 2);
     assert_eq!(reloaded.adapter.len(), 1);
     assert_eq!(reloaded.adapter["custom-agent"].skill_dir, "prompts/{name}");
 }

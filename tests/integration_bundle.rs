@@ -3,11 +3,11 @@ use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
-fn make_config_with_bundle(bundle_name: &str, skills: &[&str]) -> loadout::config::Config {
+fn make_config_with_kit(kit_name: &str, skills: &[&str]) -> loadout::config::Config {
     let mut config = loadout::config::Config::default();
-    config.bundle.insert(
-        bundle_name.to_string(),
-        loadout::config::BundleConfig {
+    config.kit.insert(
+        kit_name.to_string(),
+        loadout::config::KitConfig {
             skills: skills.iter().map(|s| s.to_string()).collect(),
         },
     );
@@ -73,45 +73,45 @@ fn make_adapter() -> loadout::agent::Adapter {
 #[test]
 fn bundle_create_in_config() {
     let mut config = loadout::config::Config::default();
-    assert!(!config.bundle.contains_key("dev"));
+    assert!(!config.kit.contains_key("dev"));
 
-    config.bundle.insert(
+    config.kit.insert(
         "dev".to_string(),
-        loadout::config::BundleConfig { skills: vec![] },
+        loadout::config::KitConfig { skills: vec![] },
     );
-    assert!(config.bundle.contains_key("dev"));
-    assert!(config.bundle["dev"].skills.is_empty());
+    assert!(config.kit.contains_key("dev"));
+    assert!(config.kit["dev"].skills.is_empty());
 }
 
 #[test]
 fn bundle_delete_from_config() {
-    let mut config = make_config_with_bundle("dev", &["plug/sk1"]);
-    assert!(config.bundle.contains_key("dev"));
+    let mut config = make_config_with_kit("dev", &["plug/sk1"]);
+    assert!(config.kit.contains_key("dev"));
 
-    config.bundle.remove("dev");
-    assert!(!config.bundle.contains_key("dev"));
+    config.kit.remove("dev");
+    assert!(!config.kit.contains_key("dev"));
 }
 
 #[test]
 fn bundle_add_skills() {
-    let mut config = make_config_with_bundle("dev", &["plug/sk1"]);
+    let mut config = make_config_with_kit("dev", &["plug/sk1"]);
 
-    let bundle = config.bundle.get_mut("dev").unwrap();
+    let bundle = config.kit.get_mut("dev").unwrap();
     bundle.skills.push("plug/sk2".to_string());
     bundle.skills.push("plug/sk3".to_string());
 
-    assert_eq!(config.bundle["dev"].skills.len(), 3);
+    assert_eq!(config.kit["dev"].skills.len(), 3);
 }
 
 #[test]
 fn bundle_drop_skills() {
-    let mut config = make_config_with_bundle("dev", &["plug/sk1", "plug/sk2", "plug/sk3"]);
+    let mut config = make_config_with_kit("dev", &["plug/sk1", "plug/sk2", "plug/sk3"]);
 
-    let bundle = config.bundle.get_mut("dev").unwrap();
+    let bundle = config.kit.get_mut("dev").unwrap();
     bundle.skills.retain(|s| s != "plug/sk2");
 
-    assert_eq!(config.bundle["dev"].skills.len(), 2);
-    assert!(!config.bundle["dev"]
+    assert_eq!(config.kit["dev"].skills.len(), 2);
+    assert!(!config.kit["dev"]
         .skills
         .contains(&"plug/sk2".to_string()));
 }
@@ -124,12 +124,12 @@ fn bundle_config_roundtrip() {
         (tmp, p)
     };
 
-    let config = make_config_with_bundle("production", &["core/explore", "core/apply"]);
+    let config = make_config_with_kit("production", &["core/explore", "core/apply"]);
     loadout::config::save_to(&config, &config_path).unwrap();
 
     let loaded = loadout::config::load_from(&config_path).unwrap();
-    assert_eq!(loaded.bundle["production"].skills.len(), 2);
-    assert!(loaded.bundle["production"]
+    assert_eq!(loaded.kit["production"].skills.len(), 2);
+    assert!(loaded.kit["production"]
         .skills
         .contains(&"core/explore".to_string()));
 }

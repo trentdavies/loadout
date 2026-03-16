@@ -111,119 +111,14 @@ pub enum Command {
         r#ref: Option<String>,
     },
 
-    /// Apply skills to agent(s)
-    Apply {
-        /// Apply all configured skills
-        #[arg(long)]
-        all: bool,
-
-        /// Skill identity (can be a glob pattern)
-        #[arg(long, num_args = 1..)]
-        skill: Option<Vec<String>>,
-
-        /// Plugin name (apply all skills from plugin)
-        #[arg(long)]
-        plugin: Option<String>,
-
-        /// Bundle name
-        #[arg(long)]
-        bundle: Option<String>,
-
-        /// Agent name(s) to apply to (repeatable)
-        #[arg(long, num_args = 1..)]
-        agent: Option<Vec<String>>,
-
-        /// Apply to all configured agents
-        #[arg(long, conflicts_with = "agent")]
-        all_agents: bool,
-
-        /// Overwrite changed skills without prompting
-        #[arg(long)]
-        force: bool,
-
-        /// Interactively resolve conflicts for changed skills
-        #[arg(short, long)]
-        interactive: bool,
-    },
-
-    /// Remove skills from agent(s)
-    Unapply {
-        /// Skill identity (can be a glob pattern)
-        #[arg(long, num_args = 1..)]
-        skill: Option<Vec<String>>,
-
-        /// Plugin name (remove all skills from plugin)
-        #[arg(long)]
-        plugin: Option<String>,
-
-        /// Bundle name
-        #[arg(long)]
-        bundle: Option<String>,
-
-        /// Agent name(s) to remove from (repeatable)
-        #[arg(long, num_args = 1..)]
-        agent: Option<Vec<String>>,
-
-        /// Remove from all configured agents
-        #[arg(long, conflicts_with = "agent")]
-        all_agents: bool,
-
-        /// Execute removal (default is preview/dry-run)
-        #[arg(long)]
-        force: bool,
-    },
-
-    /// Remove skills from agents (deprecated: use unapply)
-    #[command(hide = true)]
-    Uninstall {
-        /// Uninstall a specific skill (plugin/skill)
-        #[arg(long, value_name = "SKILL")]
-        skill: Option<String>,
-
-        /// Uninstall all skills from a plugin
-        #[arg(long, value_name = "PLUGIN")]
-        plugin: Option<String>,
-
-        /// Uninstall a bundle of skills
-        #[arg(long, value_name = "BUNDLE")]
-        bundle: Option<String>,
-
-        /// Agent to uninstall from
-        #[arg(long, value_name = "AGENT")]
-        agent: Option<String>,
-
-        /// Actually perform the uninstall (default is dry run)
-        #[arg(long)]
-        force: bool,
-    },
-
-    /// Collect skills from an agent back to source
-    Collect {
-        /// Skill name to collect
-        #[arg(long, value_name = "SKILL")]
-        skill: Option<String>,
-
-        /// Agent to collect from
-        #[arg(long, value_name = "AGENT")]
-        agent: String,
-
-        /// Adopt skill into plugins/ (make it yours)
-        #[arg(long)]
-        adopt: bool,
-
-        /// Auto-adopt all untracked skills without prompting
-        #[arg(long)]
-        force: bool,
-    },
-
     /// Show current status
     Status,
 
-    /// Manage skill bundles
+    /// Manage skill kits
     #[command(subcommand_required = true, arg_required_else_help = true)]
-    Bundle {
+    Kit {
         #[command(subcommand)]
-        command: BundleCommand,
+        command: KitCommand,
     },
 
     /// Manage agents
@@ -254,7 +149,7 @@ pub enum Command {
     /// Output completion values (used internally by shell scripts)
     #[command(name = "_complete", hide = true)]
     Complete {
-        /// Completion type: sources, plugins, skills, agents, bundles
+        /// Completion type: sources, plugins, skills, agents, kits
         kind: String,
     },
 }
@@ -267,85 +162,51 @@ pub enum CompletionShell {
 }
 
 #[derive(Subcommand)]
-pub enum BundleCommand {
-    /// Create a new bundle, optionally seeding it with skills
+pub enum KitCommand {
+    /// Create a new kit, optionally seeding it with skills
     Create {
-        /// Bundle name
+        /// Kit name
         name: String,
 
         /// Skills or glob patterns to add (e.g. "dev", "hashico*", "openai:openai-skills/skill-creator")
         skills: Vec<String>,
     },
-    /// Delete a bundle
+    /// Delete a kit
     Delete {
-        /// Bundle name
+        /// Kit name
         name: String,
 
-        /// Force deletion of active bundle
+        /// Force deletion
         #[arg(long)]
         force: bool,
     },
-    /// List all bundles, optionally filtered by name pattern
+    /// List all kits, optionally filtered by name pattern
     List {
         /// Name patterns to filter by (glob supported)
         patterns: Vec<String>,
     },
-    /// Show bundle details
+    /// Show kit details
     Show {
-        /// Bundle name
+        /// Kit name
         name: String,
     },
-    /// Add skills to a bundle
+    /// Add skills to a kit
     Add {
-        /// Bundle name
+        /// Kit name
         name: String,
 
         /// Skills to add (plugin/skill)
         #[arg(required = true)]
         skills: Vec<String>,
     },
-    /// Remove skills from a bundle
+    /// Remove skills from a kit
     Drop {
-        /// Bundle name
+        /// Kit name
         name: String,
 
         /// Skills to remove (plugin/skill)
         #[arg(required = true)]
         skills: Vec<String>,
-    },
-    /// Activate a bundle (deprecated: use `loadout apply --bundle`)
-    #[command(hide = true)]
-    Activate {
-        /// Bundle name
-        name: String,
-
-        /// Agent to activate on
-        agent: Option<String>,
-
-        /// Activate on all configured agents
-        #[arg(long)]
-        all: bool,
-
-        /// Actually perform the activation (default is dry run)
-        #[arg(long)]
-        force: bool,
-    },
-    /// Deactivate a bundle (deprecated: use `loadout unapply --bundle`)
-    #[command(hide = true)]
-    Deactivate {
-        /// Bundle name
-        name: String,
-
-        /// Agent to deactivate from
-        agent: Option<String>,
-
-        /// Deactivate from all configured agents
-        #[arg(long)]
-        all: bool,
-
-        /// Actually perform the deactivation (default is dry run)
-        #[arg(long)]
-        force: bool,
     },
 }
 
@@ -390,6 +251,77 @@ pub enum AgentCommand {
     /// Detect agent installations and prompt to add them
     Detect {
         /// Automatically add all detected agents without prompting
+        #[arg(long)]
+        force: bool,
+    },
+
+    /// Equip skills to agent(s)
+    Equip {
+        /// Glob patterns matching skills (e.g. "legal/*", "*")
+        patterns: Vec<String>,
+
+        /// Agent name(s) to equip to (repeatable; defaults to auto-sync agents)
+        #[arg(short, long, num_args = 1..)]
+        agent: Option<Vec<String>>,
+
+        /// Equip to all configured agents
+        #[arg(long, conflicts_with = "agent")]
+        all: bool,
+
+        /// Equip a saved kit by name
+        #[arg(short, long)]
+        kit: Option<String>,
+
+        /// After equipping, save the resolved skill set as a named kit
+        #[arg(short, long)]
+        save_kit: Option<String>,
+
+        /// Overwrite changed skills without prompting
+        #[arg(short, long)]
+        force: bool,
+
+        /// Interactively resolve conflicts for changed skills
+        #[arg(short, long)]
+        interactive: bool,
+    },
+
+    /// Unequip skills from agent(s)
+    Unequip {
+        /// Glob patterns matching skills (e.g. "legal/*", "*")
+        patterns: Vec<String>,
+
+        /// Agent name(s) to unequip from (repeatable; defaults to auto-sync agents)
+        #[arg(short, long, num_args = 1..)]
+        agent: Option<Vec<String>>,
+
+        /// Unequip from all configured agents
+        #[arg(long, conflicts_with = "agent")]
+        all: bool,
+
+        /// Unequip a saved kit by name
+        #[arg(short, long)]
+        kit: Option<String>,
+
+        /// Execute removal (default is preview)
+        #[arg(short, long)]
+        force: bool,
+    },
+
+    /// Collect skills from an agent back to source
+    Collect {
+        /// Agent to collect from
+        #[arg(long, value_name = "AGENT")]
+        agent: String,
+
+        /// Skill name to collect
+        #[arg(long, value_name = "SKILL")]
+        skill: Option<String>,
+
+        /// Adopt skill into plugins/ (make it yours)
+        #[arg(long)]
+        adopt: bool,
+
+        /// Auto-adopt all untracked skills without prompting
         #[arg(long)]
         force: bool,
     },
@@ -631,156 +563,6 @@ fn resolve_agents<'a>(
         anyhow::bail!("no agents configured. Use `loadout agent add` first.");
     }
     Ok(auto)
-}
-
-fn do_unapply(
-    config_path: Option<&str>,
-    json: bool,
-    quiet: bool,
-    verbose: bool,
-    dry_run: bool,
-    skill: Option<Vec<String>>,
-    plugin: Option<String>,
-    bundle: Option<String>,
-    agent: Option<Vec<String>>,
-    all_agents: bool,
-    force: bool,
-) -> anyhow::Result<()> {
-    use colored::Colorize;
-
-    if skill.is_none() && plugin.is_none() && bundle.is_none() {
-        eprintln!("error: unapply requires --skill, --plugin, or --bundle");
-        std::process::exit(2);
-    }
-
-    let config = crate::config::load(config_path)?;
-    let data_dir = crate::config::data_dir();
-    let mut registry = crate::registry::load_registry(&data_dir)?;
-    let renames = crate::registry::reconcile_with_config(
-        &mut registry,
-        &config.source,
-        &data_dir,
-    )?;
-    if !renames.is_empty() {
-        crate::registry::save_registry(&registry, &data_dir)?;
-        if !quiet {
-            for r in &renames {
-                eprintln!("source renamed: {}", r);
-            }
-        }
-    }
-    let out = crate::output::Output::from_flags(json, quiet, verbose);
-
-    let agents = resolve_agents(&config, &agent, all_agents)?;
-
-    // Collect skill names to remove
-    let mut skill_names: Vec<String> = Vec::new();
-
-    if let Some(ref skill_ids) = skill {
-        for skill_id in skill_ids {
-            if crate::registry::is_glob(skill_id) {
-                let matches = registry.match_skills(skill_id);
-                if matches.is_empty() {
-                    anyhow::bail!("no skills matched pattern '{}'", skill_id);
-                }
-                for (_, _, s) in matches {
-                    if !skill_names.contains(&s.name) {
-                        skill_names.push(s.name.clone());
-                    }
-                }
-            } else {
-                let (_, _, s) = registry.find_skill(skill_id)?;
-                if !skill_names.contains(&s.name) {
-                    skill_names.push(s.name.clone());
-                }
-            }
-        }
-    }
-
-    if let Some(ref plugin_name) = plugin {
-        let (_, p) = registry
-            .find_plugin(plugin_name)
-            .ok_or_else(|| anyhow::anyhow!("plugin '{}' not found", plugin_name))?;
-        for s in &p.skills {
-            if !skill_names.contains(&s.name) {
-                skill_names.push(s.name.clone());
-            }
-        }
-    }
-
-    if let Some(ref bundle_name) = bundle {
-        let bundle_cfg = config
-            .bundle
-            .get(bundle_name)
-            .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", bundle_name))?;
-        for skill_id in &bundle_cfg.skills {
-            let (_, _, s) = registry.find_skill(skill_id)?;
-            if !skill_names.contains(&s.name) {
-                skill_names.push(s.name.clone());
-            }
-        }
-    }
-
-    let execute = force && !dry_run;
-    let mut total_removed = 0usize;
-    let mut _total_skipped = 0usize;
-
-    for ac in &agents {
-        let adapter = crate::agent::resolve_adapter(ac, &config.adapter)?;
-        let installed = adapter.installed_skills(&ac.path).unwrap_or_default();
-
-        for name in &skill_names {
-            if installed.contains(name) {
-                // Look up provenance for colored identity
-                let identity = registry
-                    .installed
-                    .get(&ac.name)
-                    .and_then(|m| m.get(name))
-                    .map(|info| {
-                        crate::output::format_identity(&info.source, &info.plugin, &info.skill)
-                    })
-                    .unwrap_or_else(|| name.clone());
-
-                if execute {
-                    adapter.uninstall_skill(name, &ac.path)?;
-                    if let Some(agent_map) = registry.installed.get_mut(&ac.name) {
-                        agent_map.remove(name);
-                    }
-                    out.success(&format!(
-                        "Removed {} from {}",
-                        identity,
-                        ac.name.bold()
-                    ));
-                    total_removed += 1;
-                } else {
-                    out.info(&format!("  {} from {}", identity, ac.name.bold()));
-                    total_removed += 1;
-                }
-            } else {
-                _total_skipped += 1;
-            }
-        }
-    }
-
-    if !execute && total_removed > 0 {
-        out.info("");
-        out.warn("Preview only. Use --force to execute.");
-    }
-
-    if execute {
-        crate::registry::save_registry(&registry, &data_dir)?;
-        if !quiet {
-            out.info(&format!(
-                "Removed {} skill(s) from {} agent(s)",
-                total_removed,
-                agents.len()
-            ));
-        }
-    } else if total_removed == 0 && !quiet {
-        out.info("No matching skills found on agent(s).");
-    }
-
-    Ok(())
 }
 
 pub fn run(cli: Cli) -> anyhow::Result<()> {
@@ -1554,414 +1336,6 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
             Ok(())
         }
-        Command::Apply {
-            all,
-            skill,
-            plugin,
-            bundle,
-            agent,
-            all_agents,
-            force,
-            interactive,
-        } => {
-            if !all && skill.is_none() && plugin.is_none() && bundle.is_none() {
-                eprintln!("error: apply requires --all, --skill, --plugin, or --bundle");
-                std::process::exit(2);
-            }
-
-            let config_path_str = cli.config.as_deref();
-            let config = crate::config::load(config_path_str)?;
-            let data_dir = crate::config::data_dir();
-            let mut registry = crate::registry::load_registry(&data_dir)?;
-            let renames = crate::registry::reconcile_with_config(
-                &mut registry,
-                &config.source,
-                &data_dir,
-            )?;
-            if !renames.is_empty() {
-                crate::registry::save_registry(&registry, &data_dir)?;
-                if !cli.quiet {
-                    for r in &renames {
-                        eprintln!("source renamed: {}", r);
-                    }
-                }
-            }
-
-            // Determine which agents to apply to
-            let agents = resolve_agents(&config, &agent, all_agents)?;
-
-            // Collect skills to apply with provenance: (source, plugin, skill)
-            let mut skills_to_apply: Vec<(&str, &str, &crate::registry::RegisteredSkill)> =
-                Vec::new();
-
-            if all {
-                for src in &registry.sources {
-                    for p in &src.plugins {
-                        for s in &p.skills {
-                            skills_to_apply.push((&src.name, &p.name, s));
-                        }
-                    }
-                }
-            }
-
-            if let Some(ref skill_ids) = skill {
-                for skill_id in skill_ids {
-                    if crate::registry::is_glob(skill_id) {
-                        let matches = registry.match_skills(skill_id);
-                        if matches.is_empty() {
-                            anyhow::bail!("no skills matched pattern '{}'", skill_id);
-                        }
-                        for (src, plugin, s) in matches {
-                            skills_to_apply.push((src, &plugin.name, s));
-                        }
-                    } else {
-                        let (src, plug, s) = registry.find_skill(skill_id)?;
-                        skills_to_apply.push((src, plug, s));
-                    }
-                }
-            }
-
-            if let Some(ref plugin_name) = plugin {
-                let (src_name, p) = registry
-                    .find_plugin(plugin_name)
-                    .ok_or_else(|| anyhow::anyhow!("plugin '{}' not found", plugin_name))?;
-                for s in &p.skills {
-                    skills_to_apply.push((src_name, &p.name, s));
-                }
-            }
-
-            if let Some(ref bundle_name) = bundle {
-                let bundle_cfg = config
-                    .bundle
-                    .get(bundle_name)
-                    .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", bundle_name))?;
-                for skill_id in &bundle_cfg.skills {
-                    let (src, plug, s) = registry.find_skill(skill_id)?;
-                    skills_to_apply.push((src, plug, s));
-                }
-            }
-
-            // Apply to each agent with conflict detection
-            let mut new_count: usize = 0;
-            let mut updated_count: usize = 0;
-            let mut unchanged_count: usize = 0;
-            let mut conflict_skipped: usize = 0;
-            let mut force_remaining = force;
-            let mut reg = registry.clone();
-
-            for ac in &agents {
-                let adapter = crate::agent::resolve_adapter(ac, &config.adapter)?;
-
-                // First pass: detect conflicts in default mode (no --force, no -i)
-                if !force && !interactive && !cli.dry_run {
-                    let mut conflicts = Vec::new();
-                    for (_, _, s) in &skills_to_apply {
-                        let status = adapter.compare_skill(s, &ac.path)?;
-                        if status == crate::agent::SkillStatus::Changed {
-                            conflicts.push(s.name.clone());
-                        }
-                    }
-                    if !conflicts.is_empty() {
-                        eprintln!(
-                            "error: {} skill(s) have changed at agent '{}':",
-                            conflicts.len(),
-                            ac.name
-                        );
-                        for name in &conflicts {
-                            eprintln!("  - {}", name);
-                        }
-                        eprintln!();
-                        eprintln!("Use --force to overwrite, or -i for interactive resolution.");
-                        std::process::exit(1);
-                    }
-                }
-
-                for (src_name, plug_name, s) in &skills_to_apply {
-                    let status = adapter.compare_skill(s, &ac.path)?;
-
-                    if cli.dry_run {
-                        if !cli.quiet {
-                            let label = match status {
-                                crate::agent::SkillStatus::New => "new",
-                                crate::agent::SkillStatus::Unchanged => "unchanged",
-                                crate::agent::SkillStatus::Changed => "changed",
-                            };
-                            println!(
-                                "  (dry run) {} → {} [{}]",
-                                crate::output::format_identity(src_name, plug_name, &s.name),
-                                ac.name,
-                                label
-                            );
-                        }
-                        continue;
-                    }
-
-                    match status {
-                        crate::agent::SkillStatus::Unchanged => {
-                            unchanged_count += 1;
-                            continue;
-                        }
-                        crate::agent::SkillStatus::New => {
-                            adapter.install_skill(s, &ac.path)?;
-                            record_provenance(&mut reg, &data_dir, ac, src_name, plug_name, s);
-                            new_count += 1;
-                        }
-                        crate::agent::SkillStatus::Changed => {
-                            if force_remaining {
-                                adapter.install_skill(s, &ac.path)?;
-                                record_provenance(&mut reg, &data_dir, ac, src_name, plug_name, s);
-                                updated_count += 1;
-                            } else if interactive {
-                                let action = prompt_conflict(s, &adapter, &ac.path)?;
-                                match action {
-                                    ConflictAction::Skip => {
-                                        conflict_skipped += 1;
-                                    }
-                                    ConflictAction::Overwrite => {
-                                        adapter.install_skill(s, &ac.path)?;
-                                        record_provenance(
-                                            &mut reg, &data_dir, ac, src_name, plug_name, s,
-                                        );
-                                        updated_count += 1;
-                                    }
-                                    ConflictAction::ForceAll => {
-                                        adapter.install_skill(s, &ac.path)?;
-                                        record_provenance(
-                                            &mut reg, &data_dir, ac, src_name, plug_name, s,
-                                        );
-                                        updated_count += 1;
-                                        force_remaining = true;
-                                    }
-                                    ConflictAction::Quit => {
-                                        // Save what we have so far and exit
-                                        crate::registry::save_registry(&reg, &data_dir)?;
-                                        print_apply_summary(
-                                            new_count,
-                                            updated_count,
-                                            unchanged_count,
-                                            conflict_skipped,
-                                            cli.quiet,
-                                        );
-                                        return Ok(());
-                                    }
-                                }
-                            }
-                            // Default mode with conflicts is handled above (exits before this loop)
-                        }
-                    }
-                }
-            }
-
-            if !cli.dry_run {
-                crate::registry::save_registry(&reg, &data_dir)?;
-            }
-
-            if !cli.quiet && !cli.dry_run {
-                print_apply_summary(
-                    new_count,
-                    updated_count,
-                    unchanged_count,
-                    conflict_skipped,
-                    cli.quiet,
-                );
-            }
-            Ok(())
-        }
-        Command::Unapply {
-            skill,
-            plugin,
-            bundle,
-            agent,
-            all_agents,
-            force,
-        } => do_unapply(
-            cli.config.as_deref(), cli.json, cli.quiet, cli.verbose, cli.dry_run,
-            skill, plugin, bundle, agent, all_agents, force,
-        ),
-
-        Command::Uninstall {
-            skill,
-            plugin,
-            bundle,
-            agent,
-            force,
-        } => {
-            // Delegate to unapply logic, wrapping single skill/agent into Vec form
-            let skill_vec = skill.map(|s| vec![s]);
-            let agent_vec = agent.map(|a| vec![a]);
-            do_unapply(
-                cli.config.as_deref(), cli.json, cli.quiet, cli.verbose, cli.dry_run,
-                skill_vec, plugin, bundle, agent_vec, false, force,
-            )
-        }
-        Command::Collect {
-            skill,
-            agent,
-            adopt,
-            force,
-        } => {
-            let config = crate::config::load(cli.config.as_deref())?;
-            let data_dir = crate::config::data_dir();
-            let mut registry = crate::registry::load_registry(&data_dir)?;
-            let renames = crate::registry::reconcile_with_config(
-                &mut registry,
-                &config.source,
-                &data_dir,
-            )?;
-            if !renames.is_empty() {
-                crate::registry::save_registry(&registry, &data_dir)?;
-                if !cli.quiet {
-                    for r in &renames {
-                        eprintln!("source renamed: {}", r);
-                    }
-                }
-            }
-            let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
-
-            let ac = config
-                .agent
-                .iter()
-                .find(|a| a.name == agent)
-                .ok_or_else(|| anyhow::anyhow!("agent '{}' not found", agent))?;
-            let adapter = crate::agent::resolve_adapter(ac, &config.adapter)?;
-            let installed_on_agent = adapter.installed_skills(&ac.path)?;
-
-            if let Some(ref skill_name) = skill {
-                // Collect a specific skill
-                let agent_skill_dir = ac.path.join("skills").join(skill_name);
-                if !agent_skill_dir.exists() {
-                    anyhow::bail!("skill '{}' not found on agent '{}'", skill_name, agent);
-                }
-
-                if adopt {
-                    // Copy to plugins/
-                    let provenance = registry
-                        .installed
-                        .get(&agent)
-                        .and_then(|m| m.get(skill_name));
-                    let plugin_name = provenance
-                        .map(|info| info.plugin.clone())
-                        .unwrap_or_else(|| "local".to_string());
-                    let source_name = provenance
-                        .map(|info| info.source.clone())
-                        .unwrap_or_else(|| "local".to_string());
-
-                    let dest_plugin = crate::config::plugins_dir().join(&plugin_name);
-                    let dest_skill = dest_plugin.join("skills").join(skill_name);
-                    std::fs::create_dir_all(&dest_skill)?;
-                    copy_dir_all(&agent_skill_dir, &dest_skill)?;
-
-                    // Create plugin.json if missing
-                    let plugin_json_dir = dest_plugin.join(".claude-plugin");
-                    let plugin_json = plugin_json_dir.join("plugin.json");
-                    if !plugin_json.exists() {
-                        std::fs::create_dir_all(&plugin_json_dir)?;
-                        let json = serde_json::json!({"name": plugin_name});
-                        std::fs::write(&plugin_json, serde_json::to_string_pretty(&json)?)?;
-                    }
-
-                    // Regenerate marketplace
-                    generate_marketplace(&data_dir)?;
-                    let identity =
-                        crate::output::format_identity(&source_name, &plugin_name, skill_name);
-                    out.success(&format!("Adopted {}", identity));
-                } else {
-                    // Copy back to origin
-                    let provenance = registry
-                        .installed
-                        .get(&agent)
-                        .and_then(|m| m.get(skill_name));
-
-                    if let Some(info) = provenance {
-                        let dest = data_dir.join(&info.origin);
-                        std::fs::create_dir_all(&dest)?;
-                        copy_dir_all(&agent_skill_dir, &dest)?;
-                        let identity =
-                            crate::output::format_identity(&info.source, &info.plugin, &info.skill);
-                        out.success(&format!("Collected {} → {}", identity, info.origin));
-                    } else {
-                        out.warn(&format!(
-                            "'{}' has no provenance. Use --adopt to claim it.",
-                            skill_name
-                        ));
-                    }
-                }
-            } else {
-                // Scan agent for all skills
-                let agent_installs = registry.installed.get(&agent).cloned().unwrap_or_default();
-
-                let mut tracked = Vec::new();
-                let mut untracked = Vec::new();
-
-                for skill_name in &installed_on_agent {
-                    if let Some(info) = agent_installs.get(skill_name) {
-                        tracked.push((skill_name.clone(), info.clone()));
-                    } else {
-                        untracked.push(skill_name.clone());
-                    }
-                }
-
-                if !tracked.is_empty() {
-                    out.info("Tracked:");
-                    for (_name, info) in &tracked {
-                        let identity =
-                            crate::output::format_identity(&info.source, &info.plugin, &info.skill);
-                        out.info(&format!("  {} ← {}", identity, info.origin));
-                    }
-                }
-
-                if !untracked.is_empty() {
-                    out.info("Untracked:");
-                    for name in &untracked {
-                        out.info(&format!("  {}", name));
-                    }
-
-                    let should_adopt = if force {
-                        true
-                    } else if !untracked.is_empty() {
-                        eprint!(
-                            "Adopt {} untracked skill(s) into plugins/local? [y/N] ",
-                            untracked.len()
-                        );
-                        let mut input = String::new();
-                        std::io::stdin().read_line(&mut input).unwrap_or(0);
-                        input.trim().eq_ignore_ascii_case("y")
-                    } else {
-                        false
-                    };
-
-                    if should_adopt {
-                        let local_plugin = crate::config::plugins_dir().join("local");
-                        for name in &untracked {
-                            let agent_skill_dir = ac.path.join("skills").join(name);
-                            let dest = local_plugin.join("skills").join(name);
-                            std::fs::create_dir_all(&dest)?;
-                            copy_dir_all(&agent_skill_dir, &dest)?;
-                            let identity = crate::output::format_identity("local", "local", name);
-                            out.success(&format!("Adopted {}", identity));
-                        }
-
-                        // Create plugin.json for local plugin if missing
-                        let plugin_json_dir = local_plugin.join(".claude-plugin");
-                        let plugin_json = plugin_json_dir.join("plugin.json");
-                        if !plugin_json.exists() {
-                            std::fs::create_dir_all(&plugin_json_dir)?;
-                            let json = serde_json::json!({"name": "local"});
-                            std::fs::write(&plugin_json, serde_json::to_string_pretty(&json)?)?;
-                        }
-
-                        generate_marketplace(&data_dir)?;
-                    }
-                }
-
-                if tracked.is_empty() && untracked.is_empty() {
-                    out.info("No skills found on agent.");
-                }
-            }
-
-            crate::registry::save_registry(&registry, &data_dir)?;
-            Ok(())
-        }
         Command::Status => {
             let config = crate::config::load(cli.config.as_deref())?;
             let data_dir = crate::config::data_dir();
@@ -2005,7 +1379,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     "plugins": registry.sources.iter().flat_map(|s| &s.plugins).count(),
                     "skills": total_skills,
                     "installed": total_installed,
-                    "bundles": config.bundle.len(),
+                    "kits": config.kit.len(),
                 });
                 println!("{}", serde_json::to_string_pretty(&json)?);
                 return Ok(());
@@ -2061,16 +1435,16 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 }
             }
 
-            // Bundles section
-            out.header("Bundles");
-            if config.bundle.is_empty() {
+            // Kits section
+            out.header("Kits");
+            if config.kit.is_empty() {
                 out.info("  (none)");
             } else {
-                for (name, bundle) in &config.bundle {
+                for (name, kit) in &config.kit {
                     println!(
                         "  {} {}",
                         name.bold(),
-                        format!("({} skills)", bundle.skills.len()).dimmed(),
+                        format!("({} skills)", kit.skills.len()).dimmed(),
                     );
                 }
             }
@@ -2399,23 +1773,23 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
             Ok(())
         }
-        Command::Bundle {
-            command: bundle_cmd,
+        Command::Kit {
+            command: kit_cmd,
         } => {
             let config_path_str = cli.config.as_deref();
             let mut config = crate::config::load(config_path_str)?;
             let data_dir = crate::config::data_dir();
 
-            match bundle_cmd {
-                BundleCommand::Create { name, skills } => {
+            match kit_cmd {
+                KitCommand::Create { name, skills } => {
                     let out =
                         crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
-                    if config.bundle.contains_key(&name) {
-                        anyhow::bail!("bundle '{}' already exists", name);
+                    if config.kit.contains_key(&name) {
+                        anyhow::bail!("kit '{}' already exists", name);
                     }
                     config
-                        .bundle
-                        .insert(name.clone(), crate::config::BundleConfig::default());
+                        .kit
+                        .insert(name.clone(), crate::config::KitConfig::default());
 
                     let mut added = 0usize;
                     let mut external = 0usize;
@@ -2423,14 +1797,14 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     if !skills.is_empty() {
                         let registry = crate::registry::load_registry(&data_dir)?;
                         let ext_sources = external_source_set(&config);
-                        let bundle = config.bundle.get_mut(&name).unwrap();
+                        let kit = config.kit.get_mut(&name).unwrap();
                         for skill_id in &skills {
                             let resolved = resolve_skills_for_bundle(
                                 skill_id, &registry,
                             )?;
                             for (src, fq) in resolved {
-                                if !bundle.skills.contains(&fq) {
-                                    bundle.skills.push(fq);
+                                if !kit.skills.contains(&fq) {
+                                    kit.skills.push(fq);
                                     added += 1;
                                     if ext_sources.contains(src.as_str()) {
                                         external += 1;
@@ -2442,10 +1816,10 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         }
                     }
 
-                    let total = config.bundle[&name].skills.len();
+                    let total = config.kit[&name].skills.len();
                     crate::config::save(&config, config_path_str)?;
                     if added > 0 {
-                        out.success(&format!("Created bundle '{}'", name));
+                        out.success(&format!("Created kit '{}'", name));
                         out.info(&format!(
                             "  {} added ({}), {} total",
                             added,
@@ -2453,35 +1827,35 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                             total,
                         ));
                     } else {
-                        out.success(&format!("Created bundle '{}'", name));
+                        out.success(&format!("Created kit '{}'", name));
                     }
                     Ok(())
                 }
-                BundleCommand::Delete { name, force } => {
+                KitCommand::Delete { name, force } => {
                     let out =
                         crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
-                    if !config.bundle.contains_key(&name) {
-                        anyhow::bail!("bundle '{}' not found", name);
+                    if !config.kit.contains_key(&name) {
+                        anyhow::bail!("kit '{}' not found", name);
                     }
 
                     let execute = force && !cli.dry_run;
                     if execute {
-                        config.bundle.remove(&name);
+                        config.kit.remove(&name);
                         crate::config::save(&config, config_path_str)?;
-                        out.success(&format!("Deleted bundle '{}'", name));
+                        out.success(&format!("Deleted kit '{}'", name));
                     } else {
-                        out.info(&format!("Would delete bundle '{}'", name));
+                        out.info(&format!("Would delete kit '{}'", name));
                         out.info("Use --force to delete");
                     }
                     Ok(())
                 }
-                BundleCommand::List { patterns } => {
-                    let bundles: Vec<(&String, &crate::config::BundleConfig)> =
+                KitCommand::List { patterns } => {
+                    let kits: Vec<(&String, &crate::config::KitConfig)> =
                         if patterns.is_empty() {
-                            config.bundle.iter().collect()
+                            config.kit.iter().collect()
                         } else {
                             config
-                                .bundle
+                                .kit
                                 .iter()
                                 .filter(|(name, _)| {
                                     patterns.iter().any(|pat| {
@@ -2496,7 +1870,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         };
 
                     if cli.json {
-                        let entries: Vec<serde_json::Value> = bundles
+                        let entries: Vec<serde_json::Value> = kits
                             .iter()
                             .map(|(name, b)| {
                                 serde_json::json!({
@@ -2510,16 +1884,16 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
 
                     let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
-                    if bundles.is_empty() {
+                    if kits.is_empty() {
                         if patterns.is_empty() {
-                            out.info("No bundles configured. Use `loadout bundle create` to create one.");
+                            out.info("No kits configured. Use `loadout kit create` to create one.");
                         } else {
-                            out.info("No bundles matched the given pattern(s)");
+                            out.info("No kits matched the given pattern(s)");
                         }
                         return Ok(());
                     }
 
-                    for (name, b) in &bundles {
+                    for (name, b) in &kits {
                         println!("{} {}", name.bold(), format!("({})", b.skills.len()).dimmed());
                         for (i, skill_id) in b.skills.iter().enumerate() {
                             let connector = if i == b.skills.len() - 1 { "└──" } else { "├──" };
@@ -2537,39 +1911,39 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
                     Ok(())
                 }
-                BundleCommand::Show { name } => {
-                    let bundle = config
-                        .bundle
+                KitCommand::Show { name } => {
+                    let kit = config
+                        .kit
                         .get(&name)
-                        .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", name))?;
+                        .ok_or_else(|| anyhow::anyhow!("kit '{}' not found", name))?;
 
                     if cli.json {
                         let json = serde_json::json!({
                             "name": name,
-                            "skills": bundle.skills,
+                            "skills": kit.skills,
                         });
                         println!("{}", serde_json::to_string_pretty(&json)?);
                         return Ok(());
                     }
 
                     let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
-                    out.status("Bundle", &name);
-                    out.status("Skills", &bundle.skills.len().to_string());
+                    out.status("Kit", &name);
+                    out.status("Skills", &kit.skills.len().to_string());
 
-                    if !bundle.skills.is_empty() {
+                    if !kit.skills.is_empty() {
                         out.info("");
                         let tree: Vec<(usize, String)> =
-                            bundle.skills.iter().map(|s| (0, s.clone())).collect();
+                            kit.skills.iter().map(|s| (0, s.clone())).collect();
                         out.tree(&tree);
                     }
 
                     Ok(())
                 }
-                BundleCommand::Add { name, skills } => {
+                KitCommand::Add { name, skills } => {
                     let out =
                         crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
-                    if !config.bundle.contains_key(&name) {
-                        anyhow::bail!("bundle '{}' not found", name);
+                    if !config.kit.contains_key(&name) {
+                        anyhow::bail!("kit '{}' not found", name);
                     }
 
                     let mut registry = crate::registry::load_registry(&data_dir)?;
@@ -2588,7 +1962,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
                     let ext_sources = external_source_set(&config);
 
-                    let bundle = config.bundle.get_mut(&name).unwrap();
+                    let kit = config.kit.get_mut(&name).unwrap();
                     let mut added = 0usize;
                     let mut external = 0usize;
                     let mut local = 0usize;
@@ -2597,8 +1971,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                             skill_id, &registry,
                         )?;
                         for (src, fq) in resolved {
-                            if !bundle.skills.contains(&fq) {
-                                bundle.skills.push(fq);
+                            if !kit.skills.contains(&fq) {
+                                kit.skills.push(fq);
                                 added += 1;
                                 if ext_sources.contains(src.as_str()) {
                                     external += 1;
@@ -2609,325 +1983,34 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         }
                     }
 
-                    let total = bundle.skills.len();
+                    let total = kit.skills.len();
                     crate::config::save(&config, config_path_str)?;
                     out.success(&format!(
-                        "Added {} skill(s) to bundle '{}' ({}), {} total",
+                        "Added {} skill(s) to kit '{}' ({}), {} total",
                         added, name, source_breakdown(external, local), total,
                     ));
                     Ok(())
                 }
-                BundleCommand::Drop { name, skills } => {
+                KitCommand::Drop { name, skills } => {
                     let out =
                         crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
-                    let bundle = config
-                        .bundle
+                    let kit = config
+                        .kit
                         .get_mut(&name)
-                        .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", name))?;
+                        .ok_or_else(|| anyhow::anyhow!("kit '{}' not found", name))?;
 
-                    let before = bundle.skills.len();
+                    let before = kit.skills.len();
                     for skill_id in &skills {
-                        bundle.skills.retain(|s| s != skill_id);
+                        kit.skills.retain(|s| s != skill_id);
                     }
-                    let dropped = before - bundle.skills.len();
-                    let remaining = bundle.skills.len();
+                    let dropped = before - kit.skills.len();
+                    let remaining = kit.skills.len();
 
                     crate::config::save(&config, config_path_str)?;
                     out.success(&format!(
-                        "Dropped {} skill(s) from bundle '{}', {} remaining",
+                        "Dropped {} skill(s) from kit '{}', {} remaining",
                         dropped, name, remaining,
                     ));
-                    Ok(())
-                }
-                BundleCommand::Activate {
-                    name,
-                    agent,
-                    all,
-                    force,
-                } => {
-                    if agent.is_none() && !all {
-                        anyhow::bail!("provide an <agent> or use --all");
-                    }
-
-                    let bundle = config
-                        .bundle
-                        .get(&name)
-                        .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", name))?
-                        .clone();
-                    let mut registry = crate::registry::load_registry(&data_dir)?;
-                    let renames = crate::registry::reconcile_with_config(
-                        &mut registry,
-                        &config.source,
-                        &data_dir,
-                    )?;
-                    if !renames.is_empty() {
-                        crate::registry::save_registry(&registry, &data_dir)?;
-                        if !cli.quiet {
-                            for r in &renames {
-                                eprintln!("source renamed: {}", r);
-                            }
-                        }
-                    }
-                    let mut reg = registry.clone();
-
-                    let agents: Vec<&crate::config::AgentConfig> = if all {
-                        config.agent.iter().collect()
-                    } else {
-                        let a = agent.as_ref().unwrap();
-                        let ac = config
-                            .agent
-                            .iter()
-                            .find(|ac| ac.name == *a)
-                            .ok_or_else(|| anyhow::anyhow!("agent '{}' not found", a))?;
-                        vec![ac]
-                    };
-
-                    let mut new_count: usize = 0;
-                    let mut unchanged_count: usize = 0;
-                    let mut updated_count: usize = 0;
-                    let mut conflicts: Vec<(String, String)> = Vec::new(); // (skill_id, agent)
-
-                    for ac in &agents {
-                        let adapter = crate::agent::resolve_adapter(ac, &config.adapter)?;
-
-                        if !cli.quiet {
-                            println!(
-                                "{} {} {}",
-                                "→".bold(),
-                                ac.name.bold(),
-                                ac.path.display().to_string().dimmed(),
-                            );
-                        }
-
-                        for skill_id in &bundle.skills {
-                            let (src_name, plug_name, s) = registry.find_skill(skill_id)?;
-                            let status = adapter.compare_skill(s, &ac.path)?;
-                            let dest = adapter.skill_dest(&ac.path, &s.name);
-
-                            match status {
-                                crate::agent::SkillStatus::New => {
-                                    if cli.dry_run {
-                                        if !cli.quiet {
-                                            println!(
-                                                "  {} {} → {}",
-                                                "+".green().bold(),
-                                                crate::output::format_identity(src_name, plug_name, &s.name),
-                                                dest.display().to_string().dimmed(),
-                                            );
-                                        }
-                                    } else {
-                                        adapter.install_skill(s, &ac.path)?;
-                                        record_provenance(&mut reg, &data_dir, ac, src_name, plug_name, s);
-                                        new_count += 1;
-                                        if !cli.quiet {
-                                            println!(
-                                                "  {} {} → {}",
-                                                "✓".green(),
-                                                crate::output::format_identity(src_name, plug_name, &s.name),
-                                                dest.display().to_string().dimmed(),
-                                            );
-                                        }
-                                    }
-                                }
-                                crate::agent::SkillStatus::Unchanged => {
-                                    unchanged_count += 1;
-                                    if cli.verbose && !cli.quiet {
-                                        println!(
-                                            "  {} {} {}",
-                                            "·".dimmed(),
-                                            s.name.dimmed(),
-                                            "(unchanged)".dimmed(),
-                                        );
-                                    }
-                                }
-                                crate::agent::SkillStatus::Changed => {
-                                    if force && !cli.dry_run {
-                                        adapter.install_skill(s, &ac.path)?;
-                                        record_provenance(&mut reg, &data_dir, ac, src_name, plug_name, s);
-                                        updated_count += 1;
-                                        if !cli.quiet {
-                                            println!(
-                                                "  {} {} → {} {}",
-                                                "↻".yellow(),
-                                                crate::output::format_identity(src_name, plug_name, &s.name),
-                                                dest.display().to_string().dimmed(),
-                                                "(overwritten)".yellow(),
-                                            );
-                                        }
-                                    } else {
-                                        conflicts.push((skill_id.clone(), ac.name.clone()));
-                                        if !cli.quiet {
-                                            println!(
-                                                "  {} {} → {} {}",
-                                                "✗".red(),
-                                                crate::output::format_identity(src_name, plug_name, &s.name),
-                                                dest.display().to_string().dimmed(),
-                                                "(changed, use --force)".red(),
-                                            );
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Save provenance if we installed anything
-                    if new_count > 0 || updated_count > 0 {
-                        crate::registry::save_registry(&reg, &data_dir)?;
-                    }
-
-                    // Print summary
-                    if !cli.quiet {
-                        let mut parts = Vec::new();
-                        if new_count > 0 {
-                            parts.push(format!("{} installed", new_count));
-                        }
-                        if updated_count > 0 {
-                            parts.push(format!("{} updated", updated_count));
-                        }
-                        if unchanged_count > 0 {
-                            parts.push(format!("{} unchanged", unchanged_count));
-                        }
-                        if !conflicts.is_empty() {
-                            parts.push(format!("{} conflicted", conflicts.len()));
-                        }
-                        if cli.dry_run {
-                            parts.push("dry run".to_string());
-                        }
-                        if !parts.is_empty() {
-                            println!(
-                                "\n{} bundle {} {}",
-                                if conflicts.is_empty() { "✓".green() } else { "!".yellow() },
-                                name.bold(),
-                                format!("({})", parts.join(", ")).dimmed(),
-                            );
-                        }
-                    }
-
-                    if !conflicts.is_empty() && !cli.dry_run {
-                        std::process::exit(1);
-                    }
-                    Ok(())
-                }
-                BundleCommand::Deactivate {
-                    name,
-                    agent,
-                    all,
-                    force: _,
-                } => {
-                    if agent.is_none() && !all {
-                        anyhow::bail!("provide an <agent> or use --all");
-                    }
-
-                    let bundle = config
-                        .bundle
-                        .get(&name)
-                        .ok_or_else(|| anyhow::anyhow!("bundle '{}' not found", name))?
-                        .clone();
-                    let mut registry = crate::registry::load_registry(&data_dir)?;
-                    let renames = crate::registry::reconcile_with_config(
-                        &mut registry,
-                        &config.source,
-                        &data_dir,
-                    )?;
-                    if !renames.is_empty() {
-                        crate::registry::save_registry(&registry, &data_dir)?;
-                        if !cli.quiet {
-                            for r in &renames {
-                                eprintln!("source renamed: {}", r);
-                            }
-                        }
-                    }
-
-                    let agents: Vec<&crate::config::AgentConfig> = if all {
-                        config.agent.iter().collect()
-                    } else {
-                        let a = agent.as_ref().unwrap();
-                        let ac = config
-                            .agent
-                            .iter()
-                            .find(|ac| ac.name == *a)
-                            .ok_or_else(|| anyhow::anyhow!("agent '{}' not found", a))?;
-                        vec![ac]
-                    };
-
-                    let mut removed_count: usize = 0;
-                    let mut skipped_count: usize = 0;
-
-                    for ac in &agents {
-                        let adapter = crate::agent::resolve_adapter(ac, &config.adapter)?;
-                        let already = adapter.installed_skills(&ac.path).unwrap_or_default();
-
-                        if !cli.quiet {
-                            println!(
-                                "{} {} {}",
-                                "→".bold(),
-                                ac.name.bold(),
-                                ac.path.display().to_string().dimmed(),
-                            );
-                        }
-
-                        for skill_id in &bundle.skills {
-                            let (src_name, plug_name, s) = registry.find_skill(skill_id)?;
-                            let dest = adapter.skill_dest(&ac.path, &s.name);
-
-                            if !already.contains(&s.name) {
-                                skipped_count += 1;
-                                if cli.verbose && !cli.quiet {
-                                    println!(
-                                        "  {} {} {}",
-                                        "·".dimmed(),
-                                        s.name.dimmed(),
-                                        "(not installed)".dimmed(),
-                                    );
-                                }
-                                continue;
-                            }
-
-                            if cli.dry_run {
-                                if !cli.quiet {
-                                    println!(
-                                        "  {} {} ← {}",
-                                        "-".red().bold(),
-                                        crate::output::format_identity(src_name, plug_name, &s.name),
-                                        dest.display().to_string().dimmed(),
-                                    );
-                                }
-                            } else {
-                                adapter.uninstall_skill(&s.name, &ac.path)?;
-                                removed_count += 1;
-                                if !cli.quiet {
-                                    println!(
-                                        "  {} {} ← {}",
-                                        "✓".green(),
-                                        crate::output::format_identity(src_name, plug_name, &s.name),
-                                        dest.display().to_string().dimmed(),
-                                    );
-                                }
-                            }
-                        }
-                    }
-
-                    if !cli.quiet {
-                        let mut parts = Vec::new();
-                        if removed_count > 0 {
-                            parts.push(format!("{} removed", removed_count));
-                        }
-                        if skipped_count > 0 {
-                            parts.push(format!("{} not installed", skipped_count));
-                        }
-                        if cli.dry_run {
-                            parts.push("dry run".to_string());
-                        }
-                        if !parts.is_empty() {
-                            println!(
-                                "\n{} bundle {} {}",
-                                "✓".green(),
-                                name.bold(),
-                                format!("({})", parts.join(", ")).dimmed(),
-                            );
-                        }
-                    }
                     Ok(())
                 }
             }
@@ -3227,6 +2310,546 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
 
                     Ok(())
                 }
+                AgentCommand::Equip {
+                    patterns,
+                    agent,
+                    all,
+                    kit,
+                    save_kit,
+                    force,
+                    interactive,
+                } => {
+                    if patterns.is_empty() && kit.is_none() {
+                        eprintln!("error: equip requires skill patterns or --kit");
+                        std::process::exit(2);
+                    }
+
+                    let data_dir = crate::config::data_dir();
+                    let mut registry = crate::registry::load_registry(&data_dir)?;
+                    let renames = crate::registry::reconcile_with_config(
+                        &mut registry,
+                        &config.source,
+                        &data_dir,
+                    )?;
+                    if !renames.is_empty() {
+                        crate::registry::save_registry(&registry, &data_dir)?;
+                        if !cli.quiet {
+                            for r in &renames {
+                                eprintln!("source renamed: {}", r);
+                            }
+                        }
+                    }
+
+                    let agents = resolve_agents(&config, &agent, all)?;
+
+                    // Collect skills to equip with provenance: (source, plugin, skill)
+                    let mut skills_to_apply: Vec<(&str, &str, &crate::registry::RegisteredSkill)> =
+                        Vec::new();
+
+                    // From positional patterns
+                    for pattern in &patterns {
+                        if crate::registry::is_glob(pattern) {
+                            let matches = registry.match_skills(pattern);
+                            if matches.is_empty() {
+                                anyhow::bail!("no skills matched pattern '{}'", pattern);
+                            }
+                            for (src, plugin, s) in matches {
+                                skills_to_apply.push((src, &plugin.name, s));
+                            }
+                        } else {
+                            match registry.find_skill(pattern) {
+                                Ok((src, plug, s)) => {
+                                    skills_to_apply.push((src, plug, s));
+                                }
+                                Err(_) => {
+                                    // Fall back to glob-style match
+                                    let matches = registry.match_skills(pattern);
+                                    if matches.is_empty() {
+                                        anyhow::bail!("no skills matched '{}'", pattern);
+                                    }
+                                    for (src, plugin, s) in matches {
+                                        skills_to_apply.push((src, &plugin.name, s));
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // From --kit
+                    if let Some(ref kit_name) = kit {
+                        let kit_cfg = config
+                            .kit
+                            .get(kit_name)
+                            .ok_or_else(|| anyhow::anyhow!("kit '{}' not found", kit_name))?;
+                        for skill_id in &kit_cfg.skills {
+                            let (src, plug, s) = registry.find_skill(skill_id)?;
+                            skills_to_apply.push((src, plug, s));
+                        }
+                    }
+
+                    // Interactive confirmation (default when not --force)
+                    if !force && !cli.dry_run && !skills_to_apply.is_empty() && crate::prompt::is_interactive() {
+                        eprintln!("Skills to equip:");
+                        for (src, plug, s) in &skills_to_apply {
+                            eprintln!("  {}", crate::output::format_identity(src, plug, &s.name));
+                        }
+                        eprintln!("Agents:");
+                        for ac in &agents {
+                            eprintln!("  {}", ac.name.bold());
+                        }
+                        eprint!("Proceed? [y/N] ");
+                        let mut input = String::new();
+                        std::io::stdin().read_line(&mut input).unwrap_or(0);
+                        if !input.trim().eq_ignore_ascii_case("y") {
+                            eprintln!("Aborted.");
+                            return Ok(());
+                        }
+                    }
+
+                    // Apply to each agent with conflict detection
+                    let mut new_count: usize = 0;
+                    let mut updated_count: usize = 0;
+                    let mut unchanged_count: usize = 0;
+                    let mut conflict_skipped: usize = 0;
+                    let mut force_remaining = force;
+                    let mut reg = registry.clone();
+
+                    for ac in &agents {
+                        let adapter = crate::agent::resolve_adapter(ac, &config.adapter)?;
+
+                        // Detect conflicts when not interactive and not forced
+                        if !force && !interactive && !cli.dry_run {
+                            let mut conflicts = Vec::new();
+                            for (_, _, s) in &skills_to_apply {
+                                let status = adapter.compare_skill(s, &ac.path)?;
+                                if status == crate::agent::SkillStatus::Changed {
+                                    conflicts.push(s.name.clone());
+                                }
+                            }
+                            if !conflicts.is_empty() {
+                                eprintln!(
+                                    "error: {} skill(s) have changed at agent '{}':",
+                                    conflicts.len(),
+                                    ac.name
+                                );
+                                for name in &conflicts {
+                                    eprintln!("  - {}", name);
+                                }
+                                eprintln!();
+                                eprintln!("Use --force to overwrite, or -i for interactive resolution.");
+                                std::process::exit(1);
+                            }
+                        }
+
+                        for (src_name, plug_name, s) in &skills_to_apply {
+                            let status = adapter.compare_skill(s, &ac.path)?;
+
+                            if cli.dry_run {
+                                if !cli.quiet {
+                                    let label = match status {
+                                        crate::agent::SkillStatus::New => "new",
+                                        crate::agent::SkillStatus::Unchanged => "unchanged",
+                                        crate::agent::SkillStatus::Changed => "changed",
+                                    };
+                                    println!(
+                                        "  (dry run) {} → {} [{}]",
+                                        crate::output::format_identity(src_name, plug_name, &s.name),
+                                        ac.name,
+                                        label
+                                    );
+                                }
+                                continue;
+                            }
+
+                            match status {
+                                crate::agent::SkillStatus::Unchanged => {
+                                    unchanged_count += 1;
+                                    continue;
+                                }
+                                crate::agent::SkillStatus::New => {
+                                    adapter.install_skill(s, &ac.path)?;
+                                    record_provenance(&mut reg, &data_dir, ac, src_name, plug_name, s);
+                                    new_count += 1;
+                                }
+                                crate::agent::SkillStatus::Changed => {
+                                    if force_remaining {
+                                        adapter.install_skill(s, &ac.path)?;
+                                        record_provenance(&mut reg, &data_dir, ac, src_name, plug_name, s);
+                                        updated_count += 1;
+                                    } else if interactive {
+                                        let action = prompt_conflict(s, &adapter, &ac.path)?;
+                                        match action {
+                                            ConflictAction::Skip => {
+                                                conflict_skipped += 1;
+                                            }
+                                            ConflictAction::Overwrite => {
+                                                adapter.install_skill(s, &ac.path)?;
+                                                record_provenance(
+                                                    &mut reg, &data_dir, ac, src_name, plug_name, s,
+                                                );
+                                                updated_count += 1;
+                                            }
+                                            ConflictAction::ForceAll => {
+                                                adapter.install_skill(s, &ac.path)?;
+                                                record_provenance(
+                                                    &mut reg, &data_dir, ac, src_name, plug_name, s,
+                                                );
+                                                updated_count += 1;
+                                                force_remaining = true;
+                                            }
+                                            ConflictAction::Quit => {
+                                                crate::registry::save_registry(&reg, &data_dir)?;
+                                                print_apply_summary(
+                                                    new_count,
+                                                    updated_count,
+                                                    unchanged_count,
+                                                    conflict_skipped,
+                                                    cli.quiet,
+                                                );
+                                                return Ok(());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if !cli.dry_run {
+                        crate::registry::save_registry(&reg, &data_dir)?;
+                    }
+
+                    // --save-kit: persist the resolved skill set
+                    if let Some(ref kit_name) = save_kit {
+                        let mut config = crate::config::load(cli.config.as_deref())?;
+                        let mut skill_ids: Vec<String> = Vec::new();
+                        for (src, plug, s) in &skills_to_apply {
+                            let fq = crate::output::plain_identity(src, plug, &s.name);
+                            if !skill_ids.contains(&fq) {
+                                skill_ids.push(fq);
+                            }
+                        }
+                        config.kit.insert(
+                            kit_name.clone(),
+                            crate::config::KitConfig { skills: skill_ids },
+                        );
+                        crate::config::save(&config, cli.config.as_deref())?;
+                        if !cli.quiet {
+                            println!("Saved kit '{}'", kit_name);
+                        }
+                    }
+
+                    if !cli.quiet && !cli.dry_run {
+                        print_apply_summary(
+                            new_count,
+                            updated_count,
+                            unchanged_count,
+                            conflict_skipped,
+                            cli.quiet,
+                        );
+                    }
+                    Ok(())
+                }
+                AgentCommand::Unequip {
+                    patterns,
+                    agent,
+                    all,
+                    kit,
+                    force,
+                } => {
+                    if patterns.is_empty() && kit.is_none() {
+                        eprintln!("error: unequip requires skill patterns or --kit");
+                        std::process::exit(2);
+                    }
+
+                    let data_dir = crate::config::data_dir();
+                    let mut registry = crate::registry::load_registry(&data_dir)?;
+                    let renames = crate::registry::reconcile_with_config(
+                        &mut registry,
+                        &config.source,
+                        &data_dir,
+                    )?;
+                    if !renames.is_empty() {
+                        crate::registry::save_registry(&registry, &data_dir)?;
+                        if !cli.quiet {
+                            for r in &renames {
+                                eprintln!("source renamed: {}", r);
+                            }
+                        }
+                    }
+                    let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
+
+                    let agents = resolve_agents(&config, &agent, all)?;
+
+                    // Collect skill names to remove
+                    let mut skill_names: Vec<String> = Vec::new();
+
+                    for pattern in &patterns {
+                        if crate::registry::is_glob(pattern) {
+                            let matches = registry.match_skills(pattern);
+                            if matches.is_empty() {
+                                anyhow::bail!("no skills matched pattern '{}'", pattern);
+                            }
+                            for (_, _, s) in matches {
+                                if !skill_names.contains(&s.name) {
+                                    skill_names.push(s.name.clone());
+                                }
+                            }
+                        } else {
+                            match registry.find_skill(pattern) {
+                                Ok((_, _, s)) => {
+                                    if !skill_names.contains(&s.name) {
+                                        skill_names.push(s.name.clone());
+                                    }
+                                }
+                                Err(_) => {
+                                    let matches = registry.match_skills(pattern);
+                                    if matches.is_empty() {
+                                        anyhow::bail!("no skills matched '{}'", pattern);
+                                    }
+                                    for (_, _, s) in matches {
+                                        if !skill_names.contains(&s.name) {
+                                            skill_names.push(s.name.clone());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if let Some(ref kit_name) = kit {
+                        let kit_cfg = config
+                            .kit
+                            .get(kit_name)
+                            .ok_or_else(|| anyhow::anyhow!("kit '{}' not found", kit_name))?;
+                        for skill_id in &kit_cfg.skills {
+                            let (_, _, s) = registry.find_skill(skill_id)?;
+                            if !skill_names.contains(&s.name) {
+                                skill_names.push(s.name.clone());
+                            }
+                        }
+                    }
+
+                    let execute = force && !cli.dry_run;
+                    let mut total_removed = 0usize;
+                    let mut _total_skipped = 0usize;
+
+                    for ac in &agents {
+                        let adapter = crate::agent::resolve_adapter(ac, &config.adapter)?;
+                        let installed = adapter.installed_skills(&ac.path).unwrap_or_default();
+
+                        for name in &skill_names {
+                            if installed.contains(name) {
+                                let identity = registry
+                                    .installed
+                                    .get(&ac.name)
+                                    .and_then(|m| m.get(name))
+                                    .map(|info| {
+                                        crate::output::format_identity(&info.source, &info.plugin, &info.skill)
+                                    })
+                                    .unwrap_or_else(|| name.clone());
+
+                                if execute {
+                                    adapter.uninstall_skill(name, &ac.path)?;
+                                    if let Some(agent_map) = registry.installed.get_mut(&ac.name) {
+                                        agent_map.remove(name);
+                                    }
+                                    out.success(&format!(
+                                        "Removed {} from {}",
+                                        identity,
+                                        ac.name.bold()
+                                    ));
+                                    total_removed += 1;
+                                } else {
+                                    out.info(&format!("  {} from {}", identity, ac.name.bold()));
+                                    total_removed += 1;
+                                }
+                            } else {
+                                _total_skipped += 1;
+                            }
+                        }
+                    }
+
+                    if !execute && total_removed > 0 {
+                        out.info("");
+                        out.warn("Preview only. Use --force to execute.");
+                    }
+
+                    if execute {
+                        crate::registry::save_registry(&registry, &data_dir)?;
+                        if !cli.quiet {
+                            out.info(&format!(
+                                "Removed {} skill(s) from {} agent(s)",
+                                total_removed,
+                                agents.len()
+                            ));
+                        }
+                    } else if total_removed == 0 && !cli.quiet {
+                        out.info("No matching skills found on agent(s).");
+                    }
+
+                    Ok(())
+                }
+                AgentCommand::Collect {
+                    agent,
+                    skill,
+                    adopt,
+                    force,
+                } => {
+                    let data_dir = crate::config::data_dir();
+                    let mut registry = crate::registry::load_registry(&data_dir)?;
+                    let renames = crate::registry::reconcile_with_config(
+                        &mut registry,
+                        &config.source,
+                        &data_dir,
+                    )?;
+                    if !renames.is_empty() {
+                        crate::registry::save_registry(&registry, &data_dir)?;
+                        if !cli.quiet {
+                            for r in &renames {
+                                eprintln!("source renamed: {}", r);
+                            }
+                        }
+                    }
+                    let out = crate::output::Output::from_flags(cli.json, cli.quiet, cli.verbose);
+
+                    let ac = config
+                        .agent
+                        .iter()
+                        .find(|a| a.name == agent)
+                        .ok_or_else(|| anyhow::anyhow!("agent '{}' not found", agent))?;
+                    let adapter = crate::agent::resolve_adapter(ac, &config.adapter)?;
+                    let installed_on_agent = adapter.installed_skills(&ac.path)?;
+
+                    if let Some(ref skill_name) = skill {
+                        let agent_skill_dir = ac.path.join("skills").join(skill_name);
+                        if !agent_skill_dir.exists() {
+                            anyhow::bail!("skill '{}' not found on agent '{}'", skill_name, agent);
+                        }
+
+                        if adopt {
+                            let provenance = registry
+                                .installed
+                                .get(&agent)
+                                .and_then(|m| m.get(skill_name));
+                            let plugin_name = provenance
+                                .map(|info| info.plugin.clone())
+                                .unwrap_or_else(|| "local".to_string());
+                            let source_name = provenance
+                                .map(|info| info.source.clone())
+                                .unwrap_or_else(|| "local".to_string());
+
+                            let dest_plugin = crate::config::plugins_dir().join(&plugin_name);
+                            let dest_skill = dest_plugin.join("skills").join(skill_name);
+                            std::fs::create_dir_all(&dest_skill)?;
+                            copy_dir_all(&agent_skill_dir, &dest_skill)?;
+
+                            let plugin_json_dir = dest_plugin.join(".claude-plugin");
+                            let plugin_json = plugin_json_dir.join("plugin.json");
+                            if !plugin_json.exists() {
+                                std::fs::create_dir_all(&plugin_json_dir)?;
+                                let json = serde_json::json!({"name": plugin_name});
+                                std::fs::write(&plugin_json, serde_json::to_string_pretty(&json)?)?;
+                            }
+
+                            generate_marketplace(&data_dir)?;
+                            let identity =
+                                crate::output::format_identity(&source_name, &plugin_name, skill_name);
+                            out.success(&format!("Adopted {}", identity));
+                        } else {
+                            let provenance = registry
+                                .installed
+                                .get(&agent)
+                                .and_then(|m| m.get(skill_name));
+
+                            if let Some(info) = provenance {
+                                let dest = data_dir.join(&info.origin);
+                                std::fs::create_dir_all(&dest)?;
+                                copy_dir_all(&agent_skill_dir, &dest)?;
+                                let identity =
+                                    crate::output::format_identity(&info.source, &info.plugin, &info.skill);
+                                out.success(&format!("Collected {} → {}", identity, info.origin));
+                            } else {
+                                out.warn(&format!(
+                                    "'{}' has no provenance. Use --adopt to claim it.",
+                                    skill_name
+                                ));
+                            }
+                        }
+                    } else {
+                        let agent_installs = registry.installed.get(&agent).cloned().unwrap_or_default();
+
+                        let mut tracked = Vec::new();
+                        let mut untracked = Vec::new();
+
+                        for skill_name in &installed_on_agent {
+                            if let Some(info) = agent_installs.get(skill_name) {
+                                tracked.push((skill_name.clone(), info.clone()));
+                            } else {
+                                untracked.push(skill_name.clone());
+                            }
+                        }
+
+                        if !tracked.is_empty() {
+                            out.info("Tracked:");
+                            for (_name, info) in &tracked {
+                                let identity =
+                                    crate::output::format_identity(&info.source, &info.plugin, &info.skill);
+                                out.info(&format!("  {} ← {}", identity, info.origin));
+                            }
+                        }
+
+                        if !untracked.is_empty() {
+                            out.info("Untracked:");
+                            for name in &untracked {
+                                out.info(&format!("  {}", name));
+                            }
+
+                            let should_adopt = if force {
+                                true
+                            } else if !untracked.is_empty() {
+                                eprint!(
+                                    "Adopt {} untracked skill(s) into plugins/local? [y/N] ",
+                                    untracked.len()
+                                );
+                                let mut input = String::new();
+                                std::io::stdin().read_line(&mut input).unwrap_or(0);
+                                input.trim().eq_ignore_ascii_case("y")
+                            } else {
+                                false
+                            };
+
+                            if should_adopt {
+                                let local_plugin = crate::config::plugins_dir().join("local");
+                                for name in &untracked {
+                                    let agent_skill_dir = ac.path.join("skills").join(name);
+                                    let dest = local_plugin.join("skills").join(name);
+                                    std::fs::create_dir_all(&dest)?;
+                                    copy_dir_all(&agent_skill_dir, &dest)?;
+                                    let identity = crate::output::format_identity("local", "local", name);
+                                    out.success(&format!("Adopted {}", identity));
+                                }
+
+                                let plugin_json_dir = local_plugin.join(".claude-plugin");
+                                let plugin_json = plugin_json_dir.join("plugin.json");
+                                if !plugin_json.exists() {
+                                    std::fs::create_dir_all(&plugin_json_dir)?;
+                                    let json = serde_json::json!({"name": "local"});
+                                    std::fs::write(&plugin_json, serde_json::to_string_pretty(&json)?)?;
+                                }
+
+                                generate_marketplace(&data_dir)?;
+                            }
+                        }
+
+                        if tracked.is_empty() && untracked.is_empty() {
+                            out.info("No skills found on agent.");
+                        }
+                    }
+
+                    crate::registry::save_registry(&registry, &data_dir)?;
+                    Ok(())
+                }
             }
         }
         Command::Config {
@@ -3253,8 +2876,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         for name in config.adapter.keys() {
                             println!("  {}", name);
                         }
-                        println!("Bundles: {}", config.bundle.len());
-                        for (name, b) in &config.bundle {
+                        println!("Kits: {}", config.kit.len());
+                        for (name, b) in &config.kit {
                             println!("  {} ({} skills)", name, b.skills.len());
                         }
                     }
@@ -3331,8 +2954,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         println!("{}", t.name);
                     }
                 }
-                "bundles" => {
-                    for name in config.bundle.keys() {
+                "kits" => {
+                    for name in config.kit.keys() {
                         println!("{}", name);
                     }
                 }

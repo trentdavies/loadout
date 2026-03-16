@@ -14,8 +14,8 @@ pub struct Config {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub adapter: BTreeMap<String, AdapterConfig>,
 
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub bundle: BTreeMap<String, BundleConfig>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty", alias = "bundle")]
+    pub kit: BTreeMap<String, KitConfig>,
 }
 
 /// A skill source (local path, git repo, URL).
@@ -80,9 +80,9 @@ fn default_format() -> String {
     "agentskills".to_string()
 }
 
-/// A named bundle of skills.
+/// A named kit of skills.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct BundleConfig {
+pub struct KitConfig {
     #[serde(default)]
     pub skills: Vec<String>,
 }
@@ -97,7 +97,7 @@ mod tests {
         assert!(config.source.is_empty());
         assert!(config.agent.is_empty());
         assert!(config.adapter.is_empty());
-        assert!(config.bundle.is_empty());
+        assert!(config.kit.is_empty());
     }
 
     #[test]
@@ -142,13 +142,23 @@ copy_dirs = ["scripts"]
     }
 
     #[test]
-    fn config_deserialize_bundle() {
+    fn config_deserialize_kit() {
         let toml = r#"
-[bundle.dev]
+[kit.dev]
 skills = ["plugin/skill-a", "plugin/skill-b"]
 "#;
         let config: Config = toml::from_str(toml).unwrap();
-        assert_eq!(config.bundle["dev"].skills.len(), 2);
+        assert_eq!(config.kit["dev"].skills.len(), 2);
+    }
+
+    #[test]
+    fn config_deserialize_bundle_alias() {
+        let toml = r#"
+[bundle.legacy]
+skills = ["plugin/skill-a"]
+"#;
+        let config: Config = toml::from_str(toml).unwrap();
+        assert_eq!(config.kit["legacy"].skills.len(), 1);
     }
 
     #[test]

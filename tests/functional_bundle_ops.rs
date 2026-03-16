@@ -3,14 +3,14 @@ use std::path::PathBuf;
 
 use tempfile::TempDir;
 
-use loadout::config::{load_from, save_to, BundleConfig, Config, AgentConfig};
+use loadout::config::{load_from, save_to, KitConfig, Config, AgentConfig};
 use loadout::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry};
 use loadout::agent::resolve_adapter;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-fn make_bundle(skills: &[&str]) -> BundleConfig {
-    BundleConfig {
+fn make_kit(skills: &[&str]) -> KitConfig {
+    KitConfig {
         skills: skills.iter().map(|s| s.to_string()).collect(),
     }
 }
@@ -54,17 +54,17 @@ fn create_bundle_and_add_skills() {
 
     let mut config = Config::default();
     config
-        .bundle
-        .insert("dev".to_string(), make_bundle(&["p/skill-a", "p/skill-b"]));
+        .kit
+        .insert("dev".to_string(), make_kit(&["p/skill-a", "p/skill-b"]));
     save_to(&config, &config_path).unwrap();
 
     let reloaded = load_from(&config_path).unwrap();
-    assert!(reloaded.bundle.contains_key("dev"));
-    assert_eq!(reloaded.bundle["dev"].skills.len(), 2);
-    assert!(reloaded.bundle["dev"]
+    assert!(reloaded.kit.contains_key("dev"));
+    assert_eq!(reloaded.kit["dev"].skills.len(), 2);
+    assert!(reloaded.kit["dev"]
         .skills
         .contains(&"p/skill-a".to_string()));
-    assert!(reloaded.bundle["dev"]
+    assert!(reloaded.kit["dev"]
         .skills
         .contains(&"p/skill-b".to_string()));
 }
@@ -77,18 +77,18 @@ fn delete_bundle() {
 
     let mut config = Config::default();
     config
-        .bundle
-        .insert("ephemeral".to_string(), make_bundle(&["p/skill-x"]));
+        .kit
+        .insert("ephemeral".to_string(), make_kit(&["p/skill-x"]));
     save_to(&config, &config_path).unwrap();
 
     // Remove and re-save
     let mut config = load_from(&config_path).unwrap();
-    assert!(config.bundle.contains_key("ephemeral"));
-    config.bundle.remove("ephemeral");
+    assert!(config.kit.contains_key("ephemeral"));
+    config.kit.remove("ephemeral");
     save_to(&config, &config_path).unwrap();
 
     let reloaded = load_from(&config_path).unwrap();
-    assert!(!reloaded.bundle.contains_key("ephemeral"));
+    assert!(!reloaded.kit.contains_key("ephemeral"));
 }
 
 /// Create a bundle with 3 skills, remove one via retain, save, reload, and
@@ -99,26 +99,26 @@ fn drop_skill_from_bundle() {
     let config_path = tmp.path().join("config.toml");
 
     let mut config = Config::default();
-    config.bundle.insert(
+    config.kit.insert(
         "trio".to_string(),
-        make_bundle(&["p/alpha", "p/beta", "p/gamma"]),
+        make_kit(&["p/alpha", "p/beta", "p/gamma"]),
     );
     save_to(&config, &config_path).unwrap();
 
     let mut config = load_from(&config_path).unwrap();
-    let bundle = config.bundle.get_mut("trio").unwrap();
+    let bundle = config.kit.get_mut("trio").unwrap();
     bundle.skills.retain(|s| s != "p/beta");
     save_to(&config, &config_path).unwrap();
 
     let reloaded = load_from(&config_path).unwrap();
-    assert_eq!(reloaded.bundle["trio"].skills.len(), 2);
-    assert!(reloaded.bundle["trio"]
+    assert_eq!(reloaded.kit["trio"].skills.len(), 2);
+    assert!(reloaded.kit["trio"]
         .skills
         .contains(&"p/alpha".to_string()));
-    assert!(reloaded.bundle["trio"]
+    assert!(reloaded.kit["trio"]
         .skills
         .contains(&"p/gamma".to_string()));
-    assert!(!reloaded.bundle["trio"]
+    assert!(!reloaded.kit["trio"]
         .skills
         .contains(&"p/beta".to_string()));
 }
@@ -139,13 +139,13 @@ fn swap_bundle() {
 
     // Build config with two bundles
     let mut config = Config::default();
-    config.bundle.insert(
+    config.kit.insert(
         "bundle-a".to_string(),
-        make_bundle(&["p/skill-a1", "p/skill-a2"]),
+        make_kit(&["p/skill-a1", "p/skill-a2"]),
     );
-    config.bundle.insert(
+    config.kit.insert(
         "bundle-b".to_string(),
-        make_bundle(&["p/skill-b1", "p/skill-b2"]),
+        make_kit(&["p/skill-b1", "p/skill-b2"]),
     );
     config
         .agent
@@ -204,13 +204,13 @@ fn swap_bundle() {
 fn create_duplicate_bundle_detected() {
     let mut config = Config::default();
     config
-        .bundle
-        .insert("dup".to_string(), make_bundle(&["p/skill-one"]));
+        .kit
+        .insert("dup".to_string(), make_kit(&["p/skill-one"]));
 
     // The CLI checks this before inserting:
-    let already_exists = config.bundle.contains_key("dup");
+    let already_exists = config.kit.contains_key("dup");
     assert!(already_exists, "duplicate bundle name should be detected");
 
     // Attempting a second insert would overwrite — the CLI prevents this
-    assert_eq!(config.bundle.len(), 1);
+    assert_eq!(config.kit.len(), 1);
 }

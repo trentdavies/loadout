@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use tempfile::TempDir;
 
 use loadout::config::{
-    load_from, save_to, AdapterConfig, BundleConfig, Config, SourceConfig, AgentConfig,
+    load_from, save_to, AdapterConfig, KitConfig, Config, SourceConfig, AgentConfig,
 };
 use loadout::registry::{
     load_registry, save_registry, RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry,
@@ -175,7 +175,7 @@ fn status_with_empty_config() {
     assert_eq!(config.source.len(), 0);
     assert_eq!(config.agent.len(), 0);
     assert!(config.adapter.is_empty());
-    assert!(config.bundle.is_empty());
+    assert!(config.kit.is_empty());
 
     assert_eq!(registry.sources.len(), 0);
 
@@ -296,15 +296,15 @@ fn config_roundtrip_with_all_sections() {
     );
 
     // Bundles
-    let mut dev_bundle = BundleConfig::default();
+    let mut dev_bundle = KitConfig::default();
     dev_bundle.skills.push("plugin-a/skill-1".to_string());
     dev_bundle.skills.push("plugin-a/skill-2".to_string());
     dev_bundle.skills.push("plugin-b/skill-3".to_string());
-    config.bundle.insert("dev".to_string(), dev_bundle);
+    config.kit.insert("dev".to_string(), dev_bundle);
 
-    let mut prod_bundle = BundleConfig::default();
+    let mut prod_bundle = KitConfig::default();
     prod_bundle.skills.push("plugin-c/deploy".to_string());
-    config.bundle.insert("prod".to_string(), prod_bundle);
+    config.kit.insert("prod".to_string(), prod_bundle);
 
     // Save and reload
     save_to(&config, &config_path).unwrap();
@@ -339,13 +339,13 @@ fn config_roundtrip_with_all_sections() {
     assert_eq!(adapter.copy_dirs, vec!["scripts", "assets"]);
 
     // Bundles roundtrip
-    assert_eq!(loaded.bundle.len(), 2);
-    assert!(loaded.bundle.contains_key("dev"));
-    assert!(loaded.bundle.contains_key("prod"));
-    assert_eq!(loaded.bundle["dev"].skills.len(), 3);
-    assert_eq!(loaded.bundle["dev"].skills[0], "plugin-a/skill-1");
-    assert_eq!(loaded.bundle["dev"].skills[1], "plugin-a/skill-2");
-    assert_eq!(loaded.bundle["dev"].skills[2], "plugin-b/skill-3");
-    assert_eq!(loaded.bundle["prod"].skills.len(), 1);
-    assert_eq!(loaded.bundle["prod"].skills[0], "plugin-c/deploy");
+    assert_eq!(loaded.kit.len(), 2);
+    assert!(loaded.kit.contains_key("dev"));
+    assert!(loaded.kit.contains_key("prod"));
+    assert_eq!(loaded.kit["dev"].skills.len(), 3);
+    assert_eq!(loaded.kit["dev"].skills[0], "plugin-a/skill-1");
+    assert_eq!(loaded.kit["dev"].skills[1], "plugin-a/skill-2");
+    assert_eq!(loaded.kit["dev"].skills[2], "plugin-b/skill-3");
+    assert_eq!(loaded.kit["prod"].skills.len(), 1);
+    assert_eq!(loaded.kit["prod"].skills[0], "plugin-c/deploy");
 }

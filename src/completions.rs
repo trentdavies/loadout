@@ -67,10 +67,10 @@ _loadout_plugins() {
     [[ ${#plugins} -gt 0 ]] && compadd -a plugins
 }
 
-_loadout_bundles() {
-    local -a bundles
-    bundles=(${(f)"$(loadout _complete bundles 2>/dev/null)"})
-    [[ ${#bundles} -gt 0 ]] && _describe 'bundle' bundles
+_loadout_kits() {
+    local -a kits
+    kits=(${(f)"$(loadout _complete kits 2>/dev/null)"})
+    [[ ${#kits} -gt 0 ]] && _describe 'kit' kits
 }
 
 _loadout() {
@@ -99,11 +99,8 @@ _loadout() {
             'list:List skills or sources'
             'remove:Remove a skill source'
             'update:Update sources from remote'
-            'apply:Apply skills to agents'
-            'uninstall:Uninstall skills from agents'
-            'collect:Collect edited skills back from agent'
             'status:Show current install state'
-            'bundle:Manage skill bundles'
+            'kit:Manage skill kits'
             'agent:Manage agents'
             'config:View or edit configuration'
             'completions:Generate shell completions'
@@ -141,92 +138,51 @@ _loadout() {
                 '--ref[Switch to ref or "latest" to unpin]:ref:' \
                 '1::source:_loadout_sources'
             ;;
-        apply)
-            _arguments $global_flags \
-                '--all[Apply all configured skills]' \
-                '--skill[Specific skill]:skill:_loadout_skills' \
-                '--plugin[All skills in plugin]:plugin:_loadout_plugins' \
-                '--bundle[Specific bundle]:bundle:_loadout_bundles' \
-                '--agent[Agent to apply to]:agent:_loadout_agents' \
-                '(-f --force)'{-f,--force}'[Overwrite without prompting]' \
-                '(-i --interactive)'{-i,--interactive}'[Interactive conflict resolution]'
-            ;;
-        uninstall)
-            _arguments $global_flags \
-                '--skill[Specific skill]:skill:_loadout_skills' \
-                '--plugin[All skills in plugin]:plugin:_loadout_plugins' \
-                '--bundle[Specific bundle]:bundle:_loadout_bundles' \
-                '--agent[Agent]:agent:_loadout_agents' \
-                '--force[Actually perform uninstall]'
-            ;;
-        collect)
-            _arguments $global_flags \
-                '--skill[Specific skill]:skill:_loadout_skills' \
-                '--agent[Agent to collect from]:agent:_loadout_agents' \
-                '--adopt[Adopt into plugins/]' \
-                '--force[Auto-adopt all without prompting]'
-            ;;
         status)
             _arguments $global_flags
             ;;
-        bundle)
-            local -a bundle_commands
+        kit)
+            local -a kit_commands
             _arguments -C $global_flags \
-                '1:subcommand:->bundle_cmds' \
-                '*::arg:->bundle_args'
+                '1:subcommand:->kit_cmds' \
+                '*::arg:->kit_args'
             case $state in
-            bundle_cmds)
-                bundle_commands=(
-                    'create:Create a new bundle'
-                    'delete:Delete a bundle'
-                    'list:List bundles'
-                    'show:Show bundle details'
-                    'add:Add skills to a bundle'
-                    'drop:Remove skills from a bundle'
-                    'activate:Batch install a bundle'
-                    'deactivate:Batch uninstall a bundle'
+            kit_cmds)
+                kit_commands=(
+                    'create:Create a new kit'
+                    'delete:Delete a kit'
+                    'list:List kits'
+                    'show:Show kit details'
+                    'add:Add skills to a kit'
+                    'drop:Remove skills from a kit'
                 )
-                _describe 'bundle command' bundle_commands
+                _describe 'kit command' kit_commands
                 ;;
-            bundle_args)
+            kit_args)
                 case $words[1] in
                 create)
                     _arguments '1:name:'
                     ;;
                 delete)
                     _arguments \
-                        '--force[Force delete active bundle]' \
-                        '1:bundle:_loadout_bundles'
+                        '--force[Force delete active kit]' \
+                        '1:kit:_loadout_kits'
                     ;;
                 list)
                     _arguments '*:pattern:'
                     ;;
                 show)
-                    _arguments '1:bundle:_loadout_bundles'
+                    _arguments '1:kit:_loadout_kits'
                     ;;
                 add)
                     _arguments \
-                        '1:bundle:_loadout_bundles' \
+                        '1:kit:_loadout_kits' \
                         '*:skill:_loadout_skills'
                     ;;
                 drop)
                     _arguments \
-                        '1:bundle:_loadout_bundles' \
+                        '1:kit:_loadout_kits' \
                         '*:skill:_loadout_skills'
-                    ;;
-                activate)
-                    _arguments \
-                        '--all[All agents]' \
-                        '--force[Required for activation]' \
-                        '1:bundle:_loadout_bundles' \
-                        '2::agent:_loadout_agents'
-                    ;;
-                deactivate)
-                    _arguments \
-                        '--all[All agents]' \
-                        '--force[Required for deactivation]' \
-                        '1:bundle:_loadout_bundles' \
-                        '2::agent:_loadout_agents'
                     ;;
                 esac
                 ;;
@@ -235,8 +191,8 @@ _loadout() {
         agent)
             local -a agent_commands
             _arguments -C $global_flags \
-                '1:subcommand:->target_cmds' \
-                '*::arg:->target_args'
+                '1:subcommand:->agent_cmds' \
+                '*::arg:->agent_args'
             case $state in
             agent_cmds)
                 agent_commands=(
@@ -245,6 +201,9 @@ _loadout() {
                     'list:Show all agents'
                     'show:Show agent details'
                     'detect:Auto-discover agent installations'
+                    'equip:Equip skills to agents'
+                    'unequip:Unequip skills from agents'
+                    'collect:Collect edited skills back from agent'
                 )
                 _describe 'agent command' agent_commands
                 ;;
@@ -269,7 +228,32 @@ _loadout() {
                 list)
                     ;;
                 detect)
-                    _arguments '--force[Auto-add discovered targets]'
+                    _arguments '--force[Auto-add discovered agents]'
+                    ;;
+                equip)
+                    _arguments \
+                        '*'{-a,--agent}'[Agent to equip]:agent:_loadout_agents' \
+                        '--all[All configured skills]' \
+                        '(-k --kit)'{-k,--kit}'[Kit to equip]:kit:_loadout_kits' \
+                        '(-s --save-kit)'{-s,--save-kit}'[Save selection as kit]:name:' \
+                        '(-f --force)'{-f,--force}'[Overwrite without prompting]' \
+                        '(-i --interactive)'{-i,--interactive}'[Interactive conflict resolution]' \
+                        '*:pattern:_loadout_skills'
+                    ;;
+                unequip)
+                    _arguments \
+                        '*'{-a,--agent}'[Agent to unequip]:agent:_loadout_agents' \
+                        '--all[All equipped skills]' \
+                        '(-k --kit)'{-k,--kit}'[Kit to unequip]:kit:_loadout_kits' \
+                        '(-f --force)'{-f,--force}'[Force unequip]' \
+                        '*:pattern:_loadout_skills'
+                    ;;
+                collect)
+                    _arguments \
+                        '--agent[Agent to collect from]:agent:_loadout_agents' \
+                        '--skill[Specific skill]:skill:_loadout_skills' \
+                        '--adopt[Adopt into plugins/]' \
+                        '--force[Auto-adopt all without prompting]'
                     ;;
                 esac
                 ;;
@@ -321,15 +305,15 @@ _loadout_plugins() {
     loadout _complete plugins 2>/dev/null
 }
 
-_loadout_bundles() {
-    loadout _complete bundles 2>/dev/null
+_loadout_kits() {
+    loadout _complete kits 2>/dev/null
 }
 
 _loadout() {
     local cur prev words cword
     _init_completion || return
 
-    local commands="init add list remove update apply uninstall collect status bundle agent config completions"
+    local commands="init add list remove update status kit agent config completions"
     local global_flags="--dry-run -n --verbose -v --quiet -q --json --config --help -h --version"
 
     # Find the primary command (first non-flag arg after 'loadout')
@@ -356,9 +340,9 @@ _loadout() {
         return
     fi
 
-    # Find subcommand for bundle/agent/config
+    # Find subcommand for kit/agent/config
     local subcmd=""
-    if [[ "$cmd" == "bundle" || "$cmd" == "agent" || "$cmd" == "config" ]]; then
+    if [[ "$cmd" == "kit" || "$cmd" == "agent" || "$cmd" == "config" ]]; then
         for ((i=cmd_idx+1; i < cword; i++)); do
             case "${words[i]}" in
                 -*) continue ;;
@@ -404,46 +388,15 @@ _loadout() {
                 ;;
         esac
         ;;
-    apply)
-        case "$prev" in
-            --skill) COMPREPLY=($(compgen -W "$(_loadout_skills)" -- "$cur")) ;;
-            --plugin) COMPREPLY=($(compgen -W "$(_loadout_plugins)" -- "$cur")) ;;
-            --bundle) COMPREPLY=($(compgen -W "$(_loadout_bundles)" -- "$cur")) ;;
-            --agent) COMPREPLY=($(compgen -W "$(_loadout_agents)" -- "$cur")) ;;
-            *)
-                [[ "$cur" == -* ]] && COMPREPLY=($(compgen -W "$global_flags --all --skill --plugin --bundle --agent --force -f --interactive -i" -- "$cur"))
-                ;;
-        esac
-        ;;
-    uninstall)
-        case "$prev" in
-            --skill) COMPREPLY=($(compgen -W "$(_loadout_skills)" -- "$cur")) ;;
-            --plugin) COMPREPLY=($(compgen -W "$(_loadout_plugins)" -- "$cur")) ;;
-            --bundle) COMPREPLY=($(compgen -W "$(_loadout_bundles)" -- "$cur")) ;;
-            --agent) COMPREPLY=($(compgen -W "$(_loadout_agents)" -- "$cur")) ;;
-            *)
-                [[ "$cur" == -* ]] && COMPREPLY=($(compgen -W "$global_flags --skill --plugin --bundle --agent --force" -- "$cur"))
-                ;;
-        esac
-        ;;
-    collect)
-        case "$prev" in
-            --skill) COMPREPLY=($(compgen -W "$(_loadout_skills)" -- "$cur")) ;;
-            --agent) COMPREPLY=($(compgen -W "$(_loadout_agents)" -- "$cur")) ;;
-            *)
-                [[ "$cur" == -* ]] && COMPREPLY=($(compgen -W "$global_flags --skill --agent --adopt --force" -- "$cur"))
-                ;;
-        esac
-        ;;
     status)
         [[ "$cur" == -* ]] && COMPREPLY=($(compgen -W "$global_flags" -- "$cur"))
         ;;
-    bundle)
+    kit)
         if [[ -z "$subcmd" ]]; then
             if [[ "$cur" == -* ]]; then
                 COMPREPLY=($(compgen -W "$global_flags" -- "$cur"))
             else
-                COMPREPLY=($(compgen -W "create delete list show add drop activate deactivate" -- "$cur"))
+                COMPREPLY=($(compgen -W "create delete list show add drop" -- "$cur"))
             fi
         else
             case "$subcmd" in
@@ -453,16 +406,16 @@ _loadout() {
                 if [[ "$cur" == -* ]]; then
                     COMPREPLY=($(compgen -W "--force" -- "$cur"))
                 else
-                    COMPREPLY=($(compgen -W "$(_loadout_bundles)" -- "$cur"))
+                    COMPREPLY=($(compgen -W "$(_loadout_kits)" -- "$cur"))
                 fi
                 ;;
             show)
-                [[ "$cur" != -* ]] && COMPREPLY=($(compgen -W "$(_loadout_bundles)" -- "$cur"))
+                [[ "$cur" != -* ]] && COMPREPLY=($(compgen -W "$(_loadout_kits)" -- "$cur"))
                 ;;
             list)
                 ;;
             add|drop)
-                # First arg after subcmd is bundle name, rest are skills
+                # First arg after subcmd is kit name, rest are skills
                 local args_after=0
                 for ((i=cmd_idx+1; i < cword; i++)); do
                     case "${words[i]}" in
@@ -471,22 +424,10 @@ _loadout() {
                     esac
                 done
                 if [[ $args_after -eq 0 ]]; then
-                    COMPREPLY=($(compgen -W "$(_loadout_bundles)" -- "$cur"))
+                    COMPREPLY=($(compgen -W "$(_loadout_kits)" -- "$cur"))
                 else
                     COMPREPLY=($(compgen -W "$(_loadout_skills)" -- "$cur"))
                 fi
-                ;;
-            activate|deactivate)
-                case "$prev" in
-                    --agent) COMPREPLY=($(compgen -W "$(_loadout_agents)" -- "$cur")) ;;
-                    *)
-                        if [[ "$cur" == -* ]]; then
-                            COMPREPLY=($(compgen -W "--all --force --agent" -- "$cur"))
-                        else
-                            COMPREPLY=($(compgen -W "$(_loadout_bundles)" -- "$cur"))
-                        fi
-                        ;;
-                esac
                 ;;
             esac
         fi
@@ -496,7 +437,7 @@ _loadout() {
             if [[ "$cur" == -* ]]; then
                 COMPREPLY=($(compgen -W "$global_flags" -- "$cur"))
             else
-                COMPREPLY=($(compgen -W "add remove list show detect" -- "$cur"))
+                COMPREPLY=($(compgen -W "add remove list show detect equip unequip collect" -- "$cur"))
             fi
         else
             case "$subcmd" in
@@ -526,6 +467,42 @@ _loadout() {
                 ;;
             detect)
                 [[ "$cur" == -* ]] && COMPREPLY=($(compgen -W "--force" -- "$cur"))
+                ;;
+            equip)
+                case "$prev" in
+                    -a|--agent) COMPREPLY=($(compgen -W "$(_loadout_agents)" -- "$cur")) ;;
+                    -k|--kit) COMPREPLY=($(compgen -W "$(_loadout_kits)" -- "$cur")) ;;
+                    -s|--save-kit) ;;
+                    *)
+                        if [[ "$cur" == -* ]]; then
+                            COMPREPLY=($(compgen -W "--agent -a --all --kit -k --save-kit -s --force -f --interactive -i" -- "$cur"))
+                        else
+                            COMPREPLY=($(compgen -W "$(_loadout_skills)" -- "$cur"))
+                        fi
+                        ;;
+                esac
+                ;;
+            unequip)
+                case "$prev" in
+                    -a|--agent) COMPREPLY=($(compgen -W "$(_loadout_agents)" -- "$cur")) ;;
+                    -k|--kit) COMPREPLY=($(compgen -W "$(_loadout_kits)" -- "$cur")) ;;
+                    *)
+                        if [[ "$cur" == -* ]]; then
+                            COMPREPLY=($(compgen -W "--agent -a --all --kit -k --force -f" -- "$cur"))
+                        else
+                            COMPREPLY=($(compgen -W "$(_loadout_skills)" -- "$cur"))
+                        fi
+                        ;;
+                esac
+                ;;
+            collect)
+                case "$prev" in
+                    --skill) COMPREPLY=($(compgen -W "$(_loadout_skills)" -- "$cur")) ;;
+                    --agent) COMPREPLY=($(compgen -W "$(_loadout_agents)" -- "$cur")) ;;
+                    *)
+                        [[ "$cur" == -* ]] && COMPREPLY=($(compgen -W "--agent --skill --adopt --force" -- "$cur"))
+                        ;;
+                esac
                 ;;
             esac
         fi
@@ -568,8 +545,8 @@ function __loadout_plugins
     loadout _complete plugins 2>/dev/null
 end
 
-function __loadout_bundles
-    loadout _complete bundles 2>/dev/null
+function __loadout_kits
+    loadout _complete kits 2>/dev/null
 end
 
 function __loadout_needs_command
@@ -602,11 +579,8 @@ complete -c loadout -f -n __loadout_needs_command -a add -d 'Add a skill source'
 complete -c loadout -f -n __loadout_needs_command -a list -d 'List skills or sources'
 complete -c loadout -f -n __loadout_needs_command -a remove -d 'Remove a skill source'
 complete -c loadout -f -n __loadout_needs_command -a update -d 'Update sources from remote'
-complete -c loadout -f -n __loadout_needs_command -a apply -d 'Apply skills to agents'
-complete -c loadout -f -n __loadout_needs_command -a uninstall -d 'Uninstall skills from agents'
-complete -c loadout -f -n __loadout_needs_command -a collect -d 'Collect edited skills back'
 complete -c loadout -f -n __loadout_needs_command -a status -d 'Show current install state'
-complete -c loadout -f -n __loadout_needs_command -a bundle -d 'Manage skill bundles'
+complete -c loadout -f -n __loadout_needs_command -a kit -d 'Manage skill kits'
 complete -c loadout -f -n __loadout_needs_command -a agent -d 'Manage agents'
 complete -c loadout -f -n __loadout_needs_command -a config -d 'View or edit configuration'
 complete -c loadout -f -n __loadout_needs_command -a completions -d 'Generate shell completions'
@@ -630,49 +604,19 @@ complete -c loadout -f -n '__loadout_using_command remove' -a '(__loadout_source
 complete -c loadout -f -n '__loadout_using_command update' -l ref -r -d 'Switch to ref'
 complete -c loadout -f -n '__loadout_using_command update' -a '(__loadout_sources)'
 
-# apply
-complete -c loadout -f -n '__loadout_using_command apply' -l all -d 'Apply all skills'
-complete -c loadout -f -n '__loadout_using_command apply' -l skill -r -a '(__loadout_skills)' -d 'Specific skill'
-complete -c loadout -f -n '__loadout_using_command apply' -l plugin -r -a '(__loadout_plugins)' -d 'All skills in plugin'
-complete -c loadout -f -n '__loadout_using_command apply' -l bundle -r -a '(__loadout_bundles)' -d 'Specific bundle'
-complete -c loadout -f -n '__loadout_using_command apply' -l agent -r -a '(__loadout_agents)' -d 'Agent'
-complete -c loadout -f -n '__loadout_using_command apply' -l force -s f -d 'Overwrite without prompting'
-complete -c loadout -f -n '__loadout_using_command apply' -l interactive -s i -d 'Interactive conflict resolution'
+# kit subcommands
+complete -c loadout -f -n '__loadout_using_command kit' -a create -d 'Create a new kit'
+complete -c loadout -f -n '__loadout_using_command kit' -a delete -d 'Delete a kit'
+complete -c loadout -f -n '__loadout_using_command kit' -a list -d 'List kits'
+complete -c loadout -f -n '__loadout_using_command kit' -a show -d 'Show kit details'
+complete -c loadout -f -n '__loadout_using_command kit' -a add -d 'Add skills to a kit'
+complete -c loadout -f -n '__loadout_using_command kit' -a drop -d 'Remove skills from a kit'
 
-# uninstall
-complete -c loadout -f -n '__loadout_using_command uninstall' -l skill -r -a '(__loadout_skills)' -d 'Specific skill'
-complete -c loadout -f -n '__loadout_using_command uninstall' -l plugin -r -a '(__loadout_plugins)' -d 'All skills in plugin'
-complete -c loadout -f -n '__loadout_using_command uninstall' -l bundle -r -a '(__loadout_bundles)' -d 'Specific bundle'
-complete -c loadout -f -n '__loadout_using_command uninstall' -l agent -r -a '(__loadout_agents)' -d 'Agent'
-complete -c loadout -f -n '__loadout_using_command uninstall' -l force -d 'Actually perform uninstall'
-
-# collect
-complete -c loadout -f -n '__loadout_using_command collect' -l skill -r -a '(__loadout_skills)' -d 'Specific skill'
-complete -c loadout -f -n '__loadout_using_command collect' -l agent -r -a '(__loadout_agents)' -d 'Agent'
-complete -c loadout -f -n '__loadout_using_command collect' -l adopt -d 'Adopt into plugins/'
-complete -c loadout -f -n '__loadout_using_command collect' -l force -d 'Auto-adopt all'
-
-# bundle subcommands
-complete -c loadout -f -n '__loadout_using_command bundle' -a create -d 'Create a new bundle'
-complete -c loadout -f -n '__loadout_using_command bundle' -a delete -d 'Delete a bundle'
-complete -c loadout -f -n '__loadout_using_command bundle' -a list -d 'List bundles'
-complete -c loadout -f -n '__loadout_using_command bundle' -a show -d 'Show bundle details'
-complete -c loadout -f -n '__loadout_using_command bundle' -a add -d 'Add skills to a bundle'
-complete -c loadout -f -n '__loadout_using_command bundle' -a drop -d 'Remove skills from a bundle'
-complete -c loadout -f -n '__loadout_using_command bundle' -a activate -d 'Batch install a bundle'
-complete -c loadout -f -n '__loadout_using_command bundle' -a deactivate -d 'Batch uninstall a bundle'
-
-complete -c loadout -f -n '__loadout_using_subcommand bundle delete' -l force -d 'Force delete'
-complete -c loadout -f -n '__loadout_using_subcommand bundle delete' -a '(__loadout_bundles)'
-complete -c loadout -f -n '__loadout_using_subcommand bundle show' -a '(__loadout_bundles)'
-complete -c loadout -f -n '__loadout_using_subcommand bundle add' -a '(__loadout_bundles) (__loadout_skills)'
-complete -c loadout -f -n '__loadout_using_subcommand bundle drop' -a '(__loadout_bundles) (__loadout_skills)'
-complete -c loadout -f -n '__loadout_using_subcommand bundle activate' -l all -d 'All agents'
-complete -c loadout -f -n '__loadout_using_subcommand bundle activate' -l force -d 'Required'
-complete -c loadout -f -n '__loadout_using_subcommand bundle activate' -a '(__loadout_bundles)'
-complete -c loadout -f -n '__loadout_using_subcommand bundle deactivate' -l all -d 'All agents'
-complete -c loadout -f -n '__loadout_using_subcommand bundle deactivate' -l force -d 'Required'
-complete -c loadout -f -n '__loadout_using_subcommand bundle deactivate' -a '(__loadout_bundles)'
+complete -c loadout -f -n '__loadout_using_subcommand kit delete' -l force -d 'Force delete'
+complete -c loadout -f -n '__loadout_using_subcommand kit delete' -a '(__loadout_kits)'
+complete -c loadout -f -n '__loadout_using_subcommand kit show' -a '(__loadout_kits)'
+complete -c loadout -f -n '__loadout_using_subcommand kit add' -a '(__loadout_kits) (__loadout_skills)'
+complete -c loadout -f -n '__loadout_using_subcommand kit drop' -a '(__loadout_kits) (__loadout_skills)'
 
 # agent subcommands
 complete -c loadout -f -n '__loadout_using_command agent' -a add -d 'Register a new agent'
@@ -680,6 +624,9 @@ complete -c loadout -f -n '__loadout_using_command agent' -a remove -d 'Unregist
 complete -c loadout -f -n '__loadout_using_command agent' -a list -d 'Show all agents'
 complete -c loadout -f -n '__loadout_using_command agent' -a show -d 'Show agent details'
 complete -c loadout -f -n '__loadout_using_command agent' -a detect -d 'Auto-discover agents'
+complete -c loadout -f -n '__loadout_using_command agent' -a equip -d 'Equip skills to agents'
+complete -c loadout -f -n '__loadout_using_command agent' -a unequip -d 'Unequip skills from agents'
+complete -c loadout -f -n '__loadout_using_command agent' -a collect -d 'Collect edited skills back'
 
 complete -c loadout -f -n '__loadout_using_subcommand agent add' -l name -r -d 'Agent name'
 complete -c loadout -f -n '__loadout_using_subcommand agent add' -l scope -r -a 'machine repo' -d 'Scope'
@@ -689,6 +636,22 @@ complete -c loadout -f -n '__loadout_using_subcommand agent remove' -l force -d 
 complete -c loadout -f -n '__loadout_using_subcommand agent remove' -a '(__loadout_agents)'
 complete -c loadout -f -n '__loadout_using_subcommand agent show' -a '(__loadout_agents)'
 complete -c loadout -f -n '__loadout_using_subcommand agent detect' -l force -d 'Auto-add'
+complete -c loadout -f -n '__loadout_using_subcommand agent equip' -l agent -s a -r -a '(__loadout_agents)' -d 'Agent'
+complete -c loadout -f -n '__loadout_using_subcommand agent equip' -l all -d 'All configured skills'
+complete -c loadout -f -n '__loadout_using_subcommand agent equip' -l kit -s k -r -a '(__loadout_kits)' -d 'Kit to equip'
+complete -c loadout -f -n '__loadout_using_subcommand agent equip' -l save-kit -s s -r -d 'Save selection as kit'
+complete -c loadout -f -n '__loadout_using_subcommand agent equip' -l force -s f -d 'Overwrite without prompting'
+complete -c loadout -f -n '__loadout_using_subcommand agent equip' -l interactive -s i -d 'Interactive conflict resolution'
+complete -c loadout -f -n '__loadout_using_subcommand agent equip' -a '(__loadout_skills)'
+complete -c loadout -f -n '__loadout_using_subcommand agent unequip' -l agent -s a -r -a '(__loadout_agents)' -d 'Agent'
+complete -c loadout -f -n '__loadout_using_subcommand agent unequip' -l all -d 'All equipped skills'
+complete -c loadout -f -n '__loadout_using_subcommand agent unequip' -l kit -s k -r -a '(__loadout_kits)' -d 'Kit to unequip'
+complete -c loadout -f -n '__loadout_using_subcommand agent unequip' -l force -s f -d 'Force unequip'
+complete -c loadout -f -n '__loadout_using_subcommand agent unequip' -a '(__loadout_skills)'
+complete -c loadout -f -n '__loadout_using_subcommand agent collect' -l agent -r -a '(__loadout_agents)' -d 'Agent'
+complete -c loadout -f -n '__loadout_using_subcommand agent collect' -l skill -r -a '(__loadout_skills)' -d 'Specific skill'
+complete -c loadout -f -n '__loadout_using_subcommand agent collect' -l adopt -d 'Adopt into plugins/'
+complete -c loadout -f -n '__loadout_using_subcommand agent collect' -l force -d 'Auto-adopt all'
 
 # config subcommands
 complete -c loadout -f -n '__loadout_using_command config' -a show -d 'Display configuration'

@@ -1,4 +1,4 @@
-pub mod bundle;
+pub mod kit;
 pub mod cli;
 pub mod completions;
 pub mod config;
