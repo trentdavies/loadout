@@ -40,8 +40,7 @@ pub fn preprocess(raw: Vec<String>) -> Vec<String> {
     result.extend(global_prefix);
 
     if needs_catchall {
-        result.push("agent".to_string());
-        result.push("equip".to_string());
+        result.push("_equip".to_string());
     }
 
     // Pass 2: expand shorthands if subcommand is agent {equip, unequip, collect}
@@ -70,7 +69,7 @@ pub fn preprocess(raw: Vec<String>) -> Vec<String> {
         }
 
         match subcommand {
-            Some(Sub::Equip) | Some(Sub::Unequip) => {
+            Some(Sub::Equip) => {
                 if let Some(name) = arg.strip_prefix('@') {
                     trailing_flags.push("--agent".to_string());
                     trailing_flags.push(strip_quotes(name));
@@ -103,11 +102,10 @@ pub fn preprocess(raw: Vec<String>) -> Vec<String> {
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Sub {
     Equip,
-    Unequip,
     Collect,
 }
 
-/// Detect if the resolved args so far + remaining rest form an `agent {equip,unequip,collect}` path.
+/// Detect if the resolved args form a `_equip` or `agent collect` subcommand path.
 fn detect_subcommand(prefix: &[String], rest: &[String]) -> Option<Sub> {
     let all: Vec<&str> = prefix.iter().chain(rest.iter()).map(|s| s.as_str()).collect();
     let flags_with_arg = ["--config"];
@@ -129,6 +127,11 @@ fn detect_subcommand(prefix: &[String], rest: &[String]) -> Option<Sub> {
             i += 1;
             continue;
         }
+        // Top-level _equip
+        if token == "_equip" {
+            return Some(Sub::Equip);
+        }
+        // agent collect path
         if !found_agent {
             if token == "agent" {
                 found_agent = true;
@@ -137,8 +140,6 @@ fn detect_subcommand(prefix: &[String], rest: &[String]) -> Option<Sub> {
             }
         } else {
             return match token {
-                "equip" => Some(Sub::Equip),
-                "unequip" => Some(Sub::Unequip),
                 "collect" => Some(Sub::Collect),
                 _ => None,
             };
@@ -166,28 +167,28 @@ mod tests {
 
     #[test]
     fn at_agent_in_equip() {
-        let result = pp(&["loadout", "agent", "equip", "@claude", "dev*"]);
+        let result = pp(&["loadout", "_equip", "@claude", "dev*"]);
         assert_eq!(
             result,
-            ["loadout", "agent", "equip", "dev*", "--agent", "claude"]
+            ["loadout", "_equip", "dev*", "--agent", "claude"]
         );
     }
 
     #[test]
     fn plus_kit_in_equip() {
-        let result = pp(&["loadout", "agent", "equip", "+developer"]);
+        let result = pp(&["loadout", "_equip", "+developer"]);
         assert_eq!(
             result,
-            ["loadout", "agent", "equip", "--kit", "developer"]
+            ["loadout", "_equip", "--kit", "developer"]
         );
     }
 
     #[test]
     fn multiple_at_args() {
-        let result = pp(&["loadout", "agent", "equip", "@claude", "@cursor"]);
+        let result = pp(&["loadout", "_equip", "@claude", "@cursor"]);
         assert_eq!(
             result,
-            ["loadout", "agent", "equip", "--agent", "claude", "--agent", "cursor"]
+            ["loadout", "_equip", "--agent", "claude", "--agent", "cursor"]
         );
     }
 
@@ -196,7 +197,7 @@ mod tests {
         let result = pp(&["loadout", "@claude", "dev*"]);
         assert_eq!(
             result,
-            ["loadout", "agent", "equip", "dev*", "--agent", "claude"]
+            ["loadout", "_equip", "dev*", "--agent", "claude"]
         );
     }
 
@@ -205,7 +206,7 @@ mod tests {
         let result = pp(&["loadout", "+dev"]);
         assert_eq!(
             result,
-            ["loadout", "agent", "equip", "--kit", "dev"]
+            ["loadout", "_equip", "--kit", "dev"]
         );
     }
 
@@ -215,7 +216,7 @@ mod tests {
         assert_eq!(
             result,
             [
-                "loadout", "-n", "--verbose", "agent", "equip", "dev*", "--agent", "claude"
+                "loadout", "-n", "--verbose", "_equip", "dev*", "--agent", "claude"
             ]
         );
     }
@@ -226,7 +227,7 @@ mod tests {
         assert_eq!(
             result,
             [
-                "loadout", "--config", "/tmp/alt.toml", "agent", "equip", "--agent", "claude"
+                "loadout", "--config", "/tmp/alt.toml", "_equip", "--agent", "claude"
             ]
         );
     }
@@ -248,19 +249,19 @@ mod tests {
 
     #[test]
     fn double_dash_stops_expansion() {
-        let result = pp(&["loadout", "agent", "equip", "@claude", "--", "+notkit"]);
+        let result = pp(&["loadout", "_equip", "@claude", "--", "+notkit"]);
         assert_eq!(
             result,
-            ["loadout", "agent", "equip", "--", "+notkit", "--agent", "claude"]
+            ["loadout", "_equip", "--", "+notkit", "--agent", "claude"]
         );
     }
 
     #[test]
     fn quoted_values_stripped() {
-        let result = pp(&["loadout", "agent", "equip", "@\"my-agent\""]);
+        let result = pp(&["loadout", "_equip", "@\"my-agent\""]);
         assert_eq!(
             result,
-            ["loadout", "agent", "equip", "--agent", "my-agent"]
+            ["loadout", "_equip", "--agent", "my-agent"]
         );
     }
 
@@ -269,7 +270,7 @@ mod tests {
         let result = pp(&["loadout", "@claude", "dev*", "legal/*"]);
         assert_eq!(
             result,
-            ["loadout", "agent", "equip", "dev*", "legal/*", "--agent", "claude"]
+            ["loadout", "_equip", "dev*", "legal/*", "--agent", "claude"]
         );
     }
 
@@ -279,7 +280,7 @@ mod tests {
         assert_eq!(
             result,
             [
-                "loadout", "agent", "equip", "-s", "dev*", "legal/*",
+                "loadout", "_equip", "-s", "dev*", "legal/*",
                 "--agent", "claude", "--kit", "developer"
             ]
         );
@@ -295,14 +296,5 @@ mod tests {
     fn regular_subcommand_no_catchall() {
         let result = pp(&["loadout", "status"]);
         assert_eq!(result, ["loadout", "status"]);
-    }
-
-    #[test]
-    fn unequip_expands_both() {
-        let result = pp(&["loadout", "agent", "unequip", "@claude", "+dev"]);
-        assert_eq!(
-            result,
-            ["loadout", "agent", "unequip", "--agent", "claude", "--kit", "dev"]
-        );
     }
 }

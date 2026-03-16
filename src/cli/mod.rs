@@ -158,6 +158,41 @@ pub enum Command {
         /// Completion type: sources, plugins, skills, agents, kits
         kind: String,
     },
+
+    /// Internal command — accessed via @agent/+kit shorthand syntax
+    #[command(name = "_equip", hide = true)]
+    Equip {
+        /// Glob patterns matching skills
+        patterns: Vec<String>,
+
+        /// Agent name(s) to target
+        #[arg(short, long, num_args = 1..)]
+        agent: Option<Vec<String>>,
+
+        /// Target all configured agents
+        #[arg(long, conflicts_with = "agent")]
+        all: bool,
+
+        /// Kit name
+        #[arg(short, long)]
+        kit: Option<String>,
+
+        /// Save the resolved skill set as the kit given by --kit
+        #[arg(short, long)]
+        save: bool,
+
+        /// Overwrite changed skills without prompting
+        #[arg(short, long)]
+        force: bool,
+
+        /// Interactively resolve conflicts for changed skills
+        #[arg(short, long)]
+        interactive: bool,
+
+        /// Remove instead of equip
+        #[arg(short, long)]
+        remove: bool,
+    },
 }
 
 #[derive(Clone, ValueEnum)]
@@ -261,58 +296,6 @@ pub enum AgentCommand {
         force: bool,
     },
 
-    /// Equip skills to agent(s)
-    Equip {
-        /// Glob patterns matching skills (e.g. "legal/*", "*")
-        patterns: Vec<String>,
-
-        /// Agent name(s) to equip to (repeatable; defaults to auto-sync agents)
-        #[arg(short, long, num_args = 1..)]
-        agent: Option<Vec<String>>,
-
-        /// Equip to all configured agents
-        #[arg(long, conflicts_with = "agent")]
-        all: bool,
-
-        /// Equip a saved kit by name
-        #[arg(short, long)]
-        kit: Option<String>,
-
-        /// Save the resolved skill set as the kit given by --kit
-        #[arg(short, long)]
-        save: bool,
-
-        /// Overwrite changed skills without prompting
-        #[arg(short, long)]
-        force: bool,
-
-        /// Interactively resolve conflicts for changed skills
-        #[arg(short, long)]
-        interactive: bool,
-    },
-
-    /// Unequip skills from agent(s)
-    Unequip {
-        /// Glob patterns matching skills (e.g. "legal/*", "*")
-        patterns: Vec<String>,
-
-        /// Agent name(s) to unequip from (repeatable; defaults to auto-sync agents)
-        #[arg(short, long, num_args = 1..)]
-        agent: Option<Vec<String>>,
-
-        /// Unequip from all configured agents
-        #[arg(long, conflicts_with = "agent")]
-        all: bool,
-
-        /// Unequip a saved kit by name
-        #[arg(short, long)]
-        kit: Option<String>,
-
-        /// Execute removal (default is preview)
-        #[arg(short, long)]
-        force: bool,
-    },
-
     /// Collect skills from an agent back to source
     Collect {
         /// Agent to collect from
@@ -366,5 +349,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Config { command } => commands::config::run(command, &flags),
         Command::Completions { shell, install } => commands::completions::run(shell, install, &flags),
         Command::Complete { kind } => commands::completions::run_complete(kind, &flags),
+        Command::Equip { patterns, agent, all, kit, save, force, interactive, remove }
+            => commands::equip::run(patterns, agent, all, kit, save, force, interactive, remove, &flags),
     }
 }

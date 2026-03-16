@@ -54,7 +54,7 @@ fn parse_config_override() {
 #[test]
 fn parse_equip_parses_ok() {
     // equip with no flags should parse OK at clap level (error is in run())
-    let result = Cli::try_parse_from(["loadout", "agent", "equip"]);
+    let result = Cli::try_parse_from(["loadout", "_equip"]);
     assert!(result.is_ok());
 }
 
@@ -411,16 +411,13 @@ fn shorthand_top_level_at_parses() {
     let processed = pp(&["loadout", "@claude", "dev*"]);
     let cli = Cli::try_parse_from(&processed).unwrap();
     match cli.command {
-        loadout::cli::Command::Agent { command } => match command {
-            loadout::cli::AgentCommand::Equip {
-                agent, patterns, ..
-            } => {
-                assert_eq!(agent, Some(vec!["claude".to_string()]));
-                assert_eq!(patterns, vec!["dev*".to_string()]);
-            }
-            _ => panic!("expected Equip"),
-        },
-        _ => panic!("expected Agent"),
+        loadout::cli::Command::Equip {
+            agent, patterns, ..
+        } => {
+            assert_eq!(agent, Some(vec!["claude".to_string()]));
+            assert_eq!(patterns, vec!["dev*".to_string()]);
+        }
+        _ => panic!("expected Equip"),
     }
 }
 
@@ -429,13 +426,10 @@ fn shorthand_top_level_plus_parses() {
     let processed = pp(&["loadout", "+developer"]);
     let cli = Cli::try_parse_from(&processed).unwrap();
     match cli.command {
-        loadout::cli::Command::Agent { command } => match command {
-            loadout::cli::AgentCommand::Equip { kit, .. } => {
-                assert_eq!(kit, Some("developer".to_string()));
-            }
-            _ => panic!("expected Equip"),
-        },
-        _ => panic!("expected Agent"),
+        loadout::cli::Command::Equip { kit, .. } => {
+            assert_eq!(kit, Some("developer".to_string()));
+        }
+        _ => panic!("expected Equip"),
     }
 }
 
@@ -444,25 +438,22 @@ fn shorthand_at_plus_with_save() {
     let processed = pp(&["loadout", "@claude", "+developer", "-s", "dev*", "legal/*"]);
     let cli = Cli::try_parse_from(&processed).unwrap();
     match cli.command {
-        loadout::cli::Command::Agent { command } => match command {
-            loadout::cli::AgentCommand::Equip {
-                agent,
-                kit,
-                save,
+        loadout::cli::Command::Equip {
+            agent,
+            kit,
+            save,
+            patterns,
+            ..
+        } => {
+            assert_eq!(agent, Some(vec!["claude".to_string()]));
+            assert_eq!(kit, Some("developer".to_string()));
+            assert!(save);
+            assert_eq!(
                 patterns,
-                ..
-            } => {
-                assert_eq!(agent, Some(vec!["claude".to_string()]));
-                assert_eq!(kit, Some("developer".to_string()));
-                assert!(save);
-                assert_eq!(
-                    patterns,
-                    vec!["dev*".to_string(), "legal/*".to_string()]
-                );
-            }
-            _ => panic!("expected Equip"),
-        },
-        _ => panic!("expected Agent"),
+                vec!["dev*".to_string(), "legal/*".to_string()]
+            );
+        }
+        _ => panic!("expected Equip"),
     }
 }
 
@@ -473,28 +464,22 @@ fn shorthand_global_flags_preserved() {
     assert!(cli.dry_run);
     assert!(cli.verbose);
     match cli.command {
-        loadout::cli::Command::Agent { command } => match command {
-            loadout::cli::AgentCommand::Equip { agent, .. } => {
-                assert_eq!(agent, Some(vec!["claude".to_string()]));
-            }
-            _ => panic!("expected Equip"),
-        },
-        _ => panic!("expected Agent"),
+        loadout::cli::Command::Equip { agent, .. } => {
+            assert_eq!(agent, Some(vec!["claude".to_string()]));
+        }
+        _ => panic!("expected Equip"),
     }
 }
 
 #[test]
 fn save_is_bool_flag() {
-    let processed = pp(&["loadout", "agent", "equip", "-s", "-k", "mykit", "dev*"]);
+    let processed = pp(&["loadout", "_equip", "-s", "-k", "mykit", "dev*"]);
     let cli = Cli::try_parse_from(&processed).unwrap();
     match cli.command {
-        loadout::cli::Command::Agent { command } => match command {
-            loadout::cli::AgentCommand::Equip { save, kit, .. } => {
-                assert!(save);
-                assert_eq!(kit, Some("mykit".to_string()));
-            }
-            _ => panic!("expected Equip"),
-        },
-        _ => panic!("expected Agent"),
+        loadout::cli::Command::Equip { save, kit, .. } => {
+            assert!(save);
+            assert_eq!(kit, Some("mykit".to_string()));
+        }
+        _ => panic!("expected Equip"),
     }
 }

@@ -5,7 +5,7 @@ use clap::Parser;
 use tempfile::TempDir;
 
 use loadout::cli::args::preprocess;
-use loadout::cli::{Cli, Command, AgentCommand};
+use loadout::cli::{Cli, Command};
 use loadout::config::{Config, AgentConfig, KitConfig, SourceConfig};
 use loadout::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry};
 
@@ -108,36 +108,30 @@ fn run_cli(args: &[&str], config_path: &str) -> anyhow::Result<()> {
 
 #[test]
 fn parse_equip_with_plus_kit() {
-    let processed = pp(&["loadout", "agent", "equip", "+dev", "skill-a"]);
+    let processed = pp(&["loadout", "_equip", "+dev", "skill-a"]);
     let cli = Cli::try_parse_from(&processed).unwrap();
     match cli.command {
-        Command::Agent { command } => match command {
-            AgentCommand::Equip { kit, patterns, .. } => {
-                assert_eq!(kit, Some("dev".to_string()));
-                assert_eq!(patterns, vec!["skill-a".to_string()]);
-            }
-            _ => panic!("expected Equip"),
-        },
-        _ => panic!("expected Agent"),
+        Command::Equip { kit, patterns, .. } => {
+            assert_eq!(kit, Some("dev".to_string()));
+            assert_eq!(patterns, vec!["skill-a".to_string()]);
+        }
+        _ => panic!("expected Equip"),
     }
 }
 
 #[test]
 fn parse_equip_plus_kit_with_save() {
-    let processed = pp(&["loadout", "agent", "equip", "+dev", "-s", "dev*"]);
+    let processed = pp(&["loadout", "_equip", "+dev", "-s", "dev*"]);
     let cli = Cli::try_parse_from(&processed).unwrap();
     match cli.command {
-        Command::Agent { command } => match command {
-            AgentCommand::Equip {
-                kit, save, patterns, ..
-            } => {
-                assert_eq!(kit, Some("dev".to_string()));
-                assert!(save);
-                assert_eq!(patterns, vec!["dev*".to_string()]);
-            }
-            _ => panic!("expected Equip"),
-        },
-        _ => panic!("expected Agent"),
+        Command::Equip {
+            kit, save, patterns, ..
+        } => {
+            assert_eq!(kit, Some("dev".to_string()));
+            assert!(save);
+            assert_eq!(patterns, vec!["dev*".to_string()]);
+        }
+        _ => panic!("expected Equip"),
     }
 }
 
@@ -146,33 +140,28 @@ fn parse_equip_at_agent_plus_kit() {
     let processed = pp(&["loadout", "@claude", "+dev", "web*"]);
     let cli = Cli::try_parse_from(&processed).unwrap();
     match cli.command {
-        Command::Agent { command } => match command {
-            AgentCommand::Equip {
-                agent, kit, patterns, ..
-            } => {
-                assert_eq!(agent, Some(vec!["claude".to_string()]));
-                assert_eq!(kit, Some("dev".to_string()));
-                assert_eq!(patterns, vec!["web*".to_string()]);
-            }
-            _ => panic!("expected Equip"),
-        },
-        _ => panic!("expected Agent"),
+        Command::Equip {
+            agent, kit, patterns, ..
+        } => {
+            assert_eq!(agent, Some(vec!["claude".to_string()]));
+            assert_eq!(kit, Some("dev".to_string()));
+            assert_eq!(patterns, vec!["web*".to_string()]);
+        }
+        _ => panic!("expected Equip"),
     }
 }
 
 #[test]
 fn parse_unequip_with_plus_kit() {
-    let processed = pp(&["loadout", "agent", "unequip", "+dev", "--force"]);
+    let processed = pp(&["loadout", "_equip", "+dev", "--remove", "--force"]);
     let cli = Cli::try_parse_from(&processed).unwrap();
     match cli.command {
-        Command::Agent { command } => match command {
-            AgentCommand::Unequip { kit, force, .. } => {
-                assert_eq!(kit, Some("dev".to_string()));
-                assert!(force);
-            }
-            _ => panic!("expected Unequip"),
-        },
-        _ => panic!("expected Agent"),
+        Command::Equip { kit, force, remove, .. } => {
+            assert_eq!(kit, Some("dev".to_string()));
+            assert!(force);
+            assert!(remove);
+        }
+        _ => panic!("expected Equip"),
     }
 }
 
@@ -183,15 +172,15 @@ fn equip_missing_kit_no_save_errors() {
     let (_xdg_dir, config_path, _source_dir, _agent_dir) = setup_env();
 
     let result = run_cli(
-        &["agent", "equip", "+nonexistent", "test-plugin/*", "-f"],
+        &["_equip", "+nonexistent", "test-plugin/*", "-f"],
         config_path.to_str().unwrap(),
     );
 
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
     assert!(
-        err.contains("kit 'nonexistent' not found"),
-        "expected kit-not-found error, got: {}",
+        err.contains("kit 'nonexistent' not found; add -s to create 'nonexistent'"),
+        "expected kit-not-found-with-tip error, got: {}",
         err
     );
 }
@@ -201,7 +190,7 @@ fn equip_missing_kit_only_no_patterns_errors() {
     let (_xdg_dir, config_path, _source_dir, _agent_dir) = setup_env();
 
     let result = run_cli(
-        &["agent", "equip", "-k", "nonexistent", "-f"],
+        &["_equip", "-k", "nonexistent", "-f"],
         config_path.to_str().unwrap(),
     );
 
@@ -229,7 +218,7 @@ fn equip_existing_kit_works() {
     loadout::config::save_to(&config, &config_path).unwrap();
 
     let result = run_cli(
-        &["agent", "equip", "+dev", "-f"],
+        &["_equip", "+dev", "-f"],
         config_path.to_str().unwrap(),
     );
 
@@ -250,7 +239,7 @@ fn equip_existing_kit_plus_patterns_works() {
     loadout::config::save_to(&config, &config_path).unwrap();
 
     let result = run_cli(
-        &["agent", "equip", "+dev", "test-plugin/skill-b", "-f"],
+        &["_equip", "+dev", "test-plugin/skill-b", "-f"],
         config_path.to_str().unwrap(),
     );
 
@@ -263,7 +252,7 @@ fn equip_missing_kit_with_save_creates_kit() {
 
     // --save with missing kit and --force (non-interactive) should create the kit
     let result = run_cli(
-        &["agent", "equip", "+newkit", "-s", "test-plugin/*", "-f"],
+        &["_equip", "+newkit", "-s", "test-plugin/*", "-f"],
         config_path.to_str().unwrap(),
     );
 
@@ -291,7 +280,7 @@ fn equip_existing_kit_with_save_updates_kit() {
 
     // Equip with broader pattern + --save --force
     let result = run_cli(
-        &["agent", "equip", "+dev", "-s", "test-plugin/*", "-f"],
+        &["_equip", "+dev", "-s", "test-plugin/*", "-f"],
         config_path.to_str().unwrap(),
     );
 
@@ -307,7 +296,7 @@ fn unequip_missing_kit_errors() {
     let (_xdg_dir, config_path, _source_dir, _agent_dir) = setup_env();
 
     let result = run_cli(
-        &["agent", "unequip", "+nonexistent", "-f"],
+        &["_equip", "--remove", "+nonexistent", "-f"],
         config_path.to_str().unwrap(),
     );
 
@@ -326,7 +315,7 @@ fn unequip_missing_kit_with_patterns_still_errors() {
 
     // Even with patterns, unequip should error on missing kit
     let result = run_cli(
-        &["agent", "unequip", "+nonexistent", "test-plugin/*", "-f"],
+        &["_equip", "--remove", "+nonexistent", "test-plugin/*", "-f"],
         config_path.to_str().unwrap(),
     );
 

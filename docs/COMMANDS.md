@@ -29,21 +29,69 @@ Before clap parses args, `src/cli/args.rs` rewrites the raw arg vector.
 
 ### `@name` — Agent shorthand
 - Expands to `--agent name`
-- Active in subcommands: `agent equip`, `agent unequip`, `agent collect`
+- Active in: top-level equip (`_equip`), `agent collect`
 - Elsewhere (e.g. `list`): passed through literally, no expansion
 
 ### `+name` — Kit shorthand
 - Expands to `--kit name`
-- Active in subcommands: `agent equip`, `agent unequip`
+- Active in: top-level equip (`_equip`)
 - In `agent collect`: **not expanded** (passed through as a positional)
 
-### Top-level catch-all
-When the first positional arg (after global flags) starts with `@` or `+`, the preprocessor injects `agent equip` as the subcommand:
+### Top-level catch-all (equip)
+When the first positional arg (after global flags) starts with `@` or `+`, the preprocessor injects the hidden `_equip` subcommand:
 
 ```
-loadout @claude dev*        → loadout agent equip dev* --agent claude
-loadout +developer          → loadout agent equip --kit developer
-loadout -n @claude +dev *   → loadout -n agent equip * --agent claude --kit dev
+loadout @claude dev*        → loadout _equip dev* --agent claude
+loadout +developer          → loadout _equip --kit developer
+loadout -n @claude +dev *   → loadout -n _equip * --agent claude --kit dev
+loadout @claude dev* --remove --force → loadout _equip dev* --remove --force --agent claude
+```
+
+There is no `loadout equip` or `loadout unequip` command. Equip is the default action when using `@`/`+` shorthand. Unequip is `--remove`.
+
+### Equip flags
+
+| Flag | Short | Type | Default | Description |
+|------|-------|------|---------|-------------|
+| `--agent` | `-a` | string (repeatable) | None | Agent name(s) to target |
+| `--all` | | bool | `false` | Target all configured agents |
+| `--kit` | `-k` | string | None | Kit name to equip/unequip |
+| `--save` | `-s` | bool | `false` | Save the resolved skill set as the kit given by `--kit` |
+| `--force` | `-f` | bool | `false` | Overwrite changed skills without prompting (equip) / execute removal (unequip) |
+| `--interactive` | `-i` | bool | `false` | Interactively resolve conflicts for changed skills |
+| `--remove` | `-r` | bool | `false` | Unequip instead of equip |
+
+**Flag conflicts:**
+- `--agent` and `--all` conflict (clap-enforced).
+- `--remove` cannot be combined with `--save` or `--interactive` (runtime validation).
+
+**Agent resolution (when neither `--agent` nor `--all`):**
+- Defaults to all agents with `sync: "auto"`.
+- Errors if no agents are configured.
+
+**`--kit` behavior:**
+- When `--kit` is given without `--save`: loads the named kit and equips its skills.
+- When `--kit` and `--save` are both given: resolves skills from patterns, saves them as the named kit, then equips.
+- When `--save` is given without `--kit`: errors (kit name required).
+
+**Conflict handling (equip only):**
+- Default (no flag): skips changed skills, reports them.
+- `--force`: overwrites without prompting.
+- `--interactive`: prompts per-skill for changed files.
+
+**Unequip behavior (`--remove`):**
+- Without `--force`: preview mode — shows what would be removed but doesn't delete.
+- With `--force`: actually removes skill files from agent directories.
+
+**Examples:**
+```
+loadout @claude dev*                    # equip matching skills to claude
+loadout @claude +dev                    # equip kit "dev" to claude
+loadout +dev                            # equip kit to auto-sync agents
+loadout @claude +dev --remove --force   # unequip kit from claude
+loadout @claude dev* --remove --force   # unequip matching skills
+loadout -n @claude +dev                 # dry-run equip
+loadout @claude +newkit -s dev* -f      # equip and save as kit
 ```
 
 ### Expansion ordering
@@ -440,83 +488,6 @@ loadout agent detect [flags]
 - Without `--force`: prompts per agent.
 - With `--force`: adds all detected agents silently.
 - Scope is auto-detected: home dir → `machine`, cwd → `repo`. Repo-scoped agents default to `sync: explicit`.
-
-#### `agent equip`
-
-Equip skills to agent(s). This is the primary "install" command.
-
-```
-loadout agent equip [PATTERNS...] [flags]
-```
-
-| Argument | Type | Required | Description |
-|----------|------|----------|-------------|
-| `patterns` | positional (variadic) | no | Glob patterns matching skills (e.g. `legal/*`, `*`, `dev`) |
-
-| Flag | Short | Type | Default | Description |
-|------|-------|------|---------|-------------|
-| `--agent` | `-a` | string (repeatable) | None | Agent name(s) to equip to |
-| `--all` | | bool | `false` | Equip to all configured agents |
-| `--kit` | `-k` | string | None | Equip a saved kit by name |
-| `--save` | `-s` | bool | `false` | Save the resolved skill set as the kit given by `--kit` |
-| `--force` | `-f` | bool | `false` | Overwrite changed skills without prompting |
-| `--interactive` | `-i` | bool | `false` | Interactively resolve conflicts for changed skills |
-
-**Flag conflicts:**
-- `--agent` and `--all` conflict (clap-enforced).
-
-**Agent resolution (when neither `--agent` nor `--all`):**
-- Defaults to all agents with `sync: "auto"`.
-- Errors if no agents are configured.
-
-**`--kit` behavior:**
-- When `--kit` is given without `--save`: loads the named kit and equips its skills. Patterns are ignored.
-- When `--kit` and `--save` are both given: resolves skills from patterns, saves them as the named kit, then equips.
-- When `--save` is given without `--kit`: no-op for save (kit name required).
-
-**Conflict handling:**
-- Default (no flag): skips changed skills, reports them.
-- `--force`: overwrites without prompting.
-- `--interactive`: prompts per-skill for changed files.
-
-**Shorthand:**
-```
-loadout @claude dev*            → loadout agent equip dev* --agent claude
-loadout @claude +developer      → loadout agent equip --agent claude --kit developer
-loadout +developer -s dev*      → loadout agent equip -s dev* --kit developer
-```
-
-#### `agent unequip`
-
-Unequip skills from agent(s).
-
-```
-loadout agent unequip [PATTERNS...] [flags]
-```
-
-| Argument | Type | Required | Description |
-|----------|------|----------|-------------|
-| `patterns` | positional (variadic) | no | Glob patterns matching skills |
-
-| Flag | Short | Type | Default | Description |
-|------|-------|------|---------|-------------|
-| `--agent` | `-a` | string (repeatable) | None | Agent name(s) to unequip from |
-| `--all` | | bool | `false` | Unequip from all configured agents |
-| `--kit` | `-k` | string | None | Unequip a saved kit by name |
-| `--force` | `-f` | bool | `false` | Execute removal (default is preview) |
-
-**Flag conflicts:**
-- `--agent` and `--all` conflict (clap-enforced).
-
-**Behavior:**
-- Without `--force`: preview mode — shows what would be removed but doesn't delete.
-- With `--force`: actually removes skill files from agent directories.
-- Agent resolution follows the same rules as `equip`.
-
-**Shorthand:**
-```
-loadout agent unequip @claude dev*   → loadout agent unequip dev* --agent claude
-```
 
 #### `agent collect`
 

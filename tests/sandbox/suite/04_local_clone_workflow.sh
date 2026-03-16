@@ -73,7 +73,7 @@ test_04_apply_from_local() {
   rm -rf "$SANDBOX_TARGET_CODEX/skills"
   mkdir -p "$SANDBOX_TARGET_CODEX"
 
-  log_cmd "$LOADOUT" agent equip "$plugin_name/*" -a sandbox-codex -f
+  log_cmd "$LOADOUT" @sandbox-codex "$plugin_name/*" -f
 
   local installed
   installed=$(find "$SANDBOX_TARGET_CODEX" -name "SKILL.md" -type f 2>/dev/null | wc -l | tr -d ' ')
@@ -109,7 +109,7 @@ test_05_bundle_across_sources() {
 
   log_cmd "$LOADOUT" kit create cross-source-bundle
   log_cmd "$LOADOUT" kit add cross-source-bundle "$skill_a" "$skill_b"
-  log_cmd "$LOADOUT" agent equip -k cross-source-bundle -a sandbox-codex -f
+  log_cmd "$LOADOUT" @sandbox-codex +cross-source-bundle -f
 
   local short_a short_b
   short_a=$(echo "$skill_a" | awk -F/ '{print $NF}')
