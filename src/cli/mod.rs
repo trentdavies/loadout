@@ -2321,8 +2321,28 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     force,
                     interactive,
                 } => {
-                    if patterns.is_empty() && kit.is_none() {
-                        eprintln!("error: equip requires skill patterns or --kit");
+                    // Parse @agent and +kit prefixes from positional patterns
+                    let mut agent = agent;
+                    let mut kit = kit;
+                    let mut skill_patterns: Vec<String> = Vec::new();
+                    for pat in &patterns {
+                        if let Some(name) = pat.strip_prefix('@') {
+                            let agents = agent.get_or_insert_with(Vec::new);
+                            if !agents.contains(&name.to_string()) {
+                                agents.push(name.to_string());
+                            }
+                        } else if let Some(name) = pat.strip_prefix('+') {
+                            if kit.is_some() {
+                                anyhow::bail!("multiple kits specified (--kit and +{})", name);
+                            }
+                            kit = Some(name.to_string());
+                        } else {
+                            skill_patterns.push(pat.clone());
+                        }
+                    }
+
+                    if skill_patterns.is_empty() && kit.is_none() {
+                        eprintln!("error: equip requires skill patterns or a kit (+name / --kit)");
                         std::process::exit(2);
                     }
 
@@ -2349,7 +2369,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         Vec::new();
 
                     // From positional patterns
-                    for pattern in &patterns {
+                    for pattern in &skill_patterns {
                         if crate::registry::is_glob(pattern) {
                             let matches = registry.match_skills(pattern);
                             if matches.is_empty() {
@@ -2377,19 +2397,29 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         }
                     }
 
-                    // From --kit
-                    if let Some(ref kit_name) = kit {
-                        let kit_cfg = config
-                            .kit
-                            .get(kit_name)
-                            .ok_or_else(|| anyhow::anyhow!("kit '{}' not found", kit_name))?;
-                        for skill_id in &kit_cfg.skills {
-                            let (src, plug, s) = registry.find_skill(skill_id)?;
-                            skills_to_apply.push((src, plug, s));
+                    // From --kit / +kit — resolve skills, track whether kit exists
+                    let kit_exists = if let Some(ref kit_name) = kit {
+                        match config.kit.get(kit_name) {
+                            Some(kit_cfg) => {
+                                for skill_id in &kit_cfg.skills {
+                                    let (src, plug, s) = registry.find_skill(skill_id)?;
+                                    skills_to_apply.push((src, plug, s));
+                                }
+                                true
+                            }
+                            None if save && !skill_patterns.is_empty() => {
+                                // Kit missing, -s present, patterns provided — will prompt to create
+                                false
+                            }
+                            None => {
+                                anyhow::bail!("kit '{}' not found", kit_name);
+                            }
                         }
-                    }
+                    } else {
+                        false
+                    };
 
-                    // Interactive confirmation (default when not --force)
+                    // Interactive confirmation: show skills, prompt for kit creation, then proceed
                     if !force && !cli.dry_run && !skills_to_apply.is_empty() && crate::prompt::is_interactive() {
                         eprintln!("Skills to equip:");
                         for (src, plug, s) in &skills_to_apply {
@@ -2399,12 +2429,68 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         for ac in &agents {
                             eprintln!("  {}", ac.name.bold());
                         }
+
+                        // Prompt to create missing kit before proceeding
+                        if save && !kit_exists {
+                            if let Some(ref kit_name) = kit {
+                                eprint!(
+                                    "Create kit '{}' ({} skill{})? [y/N] ",
+                                    kit_name,
+                                    skills_to_apply.len(),
+                                    if skills_to_apply.len() == 1 { "" } else { "s" },
+                                );
+                                let mut input = String::new();
+                                std::io::stdin().read_line(&mut input).unwrap_or(0);
+                                if input.trim().eq_ignore_ascii_case("y") {
+                                    let mut skill_ids: Vec<String> = Vec::new();
+                                    for (src, plug, s) in &skills_to_apply {
+                                        let fq = crate::output::plain_identity(src, plug, &s.name);
+                                        if !skill_ids.contains(&fq) {
+                                            skill_ids.push(fq);
+                                        }
+                                    }
+                                    let mut save_config = crate::config::load(cli.config.as_deref())?;
+                                    save_config.kit.insert(
+                                        kit_name.clone(),
+                                        crate::config::KitConfig { skills: skill_ids },
+                                    );
+                                    crate::config::save(&save_config, cli.config.as_deref())?;
+                                    if !cli.quiet {
+                                        println!("Created kit '{}'", kit_name);
+                                    }
+                                } else {
+                                    eprintln!("Aborted.");
+                                    return Ok(());
+                                }
+                            }
+                        }
+
                         eprint!("Proceed? [y/N] ");
                         let mut input = String::new();
                         std::io::stdin().read_line(&mut input).unwrap_or(0);
                         if !input.trim().eq_ignore_ascii_case("y") {
                             eprintln!("Aborted.");
                             return Ok(());
+                        }
+                    } else if save && !kit_exists {
+                        // Non-interactive / --force: create kit silently
+                        if let Some(ref kit_name) = kit {
+                            let mut skill_ids: Vec<String> = Vec::new();
+                            for (src, plug, s) in &skills_to_apply {
+                                let fq = crate::output::plain_identity(src, plug, &s.name);
+                                if !skill_ids.contains(&fq) {
+                                    skill_ids.push(fq);
+                                }
+                            }
+                            let mut save_config = crate::config::load(cli.config.as_deref())?;
+                            save_config.kit.insert(
+                                kit_name.clone(),
+                                crate::config::KitConfig { skills: skill_ids },
+                            );
+                            crate::config::save(&save_config, cli.config.as_deref())?;
+                            if !cli.quiet {
+                                println!("Created kit '{}'", kit_name);
+                            }
                         }
                     }
 
@@ -2521,11 +2607,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                         crate::registry::save_registry(&reg, &data_dir)?;
                     }
 
-                    // --save: persist the resolved skill set under the --kit name
-                    if save {
-                        let Some(ref kit_name) = kit else {
-                            anyhow::bail!("--save requires --kit to specify the kit name");
-                        };
+                    // --save: update existing kit with resolved skill set
+                    if save && kit_exists {
+                        let kit_name = kit.as_ref().unwrap();
                         let mut config = crate::config::load(cli.config.as_deref())?;
                         let mut skill_ids: Vec<String> = Vec::new();
                         for (src, plug, s) in &skills_to_apply {
@@ -2534,14 +2618,33 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                                 skill_ids.push(fq);
                             }
                         }
-                        config.kit.insert(
-                            kit_name.clone(),
-                            crate::config::KitConfig { skills: skill_ids },
-                        );
-                        crate::config::save(&config, cli.config.as_deref())?;
-                        if !cli.quiet {
-                            println!("Saved kit '{}'", kit_name);
+
+                        let should_save = if force || !crate::prompt::is_interactive() {
+                            true
+                        } else {
+                            eprint!(
+                                "Update kit '{}' ({} skill{})? [y/N] ",
+                                kit_name,
+                                skill_ids.len(),
+                                if skill_ids.len() == 1 { "" } else { "s" },
+                            );
+                            let mut input = String::new();
+                            std::io::stdin().read_line(&mut input).unwrap_or(0);
+                            input.trim().eq_ignore_ascii_case("y")
+                        };
+
+                        if should_save {
+                            config.kit.insert(
+                                kit_name.clone(),
+                                crate::config::KitConfig { skills: skill_ids },
+                            );
+                            crate::config::save(&config, cli.config.as_deref())?;
+                            if !cli.quiet {
+                                println!("Updated kit '{}'", kit_name);
+                            }
                         }
+                    } else if save && kit.is_none() {
+                        anyhow::bail!("--save requires --kit (or +name) to specify the kit name");
                     }
 
                     if !cli.quiet && !cli.dry_run {
@@ -2562,8 +2665,28 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     kit,
                     force,
                 } => {
-                    if patterns.is_empty() && kit.is_none() {
-                        eprintln!("error: unequip requires skill patterns or --kit");
+                    // Parse @agent and +kit prefixes from positional patterns
+                    let mut agent = agent;
+                    let mut kit = kit;
+                    let mut skill_patterns: Vec<String> = Vec::new();
+                    for pat in &patterns {
+                        if let Some(name) = pat.strip_prefix('@') {
+                            let agents = agent.get_or_insert_with(Vec::new);
+                            if !agents.contains(&name.to_string()) {
+                                agents.push(name.to_string());
+                            }
+                        } else if let Some(name) = pat.strip_prefix('+') {
+                            if kit.is_some() {
+                                anyhow::bail!("multiple kits specified (--kit and +{})", name);
+                            }
+                            kit = Some(name.to_string());
+                        } else {
+                            skill_patterns.push(pat.clone());
+                        }
+                    }
+
+                    if skill_patterns.is_empty() && kit.is_none() {
+                        eprintln!("error: unequip requires skill patterns or a kit (+name / --kit)");
                         std::process::exit(2);
                     }
 
@@ -2589,7 +2712,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     // Collect skill names to remove
                     let mut skill_names: Vec<String> = Vec::new();
 
-                    for pattern in &patterns {
+                    for pattern in &skill_patterns {
                         if crate::registry::is_glob(pattern) {
                             let matches = registry.match_skills(pattern);
                             if matches.is_empty() {
@@ -2623,14 +2746,17 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                     }
 
                     if let Some(ref kit_name) = kit {
-                        let kit_cfg = config
-                            .kit
-                            .get(kit_name)
-                            .ok_or_else(|| anyhow::anyhow!("kit '{}' not found", kit_name))?;
-                        for skill_id in &kit_cfg.skills {
-                            let (_, _, s) = registry.find_skill(skill_id)?;
-                            if !skill_names.contains(&s.name) {
-                                skill_names.push(s.name.clone());
+                        match config.kit.get(kit_name) {
+                            Some(kit_cfg) => {
+                                for skill_id in &kit_cfg.skills {
+                                    let (_, _, s) = registry.find_skill(skill_id)?;
+                                    if !skill_names.contains(&s.name) {
+                                        skill_names.push(s.name.clone());
+                                    }
+                                }
+                            }
+                            None => {
+                                anyhow::bail!("kit '{}' not found", kit_name);
                             }
                         }
                     }
