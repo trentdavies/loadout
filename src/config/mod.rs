@@ -7,12 +7,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Resolve the config file path.
-/// Uses `--config` override if provided, otherwise `~/.local/share/equip/loadout.toml`.
+/// Uses `--config` override if provided, otherwise `~/.local/share/equip/equip.toml`.
 pub fn config_path(override_path: Option<&str>) -> PathBuf {
     if let Some(p) = override_path {
         return PathBuf::from(p);
     }
-    data_dir().join("loadout.toml")
+    data_dir().join("equip.toml")
 }
 
 /// The equip data directory. Everything lives here — config, registry, cached sources.
@@ -186,7 +186,7 @@ mod tests {
     fn config_path_default() {
         let p = config_path(None);
         assert!(p.to_string_lossy().contains("equip"));
-        assert!(p.to_string_lossy().ends_with("loadout.toml"));
+        assert!(p.to_string_lossy().ends_with("equip.toml"));
     }
 
     #[test]
@@ -216,7 +216,7 @@ mod tests {
     #[test]
     fn save_to_load_from_roundtrip() {
         let tmp = TempDir::new().unwrap();
-        let path = tmp.path().join("loadout.toml");
+        let path = tmp.path().join("equip.toml");
 
         let mut config = Config::default();
         config.source.push(SourceConfig {
@@ -245,7 +245,7 @@ mod tests {
     #[test]
     fn save_to_creates_parent_dirs() {
         let tmp = TempDir::new().unwrap();
-        let path = tmp.path().join("deep").join("nested").join("loadout.toml");
+        let path = tmp.path().join("deep").join("nested").join("equip.toml");
         let config = Config::default();
         save_to(&config, &path).unwrap();
         assert!(path.exists());
