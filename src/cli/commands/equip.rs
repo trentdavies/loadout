@@ -185,7 +185,13 @@ fn run_equip(
             }
         }
 
-        eprint!("Proceed? [y/N] ");
+        eprint!(
+            "Install {} skill{} to {} agent{}? [y/N] ",
+            skills_to_apply.len(),
+            if skills_to_apply.len() == 1 { "" } else { "s" },
+            agents.len(),
+            if agents.len() == 1 { "" } else { "s" },
+        );
         let mut input = String::new();
         std::io::stdin().read_line(&mut input).unwrap_or(0);
         if !input.trim().eq_ignore_ascii_case("y") {
