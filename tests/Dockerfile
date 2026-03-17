@@ -2,7 +2,7 @@ FROM rust:bookworm
 
 # Extra tools (git already included via buildpack-deps)
 RUN apt-get update && apt-get install -y \
-    openssh-server jq tree vim less \
+    openssh-server jq tree vim less bash-completion \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
@@ -47,6 +47,22 @@ COPY tests/ /tests/
 RUN chmod +x /tests/harness/runner.sh \
     && chmod +x /tests/sandbox/run /tests/sandbox/runner.sh /tests/sandbox/setup.sh \
     && chmod +x /tests/sandbox/suite/*.sh 2>/dev/null || true
+
+# Shell config: vi bindings, completions, equip completions
+RUN printf '%s\n' \
+    'set editing-mode vi' \
+    'set keymap vi-command' \
+    '$if mode=vi' \
+    '  set show-mode-in-prompt on' \
+    '  set vi-ins-mode-string \1\e[6 q\2' \
+    '  set vi-cmd-mode-string \1\e[2 q\2' \
+    '$endif' \
+    > /root/.inputrc \
+    && printf '%s\n' \
+    'set -o vi' \
+    '[ -f /usr/share/bash-completion/bash_completion ] && . /usr/share/bash-completion/bash_completion' \
+    > /root/.bashrc \
+    && equip completions bash --install
 
 # Convenience symlinks for sandbox exploration
 RUN ln -s /tests/sandbox/runner.sh ~/run-tests \
