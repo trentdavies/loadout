@@ -20,6 +20,7 @@ fn make_source(name: &str, url: &str) -> SourceConfig {
         source_type: "local".to_string(),
         r#ref: None,
         mode: None,
+        residence: equip::config::SourceResidence::External,
     }
 }
 
@@ -63,6 +64,7 @@ fn make_registered_source(
         url: String::new(),
         plugins,
         cache_path,
+        residence: equip::config::SourceResidence::External,
     }
 }
 

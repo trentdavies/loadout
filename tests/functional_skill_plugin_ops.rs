@@ -31,6 +31,7 @@ fn source(name: &str, plugins: Vec<RegisteredPlugin>) -> RegisteredSource {
         url: String::new(),
         plugins,
         cache_path: PathBuf::from("/tmp"),
+        residence: equip::config::SourceResidence::External,
     }
 }
 

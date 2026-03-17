@@ -163,6 +163,7 @@ fn swap_bundle() {
             path: source_dir.path().to_path_buf(),
         }],
         cache_path: source_dir.path().to_path_buf(),
+        residence: equip::config::SourceResidence::External,
     });
 
     let adapter = resolve_adapter(&config.agent[0], &config.adapter).unwrap();

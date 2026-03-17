@@ -39,6 +39,7 @@ fn config_save_and_reload() {
         source_type: "local".to_string(),
         r#ref: None,
         mode: None,
+        residence: equip::config::SourceResidence::External,
     });
     config.agent.push(equip::config::AgentConfig {
         name: "my-claude".to_string(),
@@ -212,6 +213,7 @@ fn registry_save_load_roundtrip() {
             path: PathBuf::from("/tmp/cache/test-plugin"),
         }],
         cache_path: PathBuf::from("/tmp/cache"),
+        residence: equip::config::SourceResidence::External,
     });
     equip::registry::save_registry(&registry, &data_dir).unwrap();
 
@@ -240,6 +242,7 @@ fn registry_find_skill_short_form() {
             path: PathBuf::from("/tmp"),
         }],
         cache_path: PathBuf::from("/tmp"),
+        residence: equip::config::SourceResidence::External,
     });
 
     let (src, plugin, skill) = registry.find_skill("plug/sk").unwrap();
@@ -268,6 +271,7 @@ fn registry_find_skill_full_form() {
             path: PathBuf::from("/tmp"),
         }],
         cache_path: PathBuf::from("/tmp"),
+        residence: equip::config::SourceResidence::External,
     });
 
     let (src, _, _) = registry.find_skill("mysrc:plug/sk").unwrap();

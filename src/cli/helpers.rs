@@ -67,14 +67,14 @@ pub(crate) fn extract_domain(url: &str) -> String {
     host
 }
 
-/// Build a set of source names that are external (git).
+/// Build a set of source names stored in the external cache.
 pub(crate) fn external_source_set(
     config: &crate::config::Config,
 ) -> std::collections::HashSet<String> {
     config
         .source
         .iter()
-        .filter(|s| s.source_type == "git")
+        .filter(|s| s.residence == crate::config::SourceResidence::External)
         .map(|s| s.name.clone())
         .collect()
 }
@@ -110,7 +110,7 @@ pub(crate) fn load_context(flags: &crate::cli::flags::Flags) -> anyhow::Result<C
         crate::registry::save_registry(&registry, &data_dir)?;
         if !flags.quiet {
             for rename in &renames {
-                eprintln!("source renamed: {}", rename);
+                eprintln!("source reconciled: {}", rename);
             }
         }
     }

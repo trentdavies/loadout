@@ -116,6 +116,7 @@ pub fn normalize_with(parsed: &ParsedSource, overrides: &Overrides) -> Result<Re
         url: parsed.url.clone().unwrap_or_default(),
         plugins,
         cache_path: parsed.path.clone(),
+        residence: crate::config::SourceResidence::External,
     })
 }
 

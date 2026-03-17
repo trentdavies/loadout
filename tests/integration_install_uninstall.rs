@@ -273,6 +273,7 @@ fn full_install_uninstall_lifecycle() {
             path: source_dir.path().to_path_buf(),
         }],
         cache_path: source_dir.path().to_path_buf(),
+        residence: equip::config::SourceResidence::External,
     });
 
     // Save and reload registry

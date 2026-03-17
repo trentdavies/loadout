@@ -77,6 +77,7 @@ fn full_lifecycle_smoke_test() {
         source_type: "local".to_string(),
         r#ref: None,
         mode: None,
+        residence: equip::config::SourceResidence::External,
     });
 
     // ── Step 3: Agent add ───────────────────────────────────────────────

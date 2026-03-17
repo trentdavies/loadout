@@ -63,6 +63,7 @@ fn setup_env() -> (TempDir, PathBuf, TempDir, TempDir) {
                 path: source_dir.path().to_path_buf(),
             }],
             cache_path: source_dir.path().to_path_buf(),
+            residence: equip::config::SourceResidence::External,
         }],
         installed: Default::default(),
     };
@@ -77,6 +78,7 @@ fn setup_env() -> (TempDir, PathBuf, TempDir, TempDir) {
         source_type: "local".to_string(),
         r#ref: None,
         mode: None,
+        residence: equip::config::SourceResidence::External,
     });
     config.agent.push(AgentConfig {
         name: "claude".to_string(),

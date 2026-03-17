@@ -42,7 +42,8 @@ pub(crate) fn run_add(
         );
     }
 
-    let cache_path = crate::config::cache_dir().join(&source_name);
+    let residence = crate::source::default_source_residence();
+    let cache_path = crate::source::source_storage_path(&source_name, residence);
 
     // Determine fetch mode for local directory sources
     let use_symlink = match &source_url {
@@ -128,6 +129,8 @@ pub(crate) fn run_add(
             skill: overrides.1.as_deref(),
         };
 
+        let mut registered = crate::source::normalize::normalize_with(&parsed, &norm_overrides)?;
+        registered.residence = residence;
         let prepared = crate::source::PreparedSource {
             config: crate::source::build_source_config(
                 &source_name,
@@ -138,8 +141,9 @@ pub(crate) fn run_add(
                 } else {
                     None
                 },
+                residence,
             ),
-            registered: crate::source::normalize::normalize_with(&parsed, &norm_overrides)?,
+            registered,
         };
 
         // In non-interactive/quiet mode, show what was resolved
@@ -244,6 +248,7 @@ pub(crate) fn run_list(
                     serde_json::json!({
                         "name": src.name,
                         "type": src.source_type,
+                        "residence": src.residence.as_str(),
                         "domain": extract_domain(&src.url),
                         "ref": src.r#ref,
                         "skills": skill_count,
@@ -274,6 +279,7 @@ pub(crate) fn run_list(
                 vec![
                     src.name.clone(),
                     src.source_type.clone(),
+                    src.residence.as_str().to_string(),
                     extract_domain(&src.url),
                     src.r#ref.clone().unwrap_or_default(),
                     skill_count.to_string(),
@@ -283,7 +289,10 @@ pub(crate) fn run_list(
             .collect();
 
         let out = crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
-        out.table(&["NAME", "TYPE", "DOMAIN", "REF", "SKILLS", "MODE"], &rows);
+        out.table(
+            &["NAME", "TYPE", "STORAGE", "DOMAIN", "REF", "SKILLS", "MODE"],
+            &rows,
+        );
         return Ok(());
     }
 
@@ -478,7 +487,13 @@ pub(crate) fn run_remove(name: Option<String>, force: bool, flags: &Flags) -> an
     let execute = force && !flags.dry_run;
     if execute {
         // Remove cached content
-        let cache_path = crate::config::cache_dir().join(&name);
+        let residence = config
+            .source
+            .iter()
+            .find(|s| s.name == name)
+            .map(|s| s.residence)
+            .unwrap_or(crate::source::default_source_residence());
+        let cache_path = crate::source::source_storage_path(&name, residence);
         if cache_path.exists() {
             std::fs::remove_dir_all(&cache_path)?;
         }
@@ -518,7 +533,7 @@ pub(crate) fn run_update(
         crate::registry::save_registry(&registry, &data_dir)?;
         if !flags.quiet {
             for r in &renames {
-                eprintln!("source renamed: {}", r);
+                eprintln!("source reconciled: {}", r);
             }
         }
     }
@@ -563,7 +578,7 @@ pub(crate) fn run_update(
             continue;
         }
 
-        let cache_path = crate::config::cache_dir().join(&src.name);
+        let cache_path = crate::source::source_storage_path_for_config(src);
         if src.mode.as_deref() == Some("symlink") && !flags.quiet {
             println!("  (symlinked, re-detecting)");
         }

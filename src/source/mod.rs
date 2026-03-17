@@ -10,8 +10,9 @@ pub mod url;
 pub use detect::SourceStructure;
 pub use discover::{DiscoveredPlugin, DiscoveredSkill};
 pub use manage::{
-    build_source_config, detect_path, persist_prepared_source, prepare_source, refresh_source,
-    PreparedSource, RefreshSource,
+    build_source_config, default_source_residence, detect_path, persist_prepared_source,
+    prepare_source, refresh_source, source_storage_path, source_storage_path_for_config,
+    source_storage_path_in, source_storage_root, PreparedSource, RefreshSource,
 };
 pub use manifest::{MarketplaceManifest, PluginManifest};
 pub use parsed::{ParsedSource, SourceKind};

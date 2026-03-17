@@ -56,9 +56,20 @@ pub(crate) fn run(flags: &Flags) -> anyhow::Result<()> {
             let version = src.r#ref.as_deref().unwrap_or("latest");
             let mode_str = src.mode.as_deref().unwrap_or("");
             let detail = if mode_str.is_empty() {
-                format!("{} skills, @ {}", skill_count, version)
+                format!(
+                    "{} skills, @ {}, {}",
+                    skill_count,
+                    version,
+                    src.residence.as_str()
+                )
             } else {
-                format!("{} skills, @ {}, {}", skill_count, version, mode_str)
+                format!(
+                    "{} skills, @ {}, {}, {}",
+                    skill_count,
+                    version,
+                    src.residence.as_str(),
+                    mode_str
+                )
             };
             println!("  {} {}", src.name.bold(), detail.dimmed(),);
         }

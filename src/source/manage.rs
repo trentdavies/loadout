@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::path::{Path, PathBuf};
 
-use crate::config::{Config, SourceConfig};
+use crate::config::{Config, SourceConfig, SourceResidence};
 use crate::registry::{RegisteredSource, Registry};
 
 use super::{normalize, ParsedSource, SourceUrl};
@@ -14,6 +14,33 @@ pub struct PreparedSource {
 pub enum RefreshSource {
     Updated(PreparedSource),
     SkippedPinned { pinned_ref: String },
+}
+
+pub fn default_source_residence() -> SourceResidence {
+    SourceResidence::External
+}
+
+pub fn source_storage_root(data_dir: &Path, residence: SourceResidence) -> PathBuf {
+    match residence {
+        SourceResidence::External => data_dir.join("external"),
+        SourceResidence::Local => data_dir.to_path_buf(),
+    }
+}
+
+pub fn source_storage_path_in(
+    data_dir: &Path,
+    source_name: &str,
+    residence: SourceResidence,
+) -> PathBuf {
+    source_storage_root(data_dir, residence).join(source_name)
+}
+
+pub fn source_storage_path(source_name: &str, residence: SourceResidence) -> PathBuf {
+    source_storage_path_in(&crate::config::data_dir(), source_name, residence)
+}
+
+pub fn source_storage_path_for_config(source: &SourceConfig) -> PathBuf {
+    source_storage_path(&source.name, source.residence)
 }
 
 pub fn detect_path(source_url: &SourceUrl, cache_path: &Path) -> PathBuf {
@@ -29,6 +56,7 @@ pub fn build_source_config(
     source_url: &SourceUrl,
     git_ref: Option<String>,
     mode: Option<String>,
+    residence: SourceResidence,
 ) -> SourceConfig {
     SourceConfig {
         name: source_name.to_string(),
@@ -36,6 +64,7 @@ pub fn build_source_config(
         source_type: source_url.source_type().to_string(),
         r#ref: git_ref,
         mode,
+        residence,
     }
 }
 
@@ -45,13 +74,15 @@ pub fn prepare_source(
     cache_path: &Path,
     git_ref: Option<String>,
     mode: Option<String>,
+    residence: SourceResidence,
     overrides: &normalize::Overrides<'_>,
 ) -> Result<PreparedSource> {
     let parsed = ParsedSource::parse(&detect_path(source_url, cache_path))?
         .with_source_name(source_name)
         .with_url(source_url.url_string());
-    let registered = normalize::normalize_with(&parsed, overrides)?;
-    let config = build_source_config(source_name, source_url, git_ref, mode);
+    let mut registered = normalize::normalize_with(&parsed, overrides)?;
+    registered.residence = residence;
+    let config = build_source_config(source_name, source_url, git_ref, mode, residence);
     Ok(PreparedSource { config, registered })
 }
 
@@ -141,6 +172,7 @@ pub fn refresh_source(
         cache_path,
         git_ref,
         source.mode.clone(),
+        source.residence,
         &normalize::Overrides::default(),
     )?))
 }

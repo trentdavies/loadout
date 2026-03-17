@@ -2,6 +2,28 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+/// Where a source's cached content lives inside the equip data dir.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SourceResidence {
+    #[default]
+    External,
+    Local,
+}
+
+impl SourceResidence {
+    pub fn is_external(&self) -> bool {
+        matches!(self, Self::External)
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::External => "external",
+            Self::Local => "local",
+        }
+    }
+}
+
 /// Top-level equip configuration.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Config {
@@ -34,6 +56,10 @@ pub struct SourceConfig {
     /// Fetch mode for local sources: "symlink" or "copy". Omitted = copy.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode: Option<String>,
+
+    /// Where the source is stored inside the equip data dir.
+    #[serde(default, skip_serializing_if = "SourceResidence::is_external")]
+    pub residence: SourceResidence,
 }
 
 fn default_source_type() -> String {
@@ -170,6 +196,7 @@ skills = ["plugin/skill-a"]
             source_type: "local".to_string(),
             r#ref: None,
             mode: None,
+            residence: SourceResidence::External,
         });
         let serialized = toml::to_string_pretty(&config).unwrap();
         let deserialized: Config = toml::from_str(&serialized).unwrap();

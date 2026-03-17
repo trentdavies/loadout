@@ -1,3 +1,4 @@
+use crate::config::SourceResidence;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -9,6 +10,8 @@ pub struct RegisteredSource {
     pub url: String,
     pub plugins: Vec<RegisteredPlugin>,
     pub cache_path: PathBuf,
+    #[serde(default, skip_serializing_if = "SourceResidence::is_external")]
+    pub residence: SourceResidence,
 }
 
 /// A plugin within a registered source.

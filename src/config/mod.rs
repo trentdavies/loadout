@@ -30,16 +30,30 @@ pub fn data_dir() -> PathBuf {
 
 /// The external source cache directory: `<data_dir>/external/`.
 /// Creates the directory if it doesn't exist.
-pub fn cache_dir() -> PathBuf {
+pub fn external_sources_dir() -> PathBuf {
     let dir = data_dir().join("external");
     let _ = std::fs::create_dir_all(&dir);
     dir
 }
 
-/// The managed plugins directory: the data dir root.
-/// Plugins live as direct children of the data dir (e.g. `<data_dir>/local/`).
+/// Backward-compatible alias for the external source cache directory.
+pub fn cache_dir() -> PathBuf {
+    external_sources_dir()
+}
+
+/// The repo-local source directory: the data dir root.
+/// Managed local plugins live as direct children of the data dir
+/// (e.g. `<data_dir>/local/`).
 pub fn plugins_dir() -> PathBuf {
     data_dir()
+}
+
+/// Resolve the root directory for a given source residence.
+pub fn source_dir(residence: SourceResidence) -> PathBuf {
+    match residence {
+        SourceResidence::External => external_sources_dir(),
+        SourceResidence::Local => plugins_dir(),
+    }
 }
 
 /// The equip internals directory: `<data_dir>/.equip/`.
@@ -226,6 +240,7 @@ mod tests {
             source_type: "local".to_string(),
             r#ref: None,
             mode: None,
+            residence: SourceResidence::External,
         });
         config.agent.push(AgentConfig {
             name: "test-tgt".to_string(),

@@ -53,6 +53,7 @@ fn make_registry_with_skills(
             path: source_dir.to_path_buf(),
         }],
         cache_path: source_dir.to_path_buf(),
+        residence: equip::config::SourceResidence::External,
     });
     registry
 }

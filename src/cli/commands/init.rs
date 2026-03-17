@@ -21,7 +21,7 @@ pub(crate) fn run(url: Option<String>, flags: &Flags) -> anyhow::Result<()> {
     // Create directory structure
     let data = crate::config::data_dir();
     std::fs::create_dir_all(&data)?;
-    std::fs::create_dir_all(crate::config::cache_dir())?;
+    std::fs::create_dir_all(crate::config::external_sources_dir())?;
     std::fs::create_dir_all(crate::config::internal_dir())?;
 
     // Legacy migration: rename sources/ to external/
@@ -57,7 +57,8 @@ pub(crate) fn run(url: Option<String>, flags: &Flags) -> anyhow::Result<()> {
     if let Some(ref url_str) = url {
         let source_url = crate::source::SourceUrl::parse(url_str)?;
         let source_name = source_url.default_name();
-        let cache_path = crate::config::cache_dir().join(&source_name);
+        let residence = crate::source::default_source_residence();
+        let cache_path = crate::source::source_storage_path(&source_name, residence);
 
         crate::source::fetch::fetch(&source_url, &cache_path, None)?;
 
@@ -67,6 +68,7 @@ pub(crate) fn run(url: Option<String>, flags: &Flags) -> anyhow::Result<()> {
             &cache_path,
             None,
             None,
+            residence,
             &crate::source::normalize::Overrides::default(),
         )?;
 
@@ -175,7 +177,8 @@ pub(crate) fn run(url: Option<String>, flags: &Flags) -> anyhow::Result<()> {
                     }
                 };
                 let source_name = source_url.default_name();
-                let cache_path = crate::config::cache_dir().join(&source_name);
+                let residence = crate::source::default_source_residence();
+                let cache_path = crate::source::source_storage_path(&source_name, residence);
 
                 if !flags.quiet {
                     println!("Adding '{}'...", name);
@@ -193,6 +196,7 @@ pub(crate) fn run(url: Option<String>, flags: &Flags) -> anyhow::Result<()> {
                     &cache_path,
                     None,
                     None,
+                    residence,
                     &crate::source::normalize::Overrides::default(),
                 ) {
                     Ok(prepared) => {

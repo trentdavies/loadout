@@ -184,7 +184,7 @@ pub(crate) fn run(command: KitCommand, flags: &Flags) -> anyhow::Result<()> {
                 crate::registry::save_registry(&registry, &data_dir)?;
                 if !flags.quiet {
                     for r in &renames {
-                        eprintln!("source renamed: {}", r);
+                        eprintln!("source reconciled: {}", r);
                     }
                 }
             }

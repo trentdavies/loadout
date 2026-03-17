@@ -47,15 +47,31 @@ pub fn reconcile_with_config(
     data_dir: &std::path::Path,
 ) -> Result<Vec<String>> {
     let mut renames = Vec::new();
+    let (sources, installed) = (&mut registry.sources, &mut registry.installed);
 
-    for reg_src in &mut registry.sources {
+    for reg_src in sources.iter_mut() {
         // Skip sources without URL (legacy entries)
         if reg_src.url.is_empty() {
             continue;
         }
 
-        // If registry source name already exists in config, it's correctly named
-        if config_sources.iter().any(|cs| cs.name == reg_src.name) {
+        if let Some(cs) = config_sources.iter().find(|cs| cs.name == reg_src.name) {
+            if cs.residence != reg_src.residence {
+                let old_residence = reg_src.residence;
+                relocate_registered_source(
+                    installed,
+                    reg_src,
+                    &reg_src.name.clone(),
+                    cs,
+                    data_dir,
+                )?;
+                renames.push(format!(
+                    "{} storage {} → {}",
+                    reg_src.name,
+                    old_residence.as_str(),
+                    cs.residence.as_str()
+                ));
+            }
             continue;
         }
 
@@ -65,52 +81,88 @@ pub fn reconcile_with_config(
         if let Some(cs) = config_match {
             if cs.name != reg_src.name {
                 let old_name = reg_src.name.clone();
-                let new_name = cs.name.clone();
-
-                // Rename cache directory
-                let old_cache = data_dir.join("external").join(&old_name);
-                let new_cache = data_dir.join("external").join(&new_name);
-                if old_cache.exists() && !new_cache.exists() {
-                    std::fs::rename(&old_cache, &new_cache)?;
-                }
-
-                // Update cache_path in registry
-                if reg_src.cache_path.starts_with(&old_cache) {
-                    reg_src.cache_path = new_cache.clone();
-                }
-
-                // Update plugin paths
-                for plugin in &mut reg_src.plugins {
-                    if plugin.path.starts_with(&old_cache) {
-                        if let Ok(suffix) = plugin.path.strip_prefix(&old_cache) {
-                            plugin.path = new_cache.join(suffix);
-                        }
-                    }
-                    for skill in &mut plugin.skills {
-                        if skill.path.starts_with(&old_cache) {
-                            if let Ok(suffix) = skill.path.strip_prefix(&old_cache) {
-                                skill.path = new_cache.join(suffix);
-                            }
-                        }
-                    }
-                }
-
-                // Update installed provenance records
-                for agent_skills in registry.installed.values_mut() {
-                    for installed in agent_skills.values_mut() {
-                        if installed.source == old_name {
-                            installed.source = new_name.clone();
-                        }
-                    }
-                }
-
-                renames.push(format!("{} → {}", old_name, new_name));
-                reg_src.name = new_name;
+                relocate_registered_source(installed, reg_src, &old_name, cs, data_dir)?;
+                renames.push(format!("{} → {}", old_name, cs.name));
             }
         }
     }
 
     Ok(renames)
+}
+
+fn relocate_registered_source(
+    installed_index: &mut std::collections::BTreeMap<
+        String,
+        std::collections::BTreeMap<String, InstalledSkill>,
+    >,
+    reg_src: &mut RegisteredSource,
+    old_name: &str,
+    config_source: &crate::config::SourceConfig,
+    data_dir: &Path,
+) -> Result<()> {
+    let old_cache = crate::source::source_storage_path_in(data_dir, old_name, reg_src.residence);
+    let new_cache = crate::source::source_storage_path_in(
+        data_dir,
+        &config_source.name,
+        config_source.residence,
+    );
+
+    if old_cache != new_cache && old_cache.exists() && !new_cache.exists() {
+        if let Some(parent) = new_cache.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::rename(&old_cache, &new_cache)?;
+    }
+
+    if reg_src.cache_path.starts_with(&old_cache) {
+        reg_src.cache_path = rebase_path(&reg_src.cache_path, &old_cache, &new_cache);
+    }
+
+    for plugin in &mut reg_src.plugins {
+        if plugin.path.starts_with(&old_cache) {
+            plugin.path = rebase_path(&plugin.path, &old_cache, &new_cache);
+        }
+        for skill in &mut plugin.skills {
+            if skill.path.starts_with(&old_cache) {
+                skill.path = rebase_path(&skill.path, &old_cache, &new_cache);
+            }
+        }
+    }
+
+    let old_origin = relative_storage_path(data_dir, &old_cache);
+    let new_origin = relative_storage_path(data_dir, &new_cache);
+    for agent_skills in installed_index.values_mut() {
+        for installed in agent_skills.values_mut() {
+            if installed.source == old_name {
+                installed.source = config_source.name.clone();
+            }
+            if installed.origin == old_origin {
+                installed.origin = new_origin.clone();
+            } else if let Some(suffix) = installed.origin.strip_prefix(&(old_origin.clone() + "/"))
+            {
+                installed.origin = format!("{}/{}", new_origin, suffix);
+            }
+        }
+    }
+
+    reg_src.name = config_source.name.clone();
+    reg_src.residence = config_source.residence;
+    Ok(())
+}
+
+fn rebase_path(path: &Path, old_root: &Path, new_root: &Path) -> std::path::PathBuf {
+    match path.strip_prefix(old_root) {
+        Ok(suffix) if suffix.as_os_str().is_empty() => new_root.to_path_buf(),
+        Ok(suffix) => new_root.join(suffix),
+        Err(_) => path.to_path_buf(),
+    }
+}
+
+fn relative_storage_path(data_dir: &Path, path: &Path) -> String {
+    match path.strip_prefix(data_dir) {
+        Ok(rel) => rel.to_string_lossy().replace('\\', "/"),
+        Err(_) => path.to_string_lossy().replace('\\', "/"),
+    }
 }
 
 impl Registry {
@@ -338,6 +390,7 @@ mod tests {
                     path: std::path::PathBuf::from("/tmp"),
                 }],
                 cache_path: std::path::PathBuf::from("/tmp"),
+                residence: crate::config::SourceResidence::External,
             });
         }
         let err = registry.find_skill("shared/dup").unwrap_err();
@@ -373,6 +426,7 @@ mod tests {
                 path: std::path::PathBuf::from("/tmp"),
             }],
             cache_path: std::path::PathBuf::from("/tmp"),
+            residence: crate::config::SourceResidence::External,
         });
         assert_eq!(registry.all_skills().len(), 2);
     }
@@ -391,6 +445,7 @@ mod tests {
                 path: std::path::PathBuf::from("/tmp"),
             }],
             cache_path: std::path::PathBuf::from("/tmp"),
+            residence: crate::config::SourceResidence::External,
         });
         let (src_name, plugin) = registry.find_plugin("my-plugin").unwrap();
         assert_eq!(src_name, "src");
@@ -431,6 +486,7 @@ mod tests {
                 path: std::path::PathBuf::from("/tmp/p"),
             }],
             cache_path: std::path::PathBuf::from("/tmp"),
+            residence: crate::config::SourceResidence::External,
         });
         save_registry(&registry, tmp.path()).unwrap();
         let loaded = load_registry(tmp.path()).unwrap();
@@ -536,6 +592,7 @@ mod tests {
                 path: std::path::PathBuf::from("/tmp"),
             }],
             cache_path: std::path::PathBuf::from("/tmp"),
+            residence: crate::config::SourceResidence::External,
         });
         registry.sources.push(RegisteredSource {
             name: "beta".to_string(),
@@ -554,6 +611,7 @@ mod tests {
                 path: std::path::PathBuf::from("/tmp"),
             }],
             cache_path: std::path::PathBuf::from("/tmp"),
+            residence: crate::config::SourceResidence::External,
         });
         registry
     }
@@ -668,6 +726,7 @@ mod tests {
                 path: std::path::PathBuf::from("/tmp"),
             }],
             cache_path: std::path::PathBuf::from("/tmp"),
+            residence: crate::config::SourceResidence::External,
         });
         let matches = registry.match_skills("cl*sk*");
         assert_eq!(
@@ -698,6 +757,7 @@ mod tests {
                 path: std::path::PathBuf::from("/tmp"),
             }],
             cache_path: std::path::PathBuf::from("/tmp"),
+            residence: crate::config::SourceResidence::External,
         });
         let (src, plug, skill) = registry.find_skill("p/sk").unwrap();
         assert_eq!(src, "s");
@@ -729,6 +789,7 @@ mod tests {
                 path: ext_dir.join("plug"),
             }],
             cache_path: ext_dir.clone(),
+            residence: crate::config::SourceResidence::External,
         });
 
         let config_sources = vec![crate::config::SourceConfig {
@@ -737,6 +798,7 @@ mod tests {
             source_type: "git".to_string(),
             r#ref: None,
             mode: None,
+            residence: crate::config::SourceResidence::External,
         }];
 
         let renames = reconcile_with_config(&mut registry, &config_sources, tmp.path()).unwrap();
@@ -769,6 +831,7 @@ mod tests {
             url: "https://example.com/repo.git".to_string(),
             plugins: vec![],
             cache_path: ext_dir.clone(),
+            residence: crate::config::SourceResidence::External,
         });
         registry.installed.insert("my-agent".to_string(), {
             let mut m = std::collections::BTreeMap::new();
@@ -790,11 +853,78 @@ mod tests {
             source_type: "git".to_string(),
             r#ref: None,
             mode: None,
+            residence: crate::config::SourceResidence::External,
         }];
 
         reconcile_with_config(&mut registry, &config_sources, tmp.path()).unwrap();
         let installed = &registry.installed["my-agent"]["my-skill"];
         assert_eq!(installed.source, "new-src");
+    }
+
+    #[test]
+    fn reconcile_moves_source_between_storage_roots() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let local_dir = tmp.path().join("same-src");
+        std::fs::create_dir_all(local_dir.join("plug/skills/my-skill")).unwrap();
+
+        let mut registry = Registry::default();
+        registry.sources.push(RegisteredSource {
+            name: "same-src".to_string(),
+            url: "https://example.com/repo.git".to_string(),
+            plugins: vec![RegisteredPlugin {
+                name: "plug".to_string(),
+                version: None,
+                description: None,
+                skills: vec![RegisteredSkill {
+                    name: "my-skill".to_string(),
+                    description: None,
+                    author: None,
+                    version: None,
+                    path: local_dir.join("plug/skills/my-skill"),
+                }],
+                path: local_dir.join("plug"),
+            }],
+            cache_path: local_dir.clone(),
+            residence: crate::config::SourceResidence::Local,
+        });
+        registry.installed.insert("my-agent".to_string(), {
+            let mut m = std::collections::BTreeMap::new();
+            m.insert(
+                "my-skill".to_string(),
+                InstalledSkill {
+                    source: "same-src".to_string(),
+                    plugin: "plug".to_string(),
+                    skill: "my-skill".to_string(),
+                    origin: "same-src/plug/skills/my-skill".to_string(),
+                },
+            );
+            m
+        });
+
+        let config_sources = vec![crate::config::SourceConfig {
+            name: "same-src".to_string(),
+            url: "https://example.com/repo.git".to_string(),
+            source_type: "git".to_string(),
+            r#ref: None,
+            mode: None,
+            residence: crate::config::SourceResidence::External,
+        }];
+
+        let renames = reconcile_with_config(&mut registry, &config_sources, tmp.path()).unwrap();
+        assert_eq!(renames, vec!["same-src storage local → external"]);
+
+        let new_ext = tmp.path().join("external").join("same-src");
+        assert!(!local_dir.exists());
+        assert!(new_ext.exists());
+        assert_eq!(registry.sources[0].cache_path, new_ext);
+        assert_eq!(
+            registry.sources[0].residence,
+            crate::config::SourceResidence::External
+        );
+        assert_eq!(
+            registry.installed["my-agent"]["my-skill"].origin,
+            "external/same-src/plug/skills/my-skill"
+        );
     }
 
     #[test]
@@ -806,6 +936,7 @@ mod tests {
             url: "https://example.com/repo.git".to_string(),
             plugins: vec![],
             cache_path: tmp.path().join("external/same"),
+            residence: crate::config::SourceResidence::External,
         });
 
         let config_sources = vec![crate::config::SourceConfig {
@@ -814,6 +945,7 @@ mod tests {
             source_type: "git".to_string(),
             r#ref: None,
             mode: None,
+            residence: crate::config::SourceResidence::External,
         }];
 
         let renames = reconcile_with_config(&mut registry, &config_sources, tmp.path()).unwrap();
@@ -830,6 +962,7 @@ mod tests {
             url: String::new(),
             plugins: vec![],
             cache_path: tmp.path().join("external/legacy"),
+            residence: crate::config::SourceResidence::External,
         });
 
         let config_sources = vec![crate::config::SourceConfig {
@@ -838,6 +971,7 @@ mod tests {
             source_type: "git".to_string(),
             r#ref: None,
             mode: None,
+            residence: crate::config::SourceResidence::External,
         }];
 
         let renames = reconcile_with_config(&mut registry, &config_sources, tmp.path()).unwrap();

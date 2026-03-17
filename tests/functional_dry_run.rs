@@ -47,6 +47,7 @@ fn setup_env() -> (TempDir, TempDir, TempDir, PathBuf, PathBuf) {
         source_type: "local".to_string(),
         r#ref: None,
         mode: None,
+        residence: equip::config::SourceResidence::External,
     });
     config.agent.push(equip::config::AgentConfig {
         name: "test-agent".to_string(),

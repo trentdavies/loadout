@@ -92,6 +92,7 @@ fn add_source(
         source_type: "local".to_string(),
         r#ref: None,
         mode: None,
+        residence: equip::config::SourceResidence::External,
     });
     equip::config::save_to(&config, config_path).unwrap();
 
