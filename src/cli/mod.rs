@@ -306,7 +306,7 @@ pub enum AgentCommand {
         #[arg(long, value_name = "SKILL")]
         skill: Option<String>,
 
-        /// Adopt skill into plugins/ (make it yours)
+        /// Adopt skill into the local source (make it yours)
         #[arg(long)]
         adopt: bool,
 

@@ -417,7 +417,7 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
                         true
                     } else if !untracked.is_empty() {
                         eprint!(
-                            "Adopt {} untracked skill(s) into plugins/local? [y/N] ",
+                            "Adopt {} untracked skill(s) into local/? [y/N] ",
                             untracked.len()
                         );
                         let mut input = String::new();

@@ -379,13 +379,15 @@ pub(crate) fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> anyh
     Ok(())
 }
 
-/// Generate .claude-plugin/marketplace.json from the plugins/ directory.
+/// Generate .claude-plugin/marketplace.json from plugin directories in the data dir root.
 pub(crate) fn generate_marketplace(data_dir: &std::path::Path) -> anyhow::Result<()> {
-    let plugins_dir = data_dir.join("plugins");
+    /// Directories in the data dir that are infrastructure, not plugins.
+    const SKIP_DIRS: &[&str] = &["external"];
+
     let mut plugins = Vec::new();
 
-    if plugins_dir.is_dir() {
-        let mut entries: Vec<_> = std::fs::read_dir(&plugins_dir)?
+    if data_dir.is_dir() {
+        let mut entries: Vec<_> = std::fs::read_dir(data_dir)?
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
             .collect();
@@ -393,7 +395,14 @@ pub(crate) fn generate_marketplace(data_dir: &std::path::Path) -> anyhow::Result
 
         for entry in entries {
             let dir_name = entry.file_name().to_string_lossy().to_string();
-            if dir_name.starts_with('.') {
+            if dir_name.starts_with('.') || SKIP_DIRS.contains(&dir_name.as_str()) {
+                continue;
+            }
+
+            // Only include directories that look like plugins (have skills/ or .claude-plugin/)
+            let has_plugin_marker = entry.path().join(".claude-plugin").is_dir();
+            let has_skills = entry.path().join("skills").is_dir();
+            if !has_plugin_marker && !has_skills {
                 continue;
             }
 
@@ -410,7 +419,7 @@ pub(crate) fn generate_marketplace(data_dir: &std::path::Path) -> anyhow::Result
 
             let mut plugin_entry = serde_json::json!({
                 "name": name,
-                "source": format!("./plugins/{}", dir_name),
+                "source": format!("./{}", dir_name),
             });
             if let Some(desc) = description {
                 plugin_entry["description"] = serde_json::Value::String(desc);

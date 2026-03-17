@@ -31,6 +31,10 @@ pub(crate) fn run_add(
         crate::prompt::confirm_or_override("Source name", &default_source, flags.quiet)
     };
 
+    if source_name == "local" {
+        anyhow::bail!("'local' is reserved for the local plugin source. Use --source to choose a different name.");
+    }
+
     if config.source.iter().any(|s| s.name == source_name) {
         anyhow::bail!(
             "source '{}' already exists. Use --source to choose a different alias.",

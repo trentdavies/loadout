@@ -252,7 +252,7 @@ _equip() {
                     _arguments \
                         '--agent[Agent to collect from]:agent:_equip_agents' \
                         '--skill[Specific skill]:skill:_equip_skills' \
-                        '--adopt[Adopt into plugins/]' \
+                        '--adopt[Adopt into the local source]' \
                         '--force[Auto-adopt all without prompting]'
                     ;;
                 esac
@@ -720,7 +720,7 @@ complete -c equip -f -n '__equip_using_subcommand agent unequip' -l force -s f -
 complete -c equip -f -n '__equip_using_subcommand agent unequip' -a '(__equip_skills)'
 complete -c equip -f -n '__equip_using_subcommand agent collect' -l agent -r -a '(__equip_agents)' -d 'Agent'
 complete -c equip -f -n '__equip_using_subcommand agent collect' -l skill -r -a '(__equip_skills)' -d 'Specific skill'
-complete -c equip -f -n '__equip_using_subcommand agent collect' -l adopt -d 'Adopt into plugins/'
+complete -c equip -f -n '__equip_using_subcommand agent collect' -l adopt -d 'Adopt into the local source'
 complete -c equip -f -n '__equip_using_subcommand agent collect' -l force -d 'Auto-adopt all'
 
 # config subcommands

@@ -21,7 +21,6 @@ pub(crate) fn run(url: Option<String>, flags: &Flags) -> anyhow::Result<()> {
     // Create directory structure
     let data = crate::config::data_dir();
     std::fs::create_dir_all(&data)?;
-    std::fs::create_dir_all(crate::config::plugins_dir())?;
     std::fs::create_dir_all(crate::config::cache_dir())?;
     std::fs::create_dir_all(crate::config::internal_dir())?;
 

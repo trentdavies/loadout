@@ -36,9 +36,10 @@ pub fn cache_dir() -> PathBuf {
     dir
 }
 
-/// The managed plugins directory: `<data_dir>/plugins/`.
+/// The managed plugins directory: the data dir root.
+/// Plugins live as direct children of the data dir (e.g. `<data_dir>/local/`).
 pub fn plugins_dir() -> PathBuf {
-    data_dir().join("plugins")
+    data_dir()
 }
 
 /// The equip internals directory: `<data_dir>/.equip/`.
