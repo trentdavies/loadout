@@ -12,6 +12,7 @@ source /tests/harness/lib.sh
 # ---------------------------------------------------------------------------
 export LOADOUT="${LOADOUT:-$HOME/.local/bin/equip}"
 export NO_COLOR=1
+export EQUIP_NON_INTERACTIVE=1
 export XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 
 export SANDBOX_TARGET_CLAUDE="$HOME/.claude"
