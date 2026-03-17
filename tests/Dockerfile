@@ -2,7 +2,7 @@ FROM rust:bookworm
 
 # Extra tools (git already included via buildpack-deps)
 RUN apt-get update && apt-get install -y \
-    openssh-server jq tree vim less bash-completion \
+    openssh-server jq tree vim less bash-completion fzf \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
