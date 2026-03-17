@@ -129,7 +129,7 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
 
             let out = crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
             if config.agent.is_empty() {
-                out.info("No agents configured. Use `loadout agent add` to add one.");
+                out.info("No agents configured. Use `equip agent add` to add one.");
                 return Ok(());
             }
 

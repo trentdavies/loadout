@@ -3,11 +3,11 @@ use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
-fn make_config_with_kit(kit_name: &str, skills: &[&str]) -> loadout::config::Config {
-    let mut config = loadout::config::Config::default();
+fn make_config_with_kit(kit_name: &str, skills: &[&str]) -> equip::config::Config {
+    let mut config = equip::config::Config::default();
     config.kit.insert(
         kit_name.to_string(),
-        loadout::config::KitConfig {
+        equip::config::KitConfig {
             skills: skills.iter().map(|s| s.to_string()).collect(),
         },
     );
@@ -17,8 +17,8 @@ fn make_config_with_kit(kit_name: &str, skills: &[&str]) -> loadout::config::Con
 fn make_registry_with_skills(
     skill_names: &[&str],
     source_dir: &std::path::Path,
-) -> loadout::registry::Registry {
-    let skills: Vec<loadout::registry::RegisteredSkill> = skill_names
+) -> equip::registry::Registry {
+    let skills: Vec<equip::registry::RegisteredSkill> = skill_names
         .iter()
         .map(|name| {
             let skill_dir = source_dir.join(name);
@@ -31,7 +31,7 @@ fn make_registry_with_skills(
                 ),
             )
             .unwrap();
-            loadout::registry::RegisteredSkill {
+            equip::registry::RegisteredSkill {
                 name: name.to_string(),
                 description: Some(format!("Test {}", name)),
                 author: None,
@@ -41,11 +41,11 @@ fn make_registry_with_skills(
         })
         .collect();
 
-    let mut registry = loadout::registry::Registry::default();
-    registry.sources.push(loadout::registry::RegisteredSource {
+    let mut registry = equip::registry::Registry::default();
+    registry.sources.push(equip::registry::RegisteredSource {
         name: "src".to_string(),
         url: String::new(),
-        plugins: vec![loadout::registry::RegisteredPlugin {
+        plugins: vec![equip::registry::RegisteredPlugin {
             name: "plug".to_string(),
             version: None,
             description: None,
@@ -57,27 +57,27 @@ fn make_registry_with_skills(
     registry
 }
 
-fn make_adapter() -> loadout::agent::Adapter {
-    let agent = loadout::config::AgentConfig {
+fn make_adapter() -> equip::agent::Adapter {
+    let agent = equip::config::AgentConfig {
         name: "test".to_string(),
         agent_type: "claude".to_string(),
         path: PathBuf::from("/tmp"),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
     };
-    loadout::agent::resolve_adapter(&agent, &BTreeMap::new()).unwrap()
+    equip::agent::resolve_adapter(&agent, &BTreeMap::new()).unwrap()
 }
 
 // ─── Bundle Config CRUD ─────────────────────────────────────────────────
 
 #[test]
 fn bundle_create_in_config() {
-    let mut config = loadout::config::Config::default();
+    let mut config = equip::config::Config::default();
     assert!(!config.kit.contains_key("dev"));
 
     config.kit.insert(
         "dev".to_string(),
-        loadout::config::KitConfig { skills: vec![] },
+        equip::config::KitConfig { skills: vec![] },
     );
     assert!(config.kit.contains_key("dev"));
     assert!(config.kit["dev"].skills.is_empty());
@@ -125,9 +125,9 @@ fn bundle_config_roundtrip() {
     };
 
     let config = make_config_with_kit("production", &["core/explore", "core/apply"]);
-    loadout::config::save_to(&config, &config_path).unwrap();
+    equip::config::save_to(&config, &config_path).unwrap();
 
-    let loaded = loadout::config::load_from(&config_path).unwrap();
+    let loaded = equip::config::load_from(&config_path).unwrap();
     assert_eq!(loaded.kit["production"].skills.len(), 2);
     assert!(loaded.kit["production"]
         .skills
@@ -144,14 +144,14 @@ fn bundle_swap_installs_new_uninstalls_old() {
     let adapter = make_adapter();
 
     // "from" bundle has sk-a, sk-b
-    let from_skills: Vec<&loadout::registry::RegisteredSkill> = registry.sources[0].plugins[0]
+    let from_skills: Vec<&equip::registry::RegisteredSkill> = registry.sources[0].plugins[0]
         .skills
         .iter()
         .filter(|s| s.name == "sk-a" || s.name == "sk-b")
         .collect();
 
     // "to" bundle has sk-c, sk-d
-    let to_skills: Vec<&loadout::registry::RegisteredSkill> = registry.sources[0].plugins[0]
+    let to_skills: Vec<&equip::registry::RegisteredSkill> = registry.sources[0].plugins[0]
         .skills
         .iter()
         .filter(|s| s.name == "sk-c" || s.name == "sk-d")

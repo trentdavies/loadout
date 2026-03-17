@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Assertion library for loadout CLI test harness.
+# Assertion library for equip CLI test harness.
 # Source this file — do not execute directly.
 
 # ---------------------------------------------------------------------------

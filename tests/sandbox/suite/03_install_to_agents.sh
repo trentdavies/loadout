@@ -2,7 +2,7 @@
 # Suite 03: Apply to Agents — apply skills to mock claude/codex agents
 # Depends on Suite 01+02 having sources populated.
 
-# Helper: extract a non-ambiguous plugin/skill identity from `loadout list --json`.
+# Helper: extract a non-ambiguous plugin/skill identity from `equip list --json`.
 # Picks skills where plugin != source to avoid the ambiguity bug.
 _first_skill() {
   "$LOADOUT" list --json 2>/dev/null | jq -r \
@@ -155,10 +155,10 @@ test_06_status_reflects_state() {
 
   if [ "$exit_code" -eq 0 ]; then
     _pass "status command succeeds"
-    log_check 1 "loadout status exits cleanly"
+    log_check 1 "equip status exits cleanly"
   else
     _fail "status command failed" "exit 0" "exit $exit_code"
-    log_check 0 "loadout status exits cleanly"
+    log_check 0 "equip status exits cleanly"
   fi
 
   if echo "$output" | grep -qiE "claude|codex|skill|agent"; then

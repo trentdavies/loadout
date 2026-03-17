@@ -11,12 +11,12 @@ SUITE_DIR="$SANDBOX_DIR/suite"
 source "$SANDBOX_DIR/setup.sh"
 
 # ---------------------------------------------------------------------------
-# Check for loadout binary
+# Check for equip binary
 # ---------------------------------------------------------------------------
 if [ ! -x "$LOADOUT" ]; then
   echo ""
   echo "═══════════════════════════════════════════════"
-  printf "\033[31mBUILD FAILED\033[0m — loadout binary not found at: %s\n" "$LOADOUT"
+  printf "\033[31mBUILD FAILED\033[0m — equip binary not found at: %s\n" "$LOADOUT"
   echo "═══════════════════════════════════════════════"
   exit 2
 fi
@@ -27,10 +27,10 @@ fi
 sandbox_init
 
 echo "" | tee -a "$SANDBOX_LOG"
-echo "Loadout Sandbox — Functional Tests" | tee -a "$SANDBOX_LOG"
+echo "Equip Sandbox — Functional Tests" | tee -a "$SANDBOX_LOG"
 echo "═══════════════════════════════════════════════" | tee -a "$SANDBOX_LOG"
 echo "Binary:  $LOADOUT" | tee -a "$SANDBOX_LOG"
-echo "Data:    $XDG_DATA_HOME/loadout" | tee -a "$SANDBOX_LOG"
+echo "Data:    $XDG_DATA_HOME/equip" | tee -a "$SANDBOX_LOG"
 echo "Claude:  $SANDBOX_TARGET_CLAUDE" | tee -a "$SANDBOX_LOG"
 echo "Codex:   $SANDBOX_TARGET_CODEX" | tee -a "$SANDBOX_LOG"
 echo "Log:     $SANDBOX_LOG" | tee -a "$SANDBOX_LOG"

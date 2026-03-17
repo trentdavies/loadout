@@ -1,6 +1,6 @@
-# Loadout — Agent Skill Manager
+# Equip — Agent Skill Manager
 
-Loadout is a Rust CLI that sources, caches, and installs agent skills across coding agents (Claude, Codex, Cursor). It treats skill management as a package management problem: sources provide skills, agents consume them, a registry tracks provenance.
+Equip is a Rust CLI that sources, caches, and installs agent skills across coding agents (Claude, Codex, Cursor). It treats skill management as a package management problem: sources provide skills, agents consume them, a registry tracks provenance.
 
 ## Build & Test Commands
 
@@ -15,14 +15,14 @@ just check           # cargo fmt --check + clippy -D warnings
 just fix             # auto-fix fmt + clippy
 ```
 
-All Rust tests require `LOADOUT_NON_INTERACTIVE=1` (the Justfile sets this).
+All Rust tests require `EQUIP_NON_INTERACTIVE=1` (the Justfile sets this).
 
 ## Architecture
 
 | Module | Purpose |
 |---|---|
 | `src/cli/` | Clap derive parser — all commands, subcommands, flags |
-| `src/config/` | `loadout.toml` serialization, XDG path resolution |
+| `src/config/` | `equip.toml` serialization, XDG path resolution |
 | `src/registry/` | Provenance tracking — which skill from which source (JSON) |
 | `src/source/` | Fetch (git/HTTP/zip), detect structure, discover skills, normalize |
 | `src/agent/` | Install/uninstall skills to agent directories, diff comparison |
@@ -33,7 +33,7 @@ All Rust tests require `LOADOUT_NON_INTERACTIVE=1` (the Justfile sets this).
 
 ### Source Detection Hierarchy
 
-Loadout auto-detects what a URL points to. The hierarchy matters:
+Equip auto-detects what a URL points to. The hierarchy matters:
 1. **Marketplace** — contains multiple plugins, each with skills
 2. **Plugin** — a directory of related skills (has `skills/` subdirectory)
 3. **Flat skills** — loose `.md` files auto-wrapped into a plugin
@@ -41,8 +41,8 @@ Loadout auto-detects what a URL points to. The hierarchy matters:
 
 ### Key Data Paths
 
-- Config: `~/.local/share/loadout/loadout.toml`
-- Registry: `~/.local/share/loadout/registry.json`
+- Config: `~/.local/share/equip/equip.toml`
+- Registry: `~/.local/share/equip/registry.json`
 - Agents: agent-specific directories like `~/.claude/skills/`, `~/.codex/skills/`
 
 ## Test Infrastructure
@@ -95,7 +95,7 @@ Shared by all test tiers:
 - **Naming**: names describe what code does, not implementation details or history. No `ZodValidator`, `MCPWrapper`, `NewAPI` patterns.
 - **Error handling**: `anyhow` with `.context()` for all fallible operations.
 - **CLI output**: supports `--json`, `--quiet`, `--verbose`, `--dry-run` on all commands.
-- **Non-interactive mode**: `LOADOUT_NON_INTERACTIVE=1` suppresses all prompts — required for CI and tests.
+- **Non-interactive mode**: `EQUIP_NON_INTERACTIVE=1` suppresses all prompts — required for CI and tests.
 - **Test isolation**: every test gets a fresh `TempDir` or reset environment. Tests must not depend on ordering or shared state.
 - **No test modification to pass**: fix the code, not the tests. If a test is wrong, discuss with Trent first.
 

@@ -6,34 +6,34 @@
 test_registry_json_created_on_source_add() {
   "$LOADOUT" init >/dev/null 2>&1
   "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
-  assert_file_exists "$XDG_DATA_HOME/loadout/.loadout/registry.json"
+  assert_file_exists "$XDG_DATA_HOME/equip/.equip/registry.json"
 }
 
 test_registry_json_contains_source() {
   "$LOADOUT" init >/dev/null 2>&1
   "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
-  assert_file_contains "$XDG_DATA_HOME/loadout/.loadout/registry.json" "tp"
+  assert_file_contains "$XDG_DATA_HOME/equip/.equip/registry.json" "tp"
 }
 
 test_registry_json_contains_skills() {
   "$LOADOUT" init >/dev/null 2>&1
   "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
-  assert_file_contains "$XDG_DATA_HOME/loadout/.loadout/registry.json" "explore"
-  assert_file_contains "$XDG_DATA_HOME/loadout/.loadout/registry.json" "apply"
-  assert_file_contains "$XDG_DATA_HOME/loadout/.loadout/registry.json" "verify"
+  assert_file_contains "$XDG_DATA_HOME/equip/.equip/registry.json" "explore"
+  assert_file_contains "$XDG_DATA_HOME/equip/.equip/registry.json" "apply"
+  assert_file_contains "$XDG_DATA_HOME/equip/.equip/registry.json" "verify"
 }
 
 test_cache_dir_mirrors_source() {
   "$LOADOUT" init >/dev/null 2>&1
   "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
-  assert_dir_exists "$XDG_DATA_HOME/loadout/external/tp"
+  assert_dir_exists "$XDG_DATA_HOME/equip/external/tp"
 }
 
 test_cache_contains_skill_files() {
   "$LOADOUT" init >/dev/null 2>&1
   "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
   # Cached source should contain the skill files
-  local cache_dir="$XDG_DATA_HOME/loadout/external/tp"
+  local cache_dir="$XDG_DATA_HOME/equip/external/tp"
   # Look for SKILL.md somewhere in the cache
   local found
   found=$(find "$cache_dir" -name "SKILL.md" 2>/dev/null | head -1)
@@ -86,9 +86,9 @@ test_registry_cleared_on_source_remove() {
   "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
   "$LOADOUT" remove tp --force >/dev/null 2>&1
   # Registry should no longer contain this source's entries
-  if [ -f "$XDG_DATA_HOME/loadout/.loadout/registry.json" ]; then
+  if [ -f "$XDG_DATA_HOME/equip/.equip/registry.json" ]; then
     local content
-    content=$(cat "$XDG_DATA_HOME/loadout/.loadout/registry.json")
+    content=$(cat "$XDG_DATA_HOME/equip/.equip/registry.json")
     if echo "$content" | grep -qF "tp"; then
       _fail "registry still contains removed source" "tp absent" "still present"
     else
@@ -105,10 +105,10 @@ test_xdg_override_respected() {
   rm -rf "$custom_data"
   XDG_DATA_HOME="$custom_data" "$LOADOUT" init >/dev/null 2>&1
   XDG_DATA_HOME="$custom_data" "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
-  if [ -d "$custom_data/loadout" ]; then
+  if [ -d "$custom_data/equip" ]; then
     _pass "custom XDG_DATA_HOME respected"
   else
-    _fail "custom XDG_DATA_HOME not used" "$custom_data/loadout exists" "not found"
+    _fail "custom XDG_DATA_HOME not used" "$custom_data/equip exists" "not found"
   fi
   rm -rf "$custom_data"
 }

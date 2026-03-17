@@ -2,7 +2,7 @@
 
 # Run all Rust tests (unit + integration)
 test:
-    LOADOUT_NON_INTERACTIVE=1 cargo test
+    EQUIP_NON_INTERACTIVE=1 cargo test
 
 # Build debug binary
 build:
@@ -14,7 +14,7 @@ release:
 
 # Run the shell test harness in Docker (offline, no network)
 harness:
-    docker buildx build --load -f tests/Dockerfile -t loadout-harness . && docker run --rm loadout-harness /tests/harness/runner.sh
+    docker buildx build --load -f tests/Dockerfile -t equip-harness . && docker run --rm equip-harness /tests/harness/runner.sh
 
 # Launch sandbox container (detached, interactive)
 sandbox:
@@ -42,11 +42,11 @@ sandbox-connect port="2222":
 
 # Connect to a running sandbox container (docker exec)
 sandbox-exec:
-    docker exec -it loadout-sandbox bash
+    docker exec -it equip-sandbox bash
 
 # Stop and remove sandbox container
 sandbox-clean:
-    docker rm -f loadout-sandbox
+    docker rm -f equip-sandbox
 
 # Run all tests: Rust + harness
 test-all: test harness

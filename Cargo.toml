@@ -1,17 +1,17 @@
 [package]
-name = "loadout"
+name = "equip"
 version = "0.1.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "Agent skill manager — source, cache, and install skills across coding agents"
-repository = "https://github.com/trentdavies/loadout"
-homepage = "https://github.com/trentdavies/loadout"
+repository = "https://github.com/trentdavies/equip"
+homepage = "https://github.com/trentdavies/equip"
 readme = "README.md"
 keywords = ["agent", "skills", "cli", "claude", "codex"]
 categories = ["command-line-utilities", "development-tools"]
 
 [[bin]]
-name = "loadout"
+name = "equip"
 path = "src/main.rs"
 
 [dependencies]

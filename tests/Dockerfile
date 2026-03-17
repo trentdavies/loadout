@@ -15,10 +15,10 @@ COPY src/ ./src/
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/build/target \
     cargo build --release \
-    && cp target/release/loadout /usr/local/bin/loadout
+    && cp target/release/equip /usr/local/bin/equip
 
-# Symlink so loadout is available at ~/.local/bin too
-RUN mkdir -p /root/.local/bin && ln -s /usr/local/bin/loadout /root/.local/bin/loadout
+# Symlink so equip is available at ~/.local/bin too
+RUN mkdir -p /root/.local/bin && ln -s /usr/local/bin/equip /root/.local/bin/equip
 
 # SSH setup — key-based auth only (keys mounted at runtime via --ssh)
 RUN mkdir -p /run/sshd /root/.ssh \

@@ -53,7 +53,7 @@ test_custom_toml_adapter() {
   "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
 
   # Define a custom adapter in the config
-  local config_file="$XDG_DATA_HOME/loadout/loadout.toml"
+  local config_file="$XDG_DATA_HOME/equip/equip.toml"
   cat >> "$config_file" <<'TOML'
 
 [adapter.custom-agent]
@@ -84,7 +84,7 @@ test_custom_adapter_unknown_format_error() {
   "$LOADOUT" init >/dev/null 2>&1
 
   # Define adapter with unsupported format
-  local config_file="$XDG_DATA_HOME/loadout/loadout.toml"
+  local config_file="$XDG_DATA_HOME/equip/equip.toml"
   cat >> "$config_file" <<'TOML'
 
 [adapter.bad-format]

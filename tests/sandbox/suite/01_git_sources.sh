@@ -106,7 +106,7 @@ test_06_update_all() {
 }
 
 test_07_cache_dirs_exist() {
-  local cache_base="$XDG_DATA_HOME/loadout"
+  local cache_base="$XDG_DATA_HOME/equip"
 
   for name in anthropic-skills knowledge-work claude-official financial-services; do
     local found=false

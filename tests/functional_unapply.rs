@@ -1,10 +1,10 @@
 use clap::Parser;
-use loadout::cli::{Cli, Command};
+use equip::cli::{Cli, Command};
 
 #[test]
 fn parse_unequip_with_patterns() {
     let cli =
-        Cli::try_parse_from(["loadout", "_equip", "--remove", "legal/review", "--force"]).unwrap();
+        Cli::try_parse_from(["equip", "_equip", "--remove", "legal/review", "--force"]).unwrap();
     match cli.command {
         Command::Equip {
             patterns, force, remove, ..
@@ -20,7 +20,7 @@ fn parse_unequip_with_patterns() {
 #[test]
 fn parse_unequip_kit() {
     let cli = Cli::try_parse_from([
-        "loadout",
+        "equip",
         "_equip",
         "--remove",
         "--kit",
@@ -45,7 +45,7 @@ fn parse_unequip_kit() {
 #[test]
 fn parse_unequip_multiple_agents() {
     let cli = Cli::try_parse_from([
-        "loadout",
+        "equip",
         "_equip",
         "--remove",
         "legal/review",
@@ -71,7 +71,7 @@ fn parse_unequip_multiple_agents() {
 #[test]
 fn parse_unequip_multiple_patterns() {
     let cli = Cli::try_parse_from([
-        "loadout",
+        "equip",
         "_equip",
         "--remove",
         "legal/review",
@@ -94,7 +94,7 @@ fn parse_unequip_multiple_patterns() {
 #[test]
 fn parse_equip_multiple_agents() {
     let cli = Cli::try_parse_from([
-        "loadout", "_equip", "legal/*", "--agent", "claude", "--agent", "codex",
+        "equip", "_equip", "legal/*", "--agent", "claude", "--agent", "codex",
     ])
     .unwrap();
     match cli.command {
@@ -112,7 +112,7 @@ fn parse_equip_multiple_agents() {
 #[test]
 fn parse_equip_all() {
     let cli =
-        Cli::try_parse_from(["loadout", "_equip", "legal/*", "--all"]).unwrap();
+        Cli::try_parse_from(["equip", "_equip", "legal/*", "--all"]).unwrap();
     match cli.command {
         Command::Equip { all, .. } => {
             assert!(all);
@@ -124,7 +124,7 @@ fn parse_equip_all() {
 #[test]
 fn parse_equip_multiple_patterns() {
     let cli = Cli::try_parse_from([
-        "loadout",
+        "equip",
         "_equip",
         "legal/review",
         "sales/pitch",
@@ -144,7 +144,7 @@ fn parse_equip_multiple_patterns() {
 #[test]
 fn parse_equip_single_agent_still_works() {
     let cli =
-        Cli::try_parse_from(["loadout", "_equip", "legal/*", "--agent", "claude"])
+        Cli::try_parse_from(["equip", "_equip", "legal/*", "--agent", "claude"])
             .unwrap();
     match cli.command {
         Command::Equip { agent, .. } => {
@@ -157,7 +157,7 @@ fn parse_equip_single_agent_still_works() {
 #[test]
 fn equip_agent_conflicts_with_all() {
     let result = Cli::try_parse_from([
-        "loadout",
+        "equip",
         "_equip",
         "legal/*",
         "--agent",
@@ -173,7 +173,7 @@ fn equip_agent_conflicts_with_all() {
 #[test]
 fn unequip_agent_conflicts_with_all() {
     let result = Cli::try_parse_from([
-        "loadout",
+        "equip",
         "_equip",
         "--remove",
         "foo",

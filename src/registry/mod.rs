@@ -7,9 +7,9 @@ use std::fs;
 use std::path::Path;
 
 /// Load the registry index from disk.
-/// Registry lives at `<data_dir>/.loadout/registry.json`.
+/// Registry lives at `<data_dir>/.equip/registry.json`.
 pub fn load_registry(data_dir: &Path) -> Result<Registry> {
-    let internal = data_dir.join(".loadout");
+    let internal = data_dir.join(".equip");
     let path = internal.join("registry.json");
     // Also check legacy location for migration
     let legacy_path = data_dir.join("registry.json");
@@ -28,9 +28,9 @@ pub fn load_registry(data_dir: &Path) -> Result<Registry> {
 }
 
 /// Save the registry index to disk.
-/// Registry lives at `<data_dir>/.loadout/registry.json`.
+/// Registry lives at `<data_dir>/.equip/registry.json`.
 pub fn save_registry(registry: &Registry, data_dir: &Path) -> Result<()> {
-    let internal = data_dir.join(".loadout");
+    let internal = data_dir.join(".equip");
     fs::create_dir_all(&internal)?;
     let path = internal.join("registry.json");
     let content = serde_json::to_string_pretty(registry).context("failed to serialize registry")?;

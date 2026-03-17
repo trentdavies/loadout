@@ -1,6 +1,6 @@
-# Loadout
+# Equip
 
-Loadout manages skills across coding agents. You maintain a central skill library, and loadout handles syncing skills to `~/.claude`, `~/.codex`, `./project/.cursor`, and any other agent directory on your machine.
+Equip manages skills across coding agents. You maintain a central skill library, and equip handles syncing skills to `~/.claude`, `~/.codex`, `./project/.cursor`, and any other agent directory on your machine.
 
 ## Install
 
@@ -11,30 +11,30 @@ cargo install --path .
 ## Setup
 
 ```bash
-loadout init
+equip init
 ```
 
-This detects your agents (Claude, Codex, Cursor), offers popular skill sources, and creates your skill library at `~/.local/share/loadout/`. The library is a git-friendly directory you can push to a repo and share across machines.
+This detects your agents (Claude, Codex, Cursor), offers popular skill sources, and creates your skill library at `~/.local/share/equip/`. The library is a git-friendly directory you can push to a repo and share across machines.
 
 ## Add Sources
 
-Sources provide skills. Point loadout at a GitHub repo, local directory, or archive and it figures out the structure.
+Sources provide skills. Point equip at a GitHub repo, local directory, or archive and it figures out the structure.
 
 ```bash
-loadout add https://github.com/acme/agent-skills
-loadout add acme/agent-skills                      # GitHub shorthand
-loadout add ~/dev/my-skills                        # local dir (symlinked)
-loadout add ~/dev/my-skills --copy                 # local dir (snapshot)
-loadout add acme/agent-skills --ref v2.0           # pinned to a tag
+equip add https://github.com/acme/agent-skills
+equip add acme/agent-skills                      # GitHub shorthand
+equip add ~/dev/my-skills                        # local dir (symlinked)
+equip add ~/dev/my-skills --copy                 # local dir (snapshot)
+equip add acme/agent-skills --ref v2.0           # pinned to a tag
 ```
 
 See what you have:
 
 ```bash
-loadout list                    # all skills
-loadout list "legal/*"          # glob filter
-loadout list --external         # list sources
-loadout status                  # overview
+equip list                    # all skills
+equip list "legal/*"          # glob filter
+equip list --external         # list sources
+equip status                  # overview
 ```
 
 ## Equip Skills
@@ -43,35 +43,35 @@ Pick agents with `@`, pick a kit with `+`, and pass skill patterns as arguments.
 
 ```bash
 # Equip skills to Claude
-loadout @claude "legal/*" "productivity/start" -f
+equip @claude "legal/*" "productivity/start" -f
 
 # Equip a kit
-loadout @claude +developer -f
+equip @claude +developer -f
 
 # Kit plus extra skills
-loadout @claude +developer "legal/*" -f
+equip @claude +developer "legal/*" -f
 
 # Multiple agents
-loadout @claude @codex +developer -f
+equip @claude @codex +developer -f
 
 # Omit @agent to target all auto-sync agents
-loadout +developer -f
+equip +developer -f
 
 # Preview first
-loadout -n @claude +developer
+equip -n @claude +developer
 
 # Interactive conflict resolution
-loadout @claude +developer -i
+equip @claude +developer -i
 
 # Unequip
-loadout @claude +developer -r -f
+equip @claude +developer -r -f
 ```
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--force` | `-f` | Overwrite changed skills / execute removal |
 | `--interactive` | `-i` | Resolve conflicts per-skill (skip, overwrite, diff) |
-| `--save` | `-s` | Save resolved skills as a kit (`loadout @claude +new-kit -s "dev*" -f`) |
+| `--save` | `-s` | Save resolved skills as a kit (`equip @claude +new-kit -s "dev*" -f`) |
 | `--remove` | `-r` | Unequip instead of equip |
 
 ## Collect Edits
@@ -79,9 +79,9 @@ loadout @claude +developer -r -f
 When someone tweaks a skill directly at the agent, collect brings changes back to your library.
 
 ```bash
-loadout agent collect --agent claude                     # show tracked vs untracked
-loadout agent collect --agent claude --skill code-review # collect one skill
-loadout agent collect --agent claude --adopt             # adopt untracked skills
+equip agent collect --agent claude                     # show tracked vs untracked
+equip agent collect --agent claude --skill code-review # collect one skill
+equip agent collect --agent claude --adopt             # adopt untracked skills
 ```
 
 ## Kits
@@ -89,28 +89,28 @@ loadout agent collect --agent claude --adopt             # adopt untracked skill
 Kits are named skill sets you equip and unequip as a unit.
 
 ```bash
-loadout kit create developer "dev*" "productivity/*"
-loadout kit add developer "legal/contract-review"
-loadout kit drop developer "productivity/start"
-loadout kit list
-loadout kit show developer
+equip kit create developer "dev*" "productivity/*"
+equip kit add developer "legal/contract-review"
+equip kit drop developer "productivity/start"
+equip kit list
+equip kit show developer
 ```
 
 Or create on-the-fly during equip:
 
 ```bash
-loadout @claude +new-kit -s "dev*" "legal/*" -f
+equip @claude +new-kit -s "dev*" "legal/*" -f
 ```
 
 ## Agents
 
 ```bash
-loadout agent detect                                          # auto-detect
-loadout agent add claude ~/.claude --name claude-global       # manual
-loadout agent add claude ./.claude --name project --scope repo
-loadout agent list
-loadout agent show claude-global
-loadout agent remove project --force
+equip agent detect                                          # auto-detect
+equip agent add claude ~/.claude --name claude-global       # manual
+equip agent add claude ./.claude --name project --scope repo
+equip agent list
+equip agent show claude-global
+equip agent remove project --force
 ```
 
 Agents have a **scope** (machine or repo) and a **sync mode** (auto or explicit). Auto-sync agents are targeted by default when you omit `@agent`. Repo-scoped agents default to explicit sync.
@@ -118,15 +118,15 @@ Agents have a **scope** (machine or repo) and a **sync mode** (auto or explicit)
 ## Updating Sources
 
 ```bash
-loadout update              # all sources
-loadout update acme         # one source
-loadout update acme --ref v3.0
-loadout update acme --ref latest   # unpin
+equip update              # all sources
+equip update acme         # one source
+equip update acme --ref v3.0
+equip update acme --ref latest   # unpin
 ```
 
 ## Custom Adapters
 
-Built-in adapters cover Claude, Codex, Cursor, Gemini, and VS Code. Define your own in `loadout.toml`:
+Built-in adapters cover Claude, Codex, Cursor, Gemini, and VS Code. Define your own in `equip.toml`:
 
 ```toml
 [adapter.my-agent]

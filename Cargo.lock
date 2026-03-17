@@ -370,6 +370,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34aa73646ffb006b8f5147f3dc182bd4bcb190227ce861fc4a4844bf8e3cb2c0"
 
 [[package]]
+name = "equip"
+version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "colored",
+ "dialoguer",
+ "dirs",
+ "glob-match",
+ "serde",
+ "serde_json",
+ "similar",
+ "tempfile",
+ "toml",
+ "zip",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -582,24 +600,6 @@ name = "linux-raw-sys"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
-
-[[package]]
-name = "loadout"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "clap",
- "colored",
- "dialoguer",
- "dirs",
- "glob-match",
- "serde",
- "serde_json",
- "similar",
- "tempfile",
- "toml",
- "zip",
-]
 
 [[package]]
 name = "log"

@@ -1,6 +1,6 @@
 use clap::Parser;
-use loadout::cli::args::preprocess;
-use loadout::cli::Cli;
+use equip::cli::args::preprocess;
+use equip::cli::Cli;
 
 /// Verify clap parsing of global flags at the Rust level.
 /// Full functional coverage is in Docker suite 00.
@@ -8,7 +8,7 @@ use loadout::cli::Cli;
 #[test]
 fn parse_help_flag() {
     // --help causes clap to exit, so we check that parsing without it works
-    let cli = Cli::try_parse_from(["loadout", "status"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "status"]).unwrap();
     assert!(!cli.json);
     assert!(!cli.quiet);
     assert!(!cli.verbose);
@@ -17,51 +17,51 @@ fn parse_help_flag() {
 
 #[test]
 fn parse_dry_run_flag() {
-    let cli = Cli::try_parse_from(["loadout", "-n", "status"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "-n", "status"]).unwrap();
     assert!(cli.dry_run);
 }
 
 #[test]
 fn parse_dry_run_long_flag() {
-    let cli = Cli::try_parse_from(["loadout", "--dry-run", "status"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "--dry-run", "status"]).unwrap();
     assert!(cli.dry_run);
 }
 
 #[test]
 fn parse_json_flag() {
-    let cli = Cli::try_parse_from(["loadout", "--json", "status"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "--json", "status"]).unwrap();
     assert!(cli.json);
 }
 
 #[test]
 fn parse_quiet_flag() {
-    let cli = Cli::try_parse_from(["loadout", "-q", "status"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "-q", "status"]).unwrap();
     assert!(cli.quiet);
 }
 
 #[test]
 fn parse_verbose_flag() {
-    let cli = Cli::try_parse_from(["loadout", "-v", "status"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "-v", "status"]).unwrap();
     assert!(cli.verbose);
 }
 
 #[test]
 fn parse_config_override() {
-    let cli = Cli::try_parse_from(["loadout", "--config", "/tmp/alt.toml", "status"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "--config", "/tmp/alt.toml", "status"]).unwrap();
     assert_eq!(cli.config, Some("/tmp/alt.toml".to_string()));
 }
 
 #[test]
 fn parse_equip_parses_ok() {
     // equip with no flags should parse OK at clap level (error is in run())
-    let result = Cli::try_parse_from(["loadout", "_equip"]);
+    let result = Cli::try_parse_from(["equip", "_equip"]);
     assert!(result.is_ok());
 }
 
 #[test]
 fn parse_agent_add() {
     let cli = Cli::try_parse_from([
-        "loadout",
+        "equip",
         "agent",
         "add",
         "claude",
@@ -73,9 +73,9 @@ fn parse_agent_add() {
     ])
     .unwrap();
     match cli.command {
-        loadout::cli::Command::Agent { command } => {
+        equip::cli::Command::Agent { command } => {
             match command {
-                loadout::cli::AgentCommand::Add {
+                equip::cli::AgentCommand::Add {
                     agent,
                     path,
                     scope,
@@ -97,9 +97,9 @@ fn parse_agent_add() {
 
 #[test]
 fn parse_add() {
-    let cli = Cli::try_parse_from(["loadout", "add", "/tmp/src", "--source", "my-src"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "add", "/tmp/src", "--source", "my-src"]).unwrap();
     match cli.command {
-        loadout::cli::Command::Add { url, source, .. } => {
+        equip::cli::Command::Add { url, source, .. } => {
             assert_eq!(url, "/tmp/src");
             assert_eq!(source, Some("my-src".to_string()));
         }
@@ -110,9 +110,9 @@ fn parse_add() {
 #[test]
 fn parse_add_deprecated_name_flag() {
     // --name still parses (hidden flag) but the handler will bail with deprecation error
-    let cli = Cli::try_parse_from(["loadout", "add", "/tmp/src", "--name", "my-src"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "add", "/tmp/src", "--name", "my-src"]).unwrap();
     match cli.command {
-        loadout::cli::Command::Add { name, .. } => {
+        equip::cli::Command::Add { name, .. } => {
             assert_eq!(name, Some("my-src".to_string()));
         }
         _ => panic!("expected Add"),
@@ -122,11 +122,11 @@ fn parse_add_deprecated_name_flag() {
 #[test]
 fn parse_add_with_plugin_and_skill_flags() {
     let cli = Cli::try_parse_from([
-        "loadout", "add", "/tmp/src", "--source", "s", "--plugin", "p", "--skill", "sk",
+        "equip", "add", "/tmp/src", "--source", "s", "--plugin", "p", "--skill", "sk",
     ])
     .unwrap();
     match cli.command {
-        loadout::cli::Command::Add {
+        equip::cli::Command::Add {
             source,
             plugin,
             skill,
@@ -142,9 +142,9 @@ fn parse_add_with_plugin_and_skill_flags() {
 
 #[test]
 fn parse_add_symlink_flag() {
-    let cli = Cli::try_parse_from(["loadout", "add", "/tmp/src", "--symlink"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "add", "/tmp/src", "--symlink"]).unwrap();
     match cli.command {
-        loadout::cli::Command::Add { symlink, copy, .. } => {
+        equip::cli::Command::Add { symlink, copy, .. } => {
             assert!(symlink);
             assert!(!copy);
         }
@@ -154,9 +154,9 @@ fn parse_add_symlink_flag() {
 
 #[test]
 fn parse_add_copy_flag() {
-    let cli = Cli::try_parse_from(["loadout", "add", "/tmp/src", "--copy"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "add", "/tmp/src", "--copy"]).unwrap();
     match cli.command {
-        loadout::cli::Command::Add { symlink, copy, .. } => {
+        equip::cli::Command::Add { symlink, copy, .. } => {
             assert!(!symlink);
             assert!(copy);
         }
@@ -166,15 +166,15 @@ fn parse_add_copy_flag() {
 
 #[test]
 fn parse_add_symlink_copy_conflict() {
-    let result = Cli::try_parse_from(["loadout", "add", "/tmp/src", "--symlink", "--copy"]);
+    let result = Cli::try_parse_from(["equip", "add", "/tmp/src", "--symlink", "--copy"]);
     assert!(result.is_err(), "--symlink and --copy should conflict");
 }
 
 #[test]
 fn parse_remove_without_name() {
-    let cli = Cli::try_parse_from(["loadout", "remove"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "remove"]).unwrap();
     match cli.command {
-        loadout::cli::Command::Remove { name, force } => {
+        equip::cli::Command::Remove { name, force } => {
             assert!(name.is_none());
             assert!(!force);
         }
@@ -184,9 +184,9 @@ fn parse_remove_without_name() {
 
 #[test]
 fn parse_list() {
-    let cli = Cli::try_parse_from(["loadout", "list"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "list"]).unwrap();
     match cli.command {
-        loadout::cli::Command::List { patterns, .. } => {
+        equip::cli::Command::List { patterns, .. } => {
             assert!(patterns.is_empty());
         }
         _ => panic!("expected List"),
@@ -195,9 +195,9 @@ fn parse_list() {
 
 #[test]
 fn parse_list_with_name() {
-    let cli = Cli::try_parse_from(["loadout", "list", "test-plugin/explore"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "list", "test-plugin/explore"]).unwrap();
     match cli.command {
-        loadout::cli::Command::List { patterns, .. } => {
+        equip::cli::Command::List { patterns, .. } => {
             assert_eq!(patterns, vec!["test-plugin/explore".to_string()]);
         }
         _ => panic!("expected List"),
@@ -206,9 +206,9 @@ fn parse_list_with_name() {
 
 #[test]
 fn parse_list_with_multiple_patterns() {
-    let cli = Cli::try_parse_from(["loadout", "list", "legal/*", "sales/*"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "list", "legal/*", "sales/*"]).unwrap();
     match cli.command {
-        loadout::cli::Command::List { patterns, .. } => {
+        equip::cli::Command::List { patterns, .. } => {
             assert_eq!(patterns, vec!["legal/*".to_string(), "sales/*".to_string()]);
         }
         _ => panic!("expected List"),
@@ -217,9 +217,9 @@ fn parse_list_with_multiple_patterns() {
 
 #[test]
 fn parse_remove() {
-    let cli = Cli::try_parse_from(["loadout", "remove", "my-source", "--force"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "remove", "my-source", "--force"]).unwrap();
     match cli.command {
-        loadout::cli::Command::Remove { name, force } => {
+        equip::cli::Command::Remove { name, force } => {
             assert_eq!(name, Some("my-source".to_string()));
             assert!(force);
         }
@@ -229,9 +229,9 @@ fn parse_remove() {
 
 #[test]
 fn parse_update() {
-    let cli = Cli::try_parse_from(["loadout", "update", "my-source"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "update", "my-source"]).unwrap();
     match cli.command {
-        loadout::cli::Command::Update { name, .. } => {
+        equip::cli::Command::Update { name, .. } => {
             assert_eq!(name, Some("my-source".to_string()));
         }
         _ => panic!("expected Update"),
@@ -240,9 +240,9 @@ fn parse_update() {
 
 #[test]
 fn parse_update_all() {
-    let cli = Cli::try_parse_from(["loadout", "update"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "update"]).unwrap();
     match cli.command {
-        loadout::cli::Command::Update { name, .. } => {
+        equip::cli::Command::Update { name, .. } => {
             assert!(name.is_none());
         }
         _ => panic!("expected Update"),
@@ -251,9 +251,9 @@ fn parse_update_all() {
 
 #[test]
 fn parse_init_with_url() {
-    let cli = Cli::try_parse_from(["loadout", "init", "https://github.com/org/skills"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "init", "https://github.com/org/skills"]).unwrap();
     match cli.command {
-        loadout::cli::Command::Init { url } => {
+        equip::cli::Command::Init { url } => {
             assert_eq!(url, Some("https://github.com/org/skills".to_string()));
         }
         _ => panic!("expected Init"),
@@ -262,9 +262,9 @@ fn parse_init_with_url() {
 
 #[test]
 fn parse_init_without_url() {
-    let cli = Cli::try_parse_from(["loadout", "init"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "init"]).unwrap();
     match cli.command {
-        loadout::cli::Command::Init { url } => {
+        equip::cli::Command::Init { url } => {
             assert!(url.is_none());
         }
         _ => panic!("expected Init"),
@@ -274,7 +274,7 @@ fn parse_init_without_url() {
 #[test]
 fn parse_kit_create() {
     let cli = Cli::try_parse_from([
-        "loadout",
+        "equip",
         "kit",
         "create",
         "dev",
@@ -283,8 +283,8 @@ fn parse_kit_create() {
     ])
     .unwrap();
     match cli.command {
-        loadout::cli::Command::Kit { command } => match command {
-            loadout::cli::KitCommand::Create { name, skills } => {
+        equip::cli::Command::Kit { command } => match command {
+            equip::cli::KitCommand::Create { name, skills } => {
                 assert_eq!(name, "dev");
                 assert_eq!(
                     skills,
@@ -300,10 +300,10 @@ fn parse_kit_create() {
 #[test]
 fn parse_kit_delete() {
     let cli =
-        Cli::try_parse_from(["loadout", "kit", "delete", "dev", "--force"]).unwrap();
+        Cli::try_parse_from(["equip", "kit", "delete", "dev", "--force"]).unwrap();
     match cli.command {
-        loadout::cli::Command::Kit { command } => match command {
-            loadout::cli::KitCommand::Delete { name, force } => {
+        equip::cli::Command::Kit { command } => match command {
+            equip::cli::KitCommand::Delete { name, force } => {
                 assert_eq!(name, "dev");
                 assert!(force);
             }
@@ -315,10 +315,10 @@ fn parse_kit_delete() {
 
 #[test]
 fn parse_kit_show() {
-    let cli = Cli::try_parse_from(["loadout", "kit", "show", "dev"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "kit", "show", "dev"]).unwrap();
     match cli.command {
-        loadout::cli::Command::Kit { command } => match command {
-            loadout::cli::KitCommand::Show { name } => {
+        equip::cli::Command::Kit { command } => match command {
+            equip::cli::KitCommand::Show { name } => {
                 assert_eq!(name, "dev");
             }
             _ => panic!("expected Show"),
@@ -330,7 +330,7 @@ fn parse_kit_show() {
 #[test]
 fn parse_kit_add_skills() {
     let cli = Cli::try_parse_from([
-        "loadout",
+        "equip",
         "kit",
         "add",
         "dev",
@@ -338,8 +338,8 @@ fn parse_kit_add_skills() {
     ])
     .unwrap();
     match cli.command {
-        loadout::cli::Command::Kit { command } => match command {
-            loadout::cli::KitCommand::Add { name, skills } => {
+        equip::cli::Command::Kit { command } => match command {
+            equip::cli::KitCommand::Add { name, skills } => {
                 assert_eq!(name, "dev");
                 assert_eq!(skills, vec!["plugin/skill-a".to_string()]);
             }
@@ -352,7 +352,7 @@ fn parse_kit_add_skills() {
 #[test]
 fn parse_kit_drop_skills() {
     let cli = Cli::try_parse_from([
-        "loadout",
+        "equip",
         "kit",
         "drop",
         "dev",
@@ -360,8 +360,8 @@ fn parse_kit_drop_skills() {
     ])
     .unwrap();
     match cli.command {
-        loadout::cli::Command::Kit { command } => match command {
-            loadout::cli::KitCommand::Drop { name, skills } => {
+        equip::cli::Command::Kit { command } => match command {
+            equip::cli::KitCommand::Drop { name, skills } => {
                 assert_eq!(name, "dev");
                 assert_eq!(skills, vec!["plugin/skill-a".to_string()]);
             }
@@ -373,8 +373,8 @@ fn parse_kit_drop_skills() {
 
 #[test]
 fn known_marketplaces_non_empty() {
-    assert!(!loadout::marketplace::KNOWN_MARKETPLACES.is_empty());
-    for (name, url) in loadout::marketplace::KNOWN_MARKETPLACES {
+    assert!(!equip::marketplace::KNOWN_MARKETPLACES.is_empty());
+    for (name, url) in equip::marketplace::KNOWN_MARKETPLACES {
         assert!(!name.is_empty(), "marketplace name should not be empty");
         assert!(!url.is_empty(), "marketplace URL should not be empty");
         assert!(
@@ -387,14 +387,14 @@ fn known_marketplaces_non_empty() {
 
 #[test]
 fn multi_select_returns_empty_non_interactive() {
-    let result = loadout::prompt::multi_select("Pick", &["a", "b"], &[true, true], false);
+    let result = equip::prompt::multi_select("Pick", &["a", "b"], &[true, true], false);
     assert!(result.is_empty());
 }
 
 #[test]
 fn detect_agents_returns_vec() {
     // In a tempdir with no agent dirs, should return empty
-    let result = loadout::cli::detect_agents();
+    let result = equip::cli::detect_agents();
     // Can't assert empty because the test runner's home may have agents
     // Just verify it returns without error
     let _ = result;
@@ -408,10 +408,10 @@ fn pp(args: &[&str]) -> Vec<String> {
 
 #[test]
 fn shorthand_top_level_at_parses() {
-    let processed = pp(&["loadout", "@claude", "dev*"]);
+    let processed = pp(&["equip", "@claude", "dev*"]);
     let cli = Cli::try_parse_from(&processed).unwrap();
     match cli.command {
-        loadout::cli::Command::Equip {
+        equip::cli::Command::Equip {
             agent, patterns, ..
         } => {
             assert_eq!(agent, Some(vec!["claude".to_string()]));
@@ -423,10 +423,10 @@ fn shorthand_top_level_at_parses() {
 
 #[test]
 fn shorthand_top_level_plus_parses() {
-    let processed = pp(&["loadout", "+developer"]);
+    let processed = pp(&["equip", "+developer"]);
     let cli = Cli::try_parse_from(&processed).unwrap();
     match cli.command {
-        loadout::cli::Command::Equip { kit, .. } => {
+        equip::cli::Command::Equip { kit, .. } => {
             assert_eq!(kit, Some("developer".to_string()));
         }
         _ => panic!("expected Equip"),
@@ -435,10 +435,10 @@ fn shorthand_top_level_plus_parses() {
 
 #[test]
 fn shorthand_at_plus_with_save() {
-    let processed = pp(&["loadout", "@claude", "+developer", "-s", "dev*", "legal/*"]);
+    let processed = pp(&["equip", "@claude", "+developer", "-s", "dev*", "legal/*"]);
     let cli = Cli::try_parse_from(&processed).unwrap();
     match cli.command {
-        loadout::cli::Command::Equip {
+        equip::cli::Command::Equip {
             agent,
             kit,
             save,
@@ -459,12 +459,12 @@ fn shorthand_at_plus_with_save() {
 
 #[test]
 fn shorthand_global_flags_preserved() {
-    let processed = pp(&["loadout", "-n", "--verbose", "@claude"]);
+    let processed = pp(&["equip", "-n", "--verbose", "@claude"]);
     let cli = Cli::try_parse_from(&processed).unwrap();
     assert!(cli.dry_run);
     assert!(cli.verbose);
     match cli.command {
-        loadout::cli::Command::Equip { agent, .. } => {
+        equip::cli::Command::Equip { agent, .. } => {
             assert_eq!(agent, Some(vec!["claude".to_string()]));
         }
         _ => panic!("expected Equip"),
@@ -473,10 +473,10 @@ fn shorthand_global_flags_preserved() {
 
 #[test]
 fn save_is_bool_flag() {
-    let processed = pp(&["loadout", "_equip", "-s", "-k", "mykit", "dev*"]);
+    let processed = pp(&["equip", "_equip", "-s", "-k", "mykit", "dev*"]);
     let cli = Cli::try_parse_from(&processed).unwrap();
     match cli.command {
-        loadout::cli::Command::Equip { save, kit, .. } => {
+        equip::cli::Command::Equip { save, kit, .. } => {
             assert!(save);
             assert_eq!(kit, Some("mykit".to_string()));
         }

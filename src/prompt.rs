@@ -3,9 +3,9 @@ use colored::Colorize;
 use std::io::IsTerminal;
 
 /// Returns true when stdin is a TTY and interactive prompts can be shown.
-/// Respects `LOADOUT_NON_INTERACTIVE=1` to force non-interactive mode (used in tests).
+/// Respects `EQUIP_NON_INTERACTIVE=1` to force non-interactive mode (used in tests).
 pub fn is_interactive() -> bool {
-    if std::env::var("LOADOUT_NON_INTERACTIVE").is_ok() {
+    if std::env::var("EQUIP_NON_INTERACTIVE").is_ok() {
         return false;
     }
     std::io::stdin().is_terminal()
@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn is_interactive_false_when_env_set() {
-        std::env::set_var("LOADOUT_NON_INTERACTIVE", "1");
+        std::env::set_var("EQUIP_NON_INTERACTIVE", "1");
         assert!(!is_interactive());
     }
 

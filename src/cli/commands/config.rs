@@ -33,7 +33,7 @@ pub(crate) fn run(command: ConfigCommand, flags: &Flags) -> anyhow::Result<()> {
         ConfigCommand::Edit => {
             let path = crate::config::config_path(flags.config_path());
             if !path.exists() {
-                anyhow::bail!("No config found. Run `loadout init` first.");
+                anyhow::bail!("No config found. Run `equip init` first.");
             }
             let editor = std::env::var("EDITOR")
                 .or_else(|_| std::env::var("VISUAL"))

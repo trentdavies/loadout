@@ -3,9 +3,9 @@ use std::path::PathBuf;
 
 use tempfile::TempDir;
 
-use loadout::config::{load_from, save_to, KitConfig, Config, AgentConfig};
-use loadout::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry};
-use loadout::agent::resolve_adapter;
+use equip::config::{load_from, save_to, KitConfig, Config, AgentConfig};
+use equip::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry};
+use equip::agent::resolve_adapter;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 

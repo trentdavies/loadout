@@ -4,7 +4,7 @@
 
 test_init_creates_config() {
   assert_exit_code 0 "$LOADOUT" init
-  assert_file_exists "$XDG_DATA_HOME/loadout/loadout.toml"
+  assert_file_exists "$XDG_DATA_HOME/equip/equip.toml"
 }
 
 test_init_idempotent() {
@@ -44,12 +44,12 @@ test_config_show_json() {
 test_config_file_contains_examples() {
   "$LOADOUT" init >/dev/null 2>&1
   # The generated config should have example/commented sections
-  assert_file_exists "$XDG_DATA_HOME/loadout/loadout.toml"
+  assert_file_exists "$XDG_DATA_HOME/equip/equip.toml"
 }
 
 test_xdg_data_dir_created() {
   "$LOADOUT" init >/dev/null 2>&1
   # Some command that touches the data dir
   "$LOADOUT" status >/dev/null 2>&1
-  assert_dir_exists "$XDG_DATA_HOME/loadout"
+  assert_dir_exists "$XDG_DATA_HOME/equip"
 }

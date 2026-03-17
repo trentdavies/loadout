@@ -115,7 +115,7 @@ pub(crate) fn run(command: KitCommand, flags: &Flags) -> anyhow::Result<()> {
             let out = crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
             if kits.is_empty() {
                 if patterns.is_empty() {
-                    out.info("No kits configured. Use `loadout kit create` to create one.");
+                    out.info("No kits configured. Use `equip kit create` to create one.");
                 } else {
                     out.info("No kits matched the given pattern(s)");
                 }

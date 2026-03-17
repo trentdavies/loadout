@@ -1,9 +1,9 @@
 use std::fs;
 use tempfile::TempDir;
 
-use loadout::config::{KitConfig, Config, SourceConfig, AgentConfig};
-use loadout::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry};
-use loadout::agent::resolve_adapter;
+use equip::config::{KitConfig, Config, SourceConfig, AgentConfig};
+use equip::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry};
+use equip::agent::resolve_adapter;
 
 /// Build a source fixture with a plugin containing 3 skills (skill-a, skill-b,
 /// skill-c), a Registry that references it, and a Config with a claude agent

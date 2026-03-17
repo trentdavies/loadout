@@ -7,7 +7,7 @@ use tempfile::TempDir;
 fn create_mock_skills(
     parent: &std::path::Path,
     names: &[&str],
-) -> Vec<loadout::registry::RegisteredSkill> {
+) -> Vec<equip::registry::RegisteredSkill> {
     let mut skills = Vec::new();
     for name in names {
         let skill_dir = parent.join(name);
@@ -25,7 +25,7 @@ fn create_mock_skills(
         fs::create_dir_all(&scripts_dir).unwrap();
         fs::write(scripts_dir.join("run.sh"), "#!/bin/bash\necho hello\n").unwrap();
 
-        skills.push(loadout::registry::RegisteredSkill {
+        skills.push(equip::registry::RegisteredSkill {
             name: name.to_string(),
             description: Some(format!("Test skill {}", name)),
             author: None,
@@ -36,15 +36,15 @@ fn create_mock_skills(
     skills
 }
 
-fn make_adapter() -> loadout::agent::Adapter {
-    let agent = loadout::config::AgentConfig {
+fn make_adapter() -> equip::agent::Adapter {
+    let agent = equip::config::AgentConfig {
         name: "test".to_string(),
         agent_type: "claude".to_string(),
         path: PathBuf::from("/tmp"),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
     };
-    loadout::agent::resolve_adapter(&agent, &BTreeMap::new()).unwrap()
+    equip::agent::resolve_adapter(&agent, &BTreeMap::new()).unwrap()
 }
 
 // ─── Install ────────────────────────────────────────────────────────────
@@ -217,7 +217,7 @@ fn custom_adapter_installs_to_custom_path() {
     let mut adapters = BTreeMap::new();
     adapters.insert(
         "my-agent".to_string(),
-        loadout::config::AdapterConfig {
+        equip::config::AdapterConfig {
             skill_dir: "prompts/{name}".to_string(),
             skill_file: "SKILL.md".to_string(),
             format: "agentskills".to_string(),
@@ -225,14 +225,14 @@ fn custom_adapter_installs_to_custom_path() {
         },
     );
 
-    let target = loadout::config::AgentConfig {
+    let target = equip::config::AgentConfig {
         name: "custom".to_string(),
         agent_type: "my-agent".to_string(),
         path: target_dir.path().to_path_buf(),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
     };
-    let adapter = loadout::agent::resolve_adapter(&target, &adapters).unwrap();
+    let adapter = equip::agent::resolve_adapter(&target, &adapters).unwrap();
 
     adapter
         .install_skill(&skills[0], target_dir.path())
@@ -261,11 +261,11 @@ fn full_install_uninstall_lifecycle() {
     let adapter = make_adapter();
 
     // Build a registry with these skills
-    let mut registry = loadout::registry::Registry::default();
-    registry.sources.push(loadout::registry::RegisteredSource {
+    let mut registry = equip::registry::Registry::default();
+    registry.sources.push(equip::registry::RegisteredSource {
         name: "test-src".to_string(),
         url: String::new(),
-        plugins: vec![loadout::registry::RegisteredPlugin {
+        plugins: vec![equip::registry::RegisteredPlugin {
             name: "test-plugin".to_string(),
             version: Some("1.0.0".to_string()),
             description: Some("Test plugin".to_string()),
@@ -276,8 +276,8 @@ fn full_install_uninstall_lifecycle() {
     });
 
     // Save and reload registry
-    loadout::registry::save_registry(&registry, data_dir.path()).unwrap();
-    let loaded = loadout::registry::load_registry(data_dir.path()).unwrap();
+    equip::registry::save_registry(&registry, data_dir.path()).unwrap();
+    let loaded = equip::registry::load_registry(data_dir.path()).unwrap();
     assert_eq!(loaded.sources[0].plugins[0].skills.len(), 3);
 
     // Install all skills

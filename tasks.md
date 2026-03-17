@@ -6,7 +6,7 @@ then create this feature.
 
 ## Bugs
 
-- [ ] Fix this bug: loadout list ‘cl*sk*' - the issue is if you have a skill identity like 'claude-plugins:agent-skills/my-foo-skill'. Then 'cl*sk*' should match it, but it doesn't appear to
+- [ ] Fix this bug: equip list ‘cl*sk*' - the issue is if you have a skill identity like 'claude-plugins:agent-skills/my-foo-skill'. Then 'cl*sk*' should match it, but it doesn't appear to
 - [ ] `bundle list <bundle>` should show the list of skills
 - [ ] `status` should show more info
 - [ ] `agent list` should show more info - follow the patterns in other commands. colorize. provide more info.

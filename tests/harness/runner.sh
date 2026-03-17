@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Test runner for loadout CLI test harness.
+# Test runner for equip CLI test harness.
 # Discovers suite/*.sh files, sources each, and executes all test_ functions.
 #
 # Usage:
@@ -46,12 +46,12 @@ while [ $# -gt 0 ]; do
 done
 
 # ---------------------------------------------------------------------------
-# Check for loadout binary
+# Check for equip binary
 # ---------------------------------------------------------------------------
 if [ ! -x "$LOADOUT" ]; then
   echo ""
   echo "═══════════════════════════════════════════════"
-  printf "\033[31mBUILD FAILED\033[0m — loadout binary not found at: %s\n" "$LOADOUT"
+  printf "\033[31mBUILD FAILED\033[0m — equip binary not found at: %s\n" "$LOADOUT"
   echo "Build the project first: cargo build --release"
   echo "═══════════════════════════════════════════════"
   exit 2
@@ -84,7 +84,7 @@ if [ ${#SUITE_FILES[@]} -eq 0 ]; then
 fi
 
 echo ""
-echo "Loadout CLI Test Harness"
+echo "Equip CLI Test Harness"
 echo "═══════════════════════════════════════════════"
 echo "Binary:  $LOADOUT"
 echo "Suites:  ${#SUITE_FILES[@]}"

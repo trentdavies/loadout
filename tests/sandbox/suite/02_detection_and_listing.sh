@@ -79,9 +79,9 @@ test_04_skill_detail() {
 
   if [ "$exit_code" -eq 0 ] && [ -n "$detail_output" ]; then
     _pass "skill detail for '$qualified' shows metadata"
-    log_check 1 "loadout list $qualified shows detail output"
+    log_check 1 "equip list $qualified shows detail output"
   else
     _fail "skill detail failed for '$qualified'" "exit 0 with output" "exit $exit_code"
-    log_check 0 "loadout list $qualified shows detail output"
+    log_check 0 "equip list $qualified shows detail output"
   fi
 }

@@ -4,10 +4,10 @@ use std::path::PathBuf;
 use clap::Parser;
 use tempfile::TempDir;
 
-use loadout::cli::args::preprocess;
-use loadout::cli::{Cli, Command};
-use loadout::config::{Config, AgentConfig, KitConfig, SourceConfig};
-use loadout::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry};
+use equip::cli::args::preprocess;
+use equip::cli::{Cli, Command};
+use equip::config::{Config, AgentConfig, KitConfig, SourceConfig};
+use equip::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry};
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -34,15 +34,15 @@ fn create_skill(base: &std::path::Path, name: &str) -> RegisteredSkill {
 
 /// Set up a temp environment with config, registry, and agent on disk.
 /// Returns (xdg_dir, config_path, source_dir, agent_dir).
-/// Sets XDG_DATA_HOME so that data_dir() resolves to xdg_dir/loadout.
+/// Sets XDG_DATA_HOME so that data_dir() resolves to xdg_dir/equip.
 fn setup_env() -> (TempDir, PathBuf, TempDir, TempDir) {
     let xdg_dir = TempDir::new().unwrap();
     let source_dir = TempDir::new().unwrap();
     let agent_dir = TempDir::new().unwrap();
 
-    // data_dir = XDG_DATA_HOME/loadout
-    let data_dir = xdg_dir.path().join("loadout");
-    let internal = data_dir.join(".loadout");
+    // data_dir = XDG_DATA_HOME/equip
+    let data_dir = xdg_dir.path().join("equip");
+    let internal = data_dir.join(".equip");
     fs::create_dir_all(&internal).unwrap();
 
     let skills = vec![
@@ -86,8 +86,8 @@ fn setup_env() -> (TempDir, PathBuf, TempDir, TempDir) {
         sync: "auto".to_string(),
     });
 
-    let config_path = data_dir.join("loadout.toml");
-    loadout::config::save_to(&config, &config_path).unwrap();
+    let config_path = data_dir.join("equip.toml");
+    equip::config::save_to(&config, &config_path).unwrap();
 
     // Set XDG_DATA_HOME so data_dir() finds our temp registry
     std::env::set_var("XDG_DATA_HOME", xdg_dir.path());
@@ -96,19 +96,19 @@ fn setup_env() -> (TempDir, PathBuf, TempDir, TempDir) {
 }
 
 fn run_cli(args: &[&str], config_path: &str) -> anyhow::Result<()> {
-    let mut full_args = vec!["loadout", "--config", config_path, "-q"];
+    let mut full_args = vec!["equip", "--config", config_path, "-q"];
     full_args.extend_from_slice(args);
     let processed = pp(&full_args);
     let cli = Cli::try_parse_from(&processed)
         .map_err(|e| anyhow::anyhow!("parse error: {}", e))?;
-    loadout::cli::run(cli)
+    equip::cli::run(cli)
 }
 
 // ─── Parsing tests: @agent and +kit shorthands ──────────────────────────────
 
 #[test]
 fn parse_equip_with_plus_kit() {
-    let processed = pp(&["loadout", "_equip", "+dev", "skill-a"]);
+    let processed = pp(&["equip", "_equip", "+dev", "skill-a"]);
     let cli = Cli::try_parse_from(&processed).unwrap();
     match cli.command {
         Command::Equip { kit, patterns, .. } => {
@@ -121,7 +121,7 @@ fn parse_equip_with_plus_kit() {
 
 #[test]
 fn parse_equip_plus_kit_with_save() {
-    let processed = pp(&["loadout", "_equip", "+dev", "-s", "dev*"]);
+    let processed = pp(&["equip", "_equip", "+dev", "-s", "dev*"]);
     let cli = Cli::try_parse_from(&processed).unwrap();
     match cli.command {
         Command::Equip {
@@ -137,7 +137,7 @@ fn parse_equip_plus_kit_with_save() {
 
 #[test]
 fn parse_equip_at_agent_plus_kit() {
-    let processed = pp(&["loadout", "@claude", "+dev", "web*"]);
+    let processed = pp(&["equip", "@claude", "+dev", "web*"]);
     let cli = Cli::try_parse_from(&processed).unwrap();
     match cli.command {
         Command::Equip {
@@ -153,7 +153,7 @@ fn parse_equip_at_agent_plus_kit() {
 
 #[test]
 fn parse_unequip_with_plus_kit() {
-    let processed = pp(&["loadout", "_equip", "+dev", "--remove", "--force"]);
+    let processed = pp(&["equip", "_equip", "+dev", "--remove", "--force"]);
     let cli = Cli::try_parse_from(&processed).unwrap();
     match cli.command {
         Command::Equip { kit, force, remove, .. } => {
@@ -208,14 +208,14 @@ fn equip_existing_kit_works() {
     let (_xdg_dir, config_path, _source_dir, _agent_dir) = setup_env();
 
     // Add a kit to the config
-    let mut config = loadout::config::load_from(&config_path).unwrap();
+    let mut config = equip::config::load_from(&config_path).unwrap();
     config.kit.insert(
         "dev".to_string(),
         KitConfig {
             skills: vec!["test-plugin/skill-a".to_string()],
         },
     );
-    loadout::config::save_to(&config, &config_path).unwrap();
+    equip::config::save_to(&config, &config_path).unwrap();
 
     let result = run_cli(
         &["_equip", "+dev", "-f"],
@@ -229,14 +229,14 @@ fn equip_existing_kit_works() {
 fn equip_existing_kit_plus_patterns_works() {
     let (_xdg_dir, config_path, _source_dir, _agent_dir) = setup_env();
 
-    let mut config = loadout::config::load_from(&config_path).unwrap();
+    let mut config = equip::config::load_from(&config_path).unwrap();
     config.kit.insert(
         "dev".to_string(),
         KitConfig {
             skills: vec!["test-plugin/skill-a".to_string()],
         },
     );
-    loadout::config::save_to(&config, &config_path).unwrap();
+    equip::config::save_to(&config, &config_path).unwrap();
 
     let result = run_cli(
         &["_equip", "+dev", "test-plugin/skill-b", "-f"],
@@ -259,7 +259,7 @@ fn equip_missing_kit_with_save_creates_kit() {
     assert!(result.is_ok(), "equip with -s and missing kit should create it: {:?}", result.err());
 
     // Verify the kit was created in config
-    let config = loadout::config::load_from(&config_path).unwrap();
+    let config = equip::config::load_from(&config_path).unwrap();
     assert!(config.kit.contains_key("newkit"), "kit 'newkit' should exist after --save");
     assert!(!config.kit["newkit"].skills.is_empty(), "kit should have skills");
 }
@@ -269,14 +269,14 @@ fn equip_existing_kit_with_save_updates_kit() {
     let (_xdg_dir, config_path, _source_dir, _agent_dir) = setup_env();
 
     // Create kit with one skill
-    let mut config = loadout::config::load_from(&config_path).unwrap();
+    let mut config = equip::config::load_from(&config_path).unwrap();
     config.kit.insert(
         "dev".to_string(),
         KitConfig {
             skills: vec!["test-plugin/skill-a".to_string()],
         },
     );
-    loadout::config::save_to(&config, &config_path).unwrap();
+    equip::config::save_to(&config, &config_path).unwrap();
 
     // Equip with broader pattern + --save --force
     let result = run_cli(
@@ -287,7 +287,7 @@ fn equip_existing_kit_with_save_updates_kit() {
     assert!(result.is_ok(), "equip with -s and existing kit should update it: {:?}", result.err());
 
     // Verify the kit was updated
-    let config = loadout::config::load_from(&config_path).unwrap();
+    let config = equip::config::load_from(&config_path).unwrap();
     assert!(config.kit["dev"].skills.len() > 1, "kit should have more skills after update");
 }
 

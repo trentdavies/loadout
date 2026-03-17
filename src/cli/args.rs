@@ -1,7 +1,7 @@
 /// Preprocess raw CLI args to support shorthand syntax:
 /// - `@name` → `--agent name`
 /// - `+name` → `--kit name`
-/// - Top-level catch-all: `loadout @claude ...` → `loadout agent equip @claude ...`
+/// - Top-level catch-all: `equip @claude ...` → `equip agent equip @claude ...`
 pub fn preprocess(raw: Vec<String>) -> Vec<String> {
     if raw.len() < 2 {
         return raw;
@@ -167,120 +167,120 @@ mod tests {
 
     #[test]
     fn at_agent_in_equip() {
-        let result = pp(&["loadout", "_equip", "@claude", "dev*"]);
+        let result = pp(&["equip", "_equip", "@claude", "dev*"]);
         assert_eq!(
             result,
-            ["loadout", "_equip", "dev*", "--agent", "claude"]
+            ["equip", "_equip", "dev*", "--agent", "claude"]
         );
     }
 
     #[test]
     fn plus_kit_in_equip() {
-        let result = pp(&["loadout", "_equip", "+developer"]);
+        let result = pp(&["equip", "_equip", "+developer"]);
         assert_eq!(
             result,
-            ["loadout", "_equip", "--kit", "developer"]
+            ["equip", "_equip", "--kit", "developer"]
         );
     }
 
     #[test]
     fn multiple_at_args() {
-        let result = pp(&["loadout", "_equip", "@claude", "@cursor"]);
+        let result = pp(&["equip", "_equip", "@claude", "@cursor"]);
         assert_eq!(
             result,
-            ["loadout", "_equip", "--agent", "claude", "--agent", "cursor"]
+            ["equip", "_equip", "--agent", "claude", "--agent", "cursor"]
         );
     }
 
     #[test]
     fn top_level_catchall_with_at() {
-        let result = pp(&["loadout", "@claude", "dev*"]);
+        let result = pp(&["equip", "@claude", "dev*"]);
         assert_eq!(
             result,
-            ["loadout", "_equip", "dev*", "--agent", "claude"]
+            ["equip", "_equip", "dev*", "--agent", "claude"]
         );
     }
 
     #[test]
     fn top_level_catchall_with_plus() {
-        let result = pp(&["loadout", "+dev"]);
+        let result = pp(&["equip", "+dev"]);
         assert_eq!(
             result,
-            ["loadout", "_equip", "--kit", "dev"]
+            ["equip", "_equip", "--kit", "dev"]
         );
     }
 
     #[test]
     fn global_flags_before_catchall() {
-        let result = pp(&["loadout", "-n", "--verbose", "@claude", "dev*"]);
+        let result = pp(&["equip", "-n", "--verbose", "@claude", "dev*"]);
         assert_eq!(
             result,
             [
-                "loadout", "-n", "--verbose", "_equip", "dev*", "--agent", "claude"
+                "equip", "-n", "--verbose", "_equip", "dev*", "--agent", "claude"
             ]
         );
     }
 
     #[test]
     fn config_flag_consumes_two_tokens() {
-        let result = pp(&["loadout", "--config", "/tmp/alt.toml", "@claude"]);
+        let result = pp(&["equip", "--config", "/tmp/alt.toml", "@claude"]);
         assert_eq!(
             result,
             [
-                "loadout", "--config", "/tmp/alt.toml", "_equip", "--agent", "claude"
+                "equip", "--config", "/tmp/alt.toml", "_equip", "--agent", "claude"
             ]
         );
     }
 
     #[test]
     fn no_expansion_in_list() {
-        let result = pp(&["loadout", "list", "@something"]);
-        assert_eq!(result, ["loadout", "list", "@something"]);
+        let result = pp(&["equip", "list", "@something"]);
+        assert_eq!(result, ["equip", "list", "@something"]);
     }
 
     #[test]
     fn agent_collect_expands_at_not_plus() {
-        let result = pp(&["loadout", "agent", "collect", "@claude", "+dev"]);
+        let result = pp(&["equip", "agent", "collect", "@claude", "+dev"]);
         assert_eq!(
             result,
-            ["loadout", "agent", "collect", "+dev", "--agent", "claude"]
+            ["equip", "agent", "collect", "+dev", "--agent", "claude"]
         );
     }
 
     #[test]
     fn double_dash_stops_expansion() {
-        let result = pp(&["loadout", "_equip", "@claude", "--", "+notkit"]);
+        let result = pp(&["equip", "_equip", "@claude", "--", "+notkit"]);
         assert_eq!(
             result,
-            ["loadout", "_equip", "--", "+notkit", "--agent", "claude"]
+            ["equip", "_equip", "--", "+notkit", "--agent", "claude"]
         );
     }
 
     #[test]
     fn quoted_values_stripped() {
-        let result = pp(&["loadout", "_equip", "@\"my-agent\""]);
+        let result = pp(&["equip", "_equip", "@\"my-agent\""]);
         assert_eq!(
             result,
-            ["loadout", "_equip", "--agent", "my-agent"]
+            ["equip", "_equip", "--agent", "my-agent"]
         );
     }
 
     #[test]
     fn multiple_globs_preserved() {
-        let result = pp(&["loadout", "@claude", "dev*", "legal/*"]);
+        let result = pp(&["equip", "@claude", "dev*", "legal/*"]);
         assert_eq!(
             result,
-            ["loadout", "_equip", "dev*", "legal/*", "--agent", "claude"]
+            ["equip", "_equip", "dev*", "legal/*", "--agent", "claude"]
         );
     }
 
     #[test]
     fn full_scenario_with_save() {
-        let result = pp(&["loadout", "@claude", "+developer", "-s", "dev*", "legal/*"]);
+        let result = pp(&["equip", "@claude", "+developer", "-s", "dev*", "legal/*"]);
         assert_eq!(
             result,
             [
-                "loadout", "_equip", "-s", "dev*", "legal/*",
+                "equip", "_equip", "-s", "dev*", "legal/*",
                 "--agent", "claude", "--kit", "developer"
             ]
         );
@@ -288,13 +288,13 @@ mod tests {
 
     #[test]
     fn no_args_passthrough() {
-        let result = pp(&["loadout"]);
-        assert_eq!(result, ["loadout"]);
+        let result = pp(&["equip"]);
+        assert_eq!(result, ["equip"]);
     }
 
     #[test]
     fn regular_subcommand_no_catchall() {
-        let result = pp(&["loadout", "status"]);
-        assert_eq!(result, ["loadout", "status"]);
+        let result = pp(&["equip", "status"]);
+        assert_eq!(result, ["equip", "status"]);
     }
 }

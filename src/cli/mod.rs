@@ -9,7 +9,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser)]
 #[command(
-    name = "loadout",
+    name = "equip",
     about = "Agent skill manager — add, update, and install skills across coding agents",
     version,
     propagate_version = true,
@@ -43,7 +43,7 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Command {
-    /// Initialize loadout configuration
+    /// Initialize equip configuration
     Init {
         /// Optional source URL to populate cache (GitHub URL or local path)
         url: Option<String>,

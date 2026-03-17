@@ -6,12 +6,12 @@ pub(crate) fn run(url: Option<String>, flags: &Flags) -> anyhow::Result<()> {
     if path.exists() {
         if url.is_some() && !flags.quiet {
             println!(
-                "Config already exists at {}. Use `loadout add` instead.",
+                "Config already exists at {}. Use `equip add` instead.",
                 path.display()
             );
         } else if !flags.quiet {
             println!(
-                "Config already exists at {}. Use `loadout config edit` to modify.",
+                "Config already exists at {}. Use `equip config edit` to modify.",
                 path.display()
             );
         }
@@ -35,7 +35,7 @@ pub(crate) fn run(url: Option<String>, flags: &Flags) -> anyhow::Result<()> {
         }
     }
 
-    // Migrate legacy registry.json to .loadout/
+    // Migrate legacy registry.json to .equip/
     let legacy_registry = data.join("registry.json");
     let new_registry = crate::config::internal_dir().join("registry.json");
     if legacy_registry.exists() && !new_registry.exists() {
@@ -45,13 +45,13 @@ pub(crate) fn run(url: Option<String>, flags: &Flags) -> anyhow::Result<()> {
     // Write .gitignore
     let gitignore_path = data.join(".gitignore");
     if !gitignore_path.exists() {
-        std::fs::write(&gitignore_path, "external/\n.loadout/\n")?;
+        std::fs::write(&gitignore_path, "external/\n.equip/\n")?;
     }
 
     let default_config = crate::config::DEFAULT_CONFIG;
     std::fs::write(&path, default_config)?;
     if !flags.quiet {
-        println!("Initialized loadout at {}", data.display());
+        println!("Initialized equip at {}", data.display());
     }
 
     // If URL provided, fetch into cache and register as source
@@ -95,7 +95,7 @@ pub(crate) fn run(url: Option<String>, flags: &Flags) -> anyhow::Result<()> {
         true
     } else {
         crate::prompt::confirm_or_override(
-            "Initialize git in loadout data dir? [Y/n]",
+            "Initialize git in equip data dir? [Y/n]",
             "Y",
             flags.quiet,
         )

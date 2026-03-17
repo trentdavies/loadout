@@ -31,30 +31,30 @@ fn setup_env() -> (TempDir, TempDir, TempDir, PathBuf, PathBuf) {
     make_skill_fixture(source_dir.path(), "skill-b");
 
     // Build registry
-    let structure = loadout::source::detect::detect(source_dir.path()).unwrap();
+    let structure = equip::source::detect::detect(source_dir.path()).unwrap();
     let registered =
-        loadout::source::normalize::normalize("test-src", source_dir.path(), &structure).unwrap();
-    let mut registry = loadout::registry::Registry::default();
+        equip::source::normalize::normalize("test-src", source_dir.path(), &structure).unwrap();
+    let mut registry = equip::registry::Registry::default();
     registry.sources.push(registered);
-    loadout::registry::save_registry(&registry, &data_dir).unwrap();
+    equip::registry::save_registry(&registry, &data_dir).unwrap();
 
     // Build config
-    let mut config = loadout::config::Config::default();
-    config.source.push(loadout::config::SourceConfig {
+    let mut config = equip::config::Config::default();
+    config.source.push(equip::config::SourceConfig {
         name: "test-src".to_string(),
         url: source_dir.path().display().to_string(),
         source_type: "local".to_string(),
         r#ref: None,
         mode: None,
     });
-    config.agent.push(loadout::config::AgentConfig {
+    config.agent.push(equip::config::AgentConfig {
         name: "test-agent".to_string(),
         agent_type: "claude".to_string(),
         path: target_dir.path().to_path_buf(),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
     });
-    loadout::config::save_to(&config, &config_path).unwrap();
+    equip::config::save_to(&config, &config_path).unwrap();
 
     (env_dir, source_dir, target_dir, config_path, data_dir)
 }
@@ -63,10 +63,10 @@ fn setup_env() -> (TempDir, TempDir, TempDir, PathBuf, PathBuf) {
 fn not_calling_install_writes_nothing() {
     let (_env, _source, target_dir, config_path, data_dir) = setup_env();
 
-    let config = loadout::config::load_from(&config_path).unwrap();
-    let registry = loadout::registry::load_registry(&data_dir).unwrap();
+    let config = equip::config::load_from(&config_path).unwrap();
+    let registry = equip::registry::load_registry(&data_dir).unwrap();
     let target = &config.agent[0];
-    let adapter = loadout::agent::resolve_adapter(target, &config.adapter).unwrap();
+    let adapter = equip::agent::resolve_adapter(target, &config.adapter).unwrap();
 
     // Without --force, destructive commands skip adapter calls.
     // Verify that NOT calling install_skill means nothing is written.
@@ -86,10 +86,10 @@ fn not_calling_install_writes_nothing() {
 fn not_calling_uninstall_removes_nothing() {
     let (_env, _source, target_dir, config_path, data_dir) = setup_env();
 
-    let config = loadout::config::load_from(&config_path).unwrap();
-    let registry = loadout::registry::load_registry(&data_dir).unwrap();
+    let config = equip::config::load_from(&config_path).unwrap();
+    let registry = equip::registry::load_registry(&data_dir).unwrap();
     let target = &config.agent[0];
-    let adapter = loadout::agent::resolve_adapter(target, &config.adapter).unwrap();
+    let adapter = equip::agent::resolve_adapter(target, &config.adapter).unwrap();
 
     // First, actually install skills
     for (_, _, skill) in &registry.all_skills() {

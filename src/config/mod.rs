@@ -7,7 +7,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Resolve the config file path.
-/// Uses `--config` override if provided, otherwise `~/.local/share/loadout/loadout.toml`.
+/// Uses `--config` override if provided, otherwise `~/.local/share/equip/loadout.toml`.
 pub fn config_path(override_path: Option<&str>) -> PathBuf {
     if let Some(p) = override_path {
         return PathBuf::from(p);
@@ -15,17 +15,17 @@ pub fn config_path(override_path: Option<&str>) -> PathBuf {
     data_dir().join("loadout.toml")
 }
 
-/// The loadout data directory. Everything lives here — config, registry, cached sources.
-/// Respects `$XDG_DATA_HOME` first, then falls back to `~/.local/share/loadout`.
+/// The equip data directory. Everything lives here — config, registry, cached sources.
+/// Respects `$XDG_DATA_HOME` first, then falls back to `~/.local/share/equip`.
 pub fn data_dir() -> PathBuf {
     if let Ok(xdg) = std::env::var("XDG_DATA_HOME") {
-        return PathBuf::from(xdg).join("loadout");
+        return PathBuf::from(xdg).join("equip");
     }
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("~"))
         .join(".local")
         .join("share")
-        .join("loadout")
+        .join("equip")
 }
 
 /// The external source cache directory: `<data_dir>/external/`.
@@ -41,9 +41,9 @@ pub fn plugins_dir() -> PathBuf {
     data_dir().join("plugins")
 }
 
-/// The loadout internals directory: `<data_dir>/.loadout/`.
+/// The equip internals directory: `<data_dir>/.equip/`.
 pub fn internal_dir() -> PathBuf {
-    data_dir().join(".loadout")
+    data_dir().join(".equip")
 }
 
 /// Load config from the resolved path.
@@ -83,21 +83,21 @@ pub fn save_to(config: &Config, path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// The default config template written by `loadout init`.
-pub const DEFAULT_CONFIG: &str = r#"# Loadout — Agent Skill Manager
-# This file lives in ~/.local/share/loadout/ alongside your registry and cached sources.
+/// The default config template written by `equip init`.
+pub const DEFAULT_CONFIG: &str = r#"# Equip — Agent Skill Manager
+# This file lives in ~/.local/share/equip/ alongside your registry and cached sources.
 # This directory can be a git repo for versioning your configuration.
 
 # ─── Sources ────────────────────────────────────────────────────────────────
 # Where skills come from.
 #
 # CLI:
-#   loadout add <url>                          # add a git or local source
-#   loadout add <url> --ref v1.2               # pin to a tag/branch/SHA
-#   loadout add ~/dev/my-skills --symlink      # local source via symlink
-#   loadout remove <name> --force              # remove a source
-#   loadout update [name]                      # fetch latest from remote
-#   loadout list --external                    # list all sources
+#   equip add <url>                          # add a git or local source
+#   equip add <url> --ref v1.2               # pin to a tag/branch/SHA
+#   equip add ~/dev/my-skills --symlink      # local source via symlink
+#   equip remove <name> --force              # remove a source
+#   equip update [name]                      # fetch latest from remote
+#   equip list --external                    # list all sources
 #
 # [[source]]
 # name = "anthropic-plugins"
@@ -116,14 +116,14 @@ pub const DEFAULT_CONFIG: &str = r#"# Loadout — Agent Skill Manager
 
 # ─── Agents ─────────────────────────────────────────────────────────────────
 # Where skills get installed. Agents with sync = "auto" receive skills
-# from `loadout install --all`.
+# from `equip install --all`.
 #
 # CLI:
-#   loadout agent add claude                   # add an agent (auto-detects path)
-#   loadout agent add claude ./project/.claude --scope repo
-#   loadout agent remove <name> --force        # remove an agent
-#   loadout agent list                         # list all agents
-#   loadout agent detect                       # auto-detect installed agents
+#   equip agent add claude                   # add an agent (auto-detects path)
+#   equip agent add claude ./project/.claude --scope repo
+#   equip agent remove <name> --force        # remove an agent
+#   equip agent list                         # list all agents
+#   equip agent detect                       # auto-detect installed agents
 #
 # [[agent]]
 # name = "claude"
@@ -150,14 +150,14 @@ pub const DEFAULT_CONFIG: &str = r#"# Loadout — Agent Skill Manager
 # Named groups of skills you can equip/unequip together.
 #
 # CLI:
-#   loadout kit create <name> [skills...]      # create a kit, optionally with skills
-#   loadout kit add <name> <skills...>         # add skills to a kit
-#   loadout kit drop <name> <skills...>        # remove skills from a kit
-#   loadout kit list                           # list all kits
-#   loadout kit delete <name> --force          # delete a kit
+#   equip kit create <name> [skills...]      # create a kit, optionally with skills
+#   equip kit add <name> <skills...>         # add skills to a kit
+#   equip kit drop <name> <skills...>        # remove skills from a kit
+#   equip kit list                           # list all kits
+#   equip kit delete <name> --force          # delete a kit
 #
-#   loadout agent equip -k <kit> --all         # equip a kit on all agents
-#   loadout agent unequip -k <kit> --all       # unequip a kit from all agents
+#   equip agent equip -k <kit> --all         # equip a kit on all agents
+#   equip agent unequip -k <kit> --all       # unequip a kit from all agents
 #
 # Example: context-switch between work and personal skill sets:
 #
@@ -185,7 +185,7 @@ mod tests {
     #[test]
     fn config_path_default() {
         let p = config_path(None);
-        assert!(p.to_string_lossy().contains("loadout"));
+        assert!(p.to_string_lossy().contains("equip"));
         assert!(p.to_string_lossy().ends_with("loadout.toml"));
     }
 

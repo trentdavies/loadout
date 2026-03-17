@@ -59,26 +59,26 @@ fn source_add_zip_end_to_end() {
     );
 
     // Parse as archive
-    let source_url = loadout::source::SourceUrl::parse(zip_path.to_str().unwrap()).unwrap();
+    let source_url = equip::source::SourceUrl::parse(zip_path.to_str().unwrap()).unwrap();
     assert_eq!(source_url.source_type(), "archive");
     assert_eq!(source_url.default_name(), "my-plugin");
 
     // Fetch (unpack)
     let source_cache = cache_dir.join("my-plugin");
-    loadout::source::fetch::fetch(&source_url, &source_cache, None).unwrap();
+    equip::source::fetch::fetch(&source_url, &source_cache, None).unwrap();
     assert!(source_cache.join(".claude-plugin/plugin.json").exists());
     assert!(source_cache.join("skill-a/SKILL.md").exists());
 
     // Detect
-    let structure = loadout::source::detect::detect(&source_cache).unwrap();
+    let structure = equip::source::detect::detect(&source_cache).unwrap();
     assert!(matches!(
         structure,
-        loadout::source::detect::SourceStructure::SinglePlugin
+        equip::source::detect::SourceStructure::SinglePlugin
     ));
 
     // Normalize
     let registered =
-        loadout::source::normalize::normalize("my-plugin", &source_cache, &structure).unwrap();
+        equip::source::normalize::normalize("my-plugin", &source_cache, &structure).unwrap();
     assert_eq!(registered.plugins.len(), 1);
     assert_eq!(registered.plugins[0].name, "my-plugin");
     assert_eq!(registered.plugins[0].skills.len(), 2);
@@ -102,18 +102,18 @@ fn source_add_skill_file_end_to_end() {
         )],
     );
 
-    let source_url = loadout::source::SourceUrl::parse(skill_path.to_str().unwrap()).unwrap();
+    let source_url = equip::source::SourceUrl::parse(skill_path.to_str().unwrap()).unwrap();
     assert_eq!(source_url.source_type(), "archive");
     assert_eq!(source_url.default_name(), "helper");
 
     let source_cache = cache_dir.join("helper");
-    loadout::source::fetch::fetch(&source_url, &source_cache, None).unwrap();
+    equip::source::fetch::fetch(&source_url, &source_cache, None).unwrap();
     assert!(source_cache.join("SKILL.md").exists());
 
-    let structure = loadout::source::detect::detect(&source_cache).unwrap();
+    let structure = equip::source::detect::detect(&source_cache).unwrap();
     assert!(matches!(
         structure,
-        loadout::source::detect::SourceStructure::SingleSkillDir { .. }
+        equip::source::detect::SourceStructure::SingleSkillDir { .. }
     ));
 }
 
@@ -138,29 +138,29 @@ fn source_add_claude_plugin_end_to_end() {
     make_skill_fixture(&plugin_dir, "tool-a");
 
     // Detect
-    let structure = loadout::source::detect::detect(&plugin_dir).unwrap();
+    let structure = equip::source::detect::detect(&plugin_dir).unwrap();
     assert!(matches!(
         structure,
-        loadout::source::detect::SourceStructure::SinglePlugin
+        equip::source::detect::SourceStructure::SinglePlugin
     ));
 
     // Normalize — should pick up .claude-plugin metadata
     let registered =
-        loadout::source::normalize::normalize("my-claude-plugin", &plugin_dir, &structure).unwrap();
+        equip::source::normalize::normalize("my-claude-plugin", &plugin_dir, &structure).unwrap();
     assert_eq!(registered.plugins.len(), 1);
     assert_eq!(registered.plugins[0].name, "claude-tool");
     assert_eq!(registered.plugins[0].version.as_deref(), Some("2.0"));
     assert_eq!(registered.plugins[0].skills.len(), 1);
 }
 
-// ─── Test: loadout add parses correctly ──────────────────────────────────────
+// ─── Test: equip add parses correctly ──────────────────────────────────────
 
 #[test]
 fn add_parses_correctly() {
     use clap::Parser;
-    let cli = loadout::cli::Cli::try_parse_from(["loadout", "add", "/tmp/my-src"]).unwrap();
+    let cli = equip::cli::Cli::try_parse_from(["equip", "add", "/tmp/my-src"]).unwrap();
     match cli.command {
-        loadout::cli::Command::Add { url, name, .. } => {
+        equip::cli::Command::Add { url, name, .. } => {
             assert_eq!(url, "/tmp/my-src");
             assert!(name.is_none());
         }
@@ -168,29 +168,29 @@ fn add_parses_correctly() {
     }
 }
 
-// ─── Test: loadout list parses correctly ─────────────────────────────────────
+// ─── Test: equip list parses correctly ─────────────────────────────────────
 
 #[test]
 fn list_parses() {
     use clap::Parser;
-    let cli = loadout::cli::Cli::try_parse_from(["loadout", "list"]).unwrap();
+    let cli = equip::cli::Cli::try_parse_from(["equip", "list"]).unwrap();
     match cli.command {
-        loadout::cli::Command::List { patterns, .. } => {
+        equip::cli::Command::List { patterns, .. } => {
             assert!(patterns.is_empty());
         }
         _ => panic!("expected List command"),
     }
 }
 
-// ─── Test: loadout init with URL ────────────────────────────────────────────
+// ─── Test: equip init with URL ────────────────────────────────────────────
 
 #[test]
 fn init_with_url_parses() {
     use clap::Parser;
-    let cli = loadout::cli::Cli::try_parse_from(["loadout", "init", "https://github.com/org/repo"])
+    let cli = equip::cli::Cli::try_parse_from(["equip", "init", "https://github.com/org/repo"])
         .unwrap();
     match cli.command {
-        loadout::cli::Command::Init { url } => {
+        equip::cli::Command::Init { url } => {
             assert_eq!(url.as_deref(), Some("https://github.com/org/repo"));
         }
         _ => panic!("expected Init command"),

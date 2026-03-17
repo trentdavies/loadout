@@ -10,17 +10,17 @@ source /tests/harness/lib.sh
 # ---------------------------------------------------------------------------
 # Path configuration — mirrors a real user's filesystem
 # ---------------------------------------------------------------------------
-export LOADOUT="${LOADOUT:-$HOME/.local/bin/loadout}"
+export LOADOUT="${LOADOUT:-$HOME/.local/bin/equip}"
 export NO_COLOR=1
 export XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 
 export SANDBOX_TARGET_CLAUDE="$HOME/.claude"
 export SANDBOX_TARGET_CODEX="$HOME/.codex"
 export SANDBOX_LOCAL="$HOME/repos"
-export SANDBOX_LOG="$XDG_DATA_HOME/loadout/sandbox.log"
+export SANDBOX_LOG="$XDG_DATA_HOME/equip/sandbox.log"
 
 # ---------------------------------------------------------------------------
-# sandbox_init — init loadout + register both mock agents (idempotent)
+# sandbox_init — init equip + register both mock agents (idempotent)
 # ---------------------------------------------------------------------------
 sandbox_init() {
   mkdir -p "$SANDBOX_LOCAL"

@@ -41,8 +41,8 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
 /// Set up an isolated environment with config and data directories.
 /// Returns (config_path, data_dir, cache_dir).
 fn setup_env(env_dir: &Path) -> (std::path::PathBuf, std::path::PathBuf, std::path::PathBuf) {
-    let config_path = env_dir.join("config/loadout/config.toml");
-    let data_dir = env_dir.join("data/loadout");
+    let config_path = env_dir.join("config/equip/config.toml");
+    let data_dir = env_dir.join("data/equip");
     let cache_dir = data_dir.join("sources");
     fs::create_dir_all(config_path.parent().unwrap()).unwrap();
     fs::create_dir_all(&cache_dir).unwrap();
@@ -72,27 +72,27 @@ fn add_source(
     cache_dir: &Path,
     data_dir: &Path,
     config_path: &Path,
-) -> loadout::registry::Registry {
+) -> equip::registry::Registry {
     let cached = cache_dir.join(source_name);
     copy_dir_recursive(source_dir, &cached).unwrap();
 
-    let structure = loadout::source::detect::detect(&cached).unwrap();
+    let structure = equip::source::detect::detect(&cached).unwrap();
     let registered =
-        loadout::source::normalize::normalize(source_name, &cached, &structure).unwrap();
+        equip::source::normalize::normalize(source_name, &cached, &structure).unwrap();
 
-    let mut registry = loadout::registry::load_registry(data_dir).unwrap();
+    let mut registry = equip::registry::load_registry(data_dir).unwrap();
     registry.sources.push(registered);
-    loadout::registry::save_registry(&registry, data_dir).unwrap();
+    equip::registry::save_registry(&registry, data_dir).unwrap();
 
-    let mut config = loadout::config::load_from(config_path).unwrap();
-    config.source.push(loadout::config::SourceConfig {
+    let mut config = equip::config::load_from(config_path).unwrap();
+    config.source.push(equip::config::SourceConfig {
         name: source_name.to_string(),
         url: source_dir.display().to_string(),
         source_type: "local".to_string(),
         r#ref: None,
         mode: None,
     });
-    loadout::config::save_to(&config, config_path).unwrap();
+    equip::config::save_to(&config, config_path).unwrap();
 
     registry
 }
@@ -105,8 +105,8 @@ fn add_local_source_and_verify_registry() {
     let (config_path, data_dir, cache_dir) = setup_env(env_dir.path());
 
     // Init config
-    let config = loadout::config::Config::default();
-    loadout::config::save_to(&config, &config_path).unwrap();
+    let config = equip::config::Config::default();
+    equip::config::save_to(&config, &config_path).unwrap();
 
     // Create fixture source
     let source_dir = TempDir::new().unwrap();
@@ -114,14 +114,14 @@ fn add_local_source_and_verify_registry() {
 
     // Parse URL, fetch, detect, normalize, save
     let source_url =
-        loadout::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
+        equip::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
     let default_name = source_url.default_name();
     let cached = cache_dir.join(&default_name);
-    loadout::source::fetch::fetch(&source_url, &cached, None).unwrap();
+    equip::source::fetch::fetch(&source_url, &cached, None).unwrap();
 
-    let structure = loadout::source::detect::detect(&cached).unwrap();
+    let structure = equip::source::detect::detect(&cached).unwrap();
     let registered =
-        loadout::source::normalize::normalize(&default_name, &cached, &structure).unwrap();
+        equip::source::normalize::normalize(&default_name, &cached, &structure).unwrap();
 
     assert!(
         !registered.plugins.is_empty(),
@@ -131,11 +131,11 @@ fn add_local_source_and_verify_registry() {
     assert_eq!(total_skills, 2, "should find 2 skills");
 
     // Save to registry and reload
-    let mut registry = loadout::registry::Registry::default();
+    let mut registry = equip::registry::Registry::default();
     registry.sources.push(registered);
-    loadout::registry::save_registry(&registry, &data_dir).unwrap();
+    equip::registry::save_registry(&registry, &data_dir).unwrap();
 
-    let loaded = loadout::registry::load_registry(&data_dir).unwrap();
+    let loaded = equip::registry::load_registry(&data_dir).unwrap();
     assert_eq!(loaded.sources.len(), 1);
     assert_eq!(loaded.sources[0].name, default_name);
     assert!(!loaded.sources[0].plugins.is_empty());
@@ -155,29 +155,29 @@ fn add_source_with_custom_name() {
     let env_dir = TempDir::new().unwrap();
     let (config_path, data_dir, cache_dir) = setup_env(env_dir.path());
 
-    let config = loadout::config::Config::default();
-    loadout::config::save_to(&config, &config_path).unwrap();
+    let config = equip::config::Config::default();
+    equip::config::save_to(&config, &config_path).unwrap();
 
     let source_dir = TempDir::new().unwrap();
     make_source_with_skills(source_dir.path(), &["deploy"]);
 
     let source_url =
-        loadout::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
+        equip::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
 
     // Use a custom name instead of the default
     let custom_name = "my-custom-source";
     let cached = cache_dir.join(custom_name);
-    loadout::source::fetch::fetch(&source_url, &cached, None).unwrap();
+    equip::source::fetch::fetch(&source_url, &cached, None).unwrap();
 
-    let structure = loadout::source::detect::detect(&cached).unwrap();
+    let structure = equip::source::detect::detect(&cached).unwrap();
     let registered =
-        loadout::source::normalize::normalize(custom_name, &cached, &structure).unwrap();
+        equip::source::normalize::normalize(custom_name, &cached, &structure).unwrap();
 
-    let mut registry = loadout::registry::Registry::default();
+    let mut registry = equip::registry::Registry::default();
     registry.sources.push(registered);
-    loadout::registry::save_registry(&registry, &data_dir).unwrap();
+    equip::registry::save_registry(&registry, &data_dir).unwrap();
 
-    let loaded = loadout::registry::load_registry(&data_dir).unwrap();
+    let loaded = equip::registry::load_registry(&data_dir).unwrap();
     assert_eq!(loaded.sources.len(), 1);
     assert_eq!(
         loaded.sources[0].name, custom_name,
@@ -190,8 +190,8 @@ fn remove_source_cleans_registry() {
     let env_dir = TempDir::new().unwrap();
     let (config_path, data_dir, cache_dir) = setup_env(env_dir.path());
 
-    let config = loadout::config::Config::default();
-    loadout::config::save_to(&config, &config_path).unwrap();
+    let config = equip::config::Config::default();
+    equip::config::save_to(&config, &config_path).unwrap();
 
     let source_dir = TempDir::new().unwrap();
     make_source_with_skills(source_dir.path(), &["ephemeral"]);
@@ -206,23 +206,23 @@ fn remove_source_cleans_registry() {
     assert_eq!(registry.sources.len(), 1, "source should be added");
 
     // Remove the source from registry
-    let mut registry = loadout::registry::load_registry(&data_dir).unwrap();
+    let mut registry = equip::registry::load_registry(&data_dir).unwrap();
     registry.sources.retain(|s| s.name != "removable-src");
-    loadout::registry::save_registry(&registry, &data_dir).unwrap();
+    equip::registry::save_registry(&registry, &data_dir).unwrap();
 
     // Also remove from config
-    let mut config = loadout::config::load_from(&config_path).unwrap();
+    let mut config = equip::config::load_from(&config_path).unwrap();
     config.source.retain(|s| s.name != "removable-src");
-    loadout::config::save_to(&config, &config_path).unwrap();
+    equip::config::save_to(&config, &config_path).unwrap();
 
     // Verify both are empty
-    let loaded_registry = loadout::registry::load_registry(&data_dir).unwrap();
+    let loaded_registry = equip::registry::load_registry(&data_dir).unwrap();
     assert!(
         loaded_registry.sources.is_empty(),
         "registry should be empty after removal"
     );
 
-    let loaded_config = loadout::config::load_from(&config_path).unwrap();
+    let loaded_config = equip::config::load_from(&config_path).unwrap();
     assert!(
         loaded_config.source.is_empty(),
         "config should be empty after removal"
@@ -235,8 +235,8 @@ fn remove_source_with_installed_skills_detected() {
     let (config_path, data_dir, cache_dir) = setup_env(env_dir.path());
     let target_dir = TempDir::new().unwrap();
 
-    let config = loadout::config::Config::default();
-    loadout::config::save_to(&config, &config_path).unwrap();
+    let config = equip::config::Config::default();
+    equip::config::save_to(&config, &config_path).unwrap();
 
     let source_dir = TempDir::new().unwrap();
     make_source_with_skills(source_dir.path(), &["guarded"]);
@@ -250,17 +250,17 @@ fn remove_source_with_installed_skills_detected() {
     );
 
     // Set up an agent and install the skill
-    let mut config = loadout::config::load_from(&config_path).unwrap();
-    config.agent.push(loadout::config::AgentConfig {
+    let mut config = equip::config::load_from(&config_path).unwrap();
+    config.agent.push(equip::config::AgentConfig {
         name: "test-agent".to_string(),
         agent_type: "claude".to_string(),
         path: target_dir.path().to_path_buf(),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
     });
-    loadout::config::save_to(&config, &config_path).unwrap();
+    equip::config::save_to(&config, &config_path).unwrap();
 
-    let adapter = loadout::agent::resolve_adapter(&config.agent[0], &BTreeMap::new()).unwrap();
+    let adapter = equip::agent::resolve_adapter(&config.agent[0], &BTreeMap::new()).unwrap();
 
     // Install skills from the registry
     let all_skills = registry.all_skills();
@@ -286,8 +286,8 @@ fn list_sources_returns_all() {
     let env_dir = TempDir::new().unwrap();
     let (config_path, data_dir, cache_dir) = setup_env(env_dir.path());
 
-    let config = loadout::config::Config::default();
-    loadout::config::save_to(&config, &config_path).unwrap();
+    let config = equip::config::Config::default();
+    equip::config::save_to(&config, &config_path).unwrap();
 
     // Add three sources
     let names = ["alpha-src", "beta-src", "gamma-src"];
@@ -297,8 +297,8 @@ fn list_sources_returns_all() {
         add_source(source_dir.path(), name, &cache_dir, &data_dir, &config_path);
     }
 
-    let loaded_config = loadout::config::load_from(&config_path).unwrap();
-    let loaded_registry = loadout::registry::load_registry(&data_dir).unwrap();
+    let loaded_config = equip::config::load_from(&config_path).unwrap();
+    let loaded_registry = equip::registry::load_registry(&data_dir).unwrap();
 
     assert_eq!(
         loaded_config.source.len(),
@@ -346,8 +346,8 @@ fn show_source_detail() {
     let env_dir = TempDir::new().unwrap();
     let (config_path, data_dir, cache_dir) = setup_env(env_dir.path());
 
-    let config = loadout::config::Config::default();
-    loadout::config::save_to(&config, &config_path).unwrap();
+    let config = equip::config::Config::default();
+    equip::config::save_to(&config, &config_path).unwrap();
 
     let source_dir = TempDir::new().unwrap();
     make_source_with_skills(source_dir.path(), &["inspect", "audit", "report"]);
@@ -361,7 +361,7 @@ fn show_source_detail() {
     );
 
     // Look up in config
-    let config = loadout::config::load_from(&config_path).unwrap();
+    let config = equip::config::load_from(&config_path).unwrap();
     let config_entry = config
         .source
         .iter()
@@ -372,7 +372,7 @@ fn show_source_detail() {
     assert_eq!(config_entry.url, source_dir.path().display().to_string());
 
     // Look up in registry
-    let registry = loadout::registry::load_registry(&data_dir).unwrap();
+    let registry = equip::registry::load_registry(&data_dir).unwrap();
     let reg_entry = registry
         .sources
         .iter()
@@ -397,8 +397,8 @@ fn update_source_re_detects() {
     let env_dir = TempDir::new().unwrap();
     let (config_path, data_dir, cache_dir) = setup_env(env_dir.path());
 
-    let config = loadout::config::Config::default();
-    loadout::config::save_to(&config, &config_path).unwrap();
+    let config = equip::config::Config::default();
+    equip::config::save_to(&config, &config_path).unwrap();
 
     // Create initial source with one skill
     let source_dir = TempDir::new().unwrap();
@@ -413,7 +413,7 @@ fn update_source_re_detects() {
     );
 
     // Verify initial state
-    let registry = loadout::registry::load_registry(&data_dir).unwrap();
+    let registry = equip::registry::load_registry(&data_dir).unwrap();
     let initial_skills: usize = registry
         .sources
         .iter()
@@ -433,18 +433,18 @@ fn update_source_re_detects() {
     copy_dir_recursive(source_dir.path(), &cached).unwrap();
 
     // Re-detect and re-normalize
-    let structure = loadout::source::detect::detect(&cached).unwrap();
+    let structure = equip::source::detect::detect(&cached).unwrap();
     let updated =
-        loadout::source::normalize::normalize("evolving-src", &cached, &structure).unwrap();
+        equip::source::normalize::normalize("evolving-src", &cached, &structure).unwrap();
 
     // Replace the source in the registry
-    let mut registry = loadout::registry::load_registry(&data_dir).unwrap();
+    let mut registry = equip::registry::load_registry(&data_dir).unwrap();
     registry.sources.retain(|s| s.name != "evolving-src");
     registry.sources.push(updated);
-    loadout::registry::save_registry(&registry, &data_dir).unwrap();
+    equip::registry::save_registry(&registry, &data_dir).unwrap();
 
     // Verify the updated registry
-    let loaded = loadout::registry::load_registry(&data_dir).unwrap();
+    let loaded = equip::registry::load_registry(&data_dir).unwrap();
     let updated_skills: Vec<&str> = loaded
         .sources
         .iter()
@@ -473,17 +473,17 @@ fn normalize_with_overrides_uses_custom_names() {
     make_source_with_skills(source_dir.path(), &["original"]);
 
     let source_url =
-        loadout::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
+        equip::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
     let cached = cache_dir.join("test-src");
-    loadout::source::fetch::fetch(&source_url, &cached, None).unwrap();
+    equip::source::fetch::fetch(&source_url, &cached, None).unwrap();
 
-    let structure = loadout::source::detect::detect(&cached).unwrap();
-    let overrides = loadout::source::normalize::Overrides {
+    let structure = equip::source::detect::detect(&cached).unwrap();
+    let overrides = equip::source::normalize::Overrides {
         plugin: Some("custom-plug"),
         skill: None,
     };
     let registered =
-        loadout::source::normalize::normalize_with("test-src", &cached, &structure, &overrides)
+        equip::source::normalize::normalize_with("test-src", &cached, &structure, &overrides)
             .unwrap();
 
     assert_eq!(registered.plugins[0].name, "custom-plug");
@@ -498,31 +498,31 @@ fn normalize_with_overrides_rejects_invalid_kebab() {
     make_source_with_skills(source_dir.path(), &["original"]);
 
     let source_url =
-        loadout::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
+        equip::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
     let cached = cache_dir.join("test-src");
-    loadout::source::fetch::fetch(&source_url, &cached, None).unwrap();
+    equip::source::fetch::fetch(&source_url, &cached, None).unwrap();
 
-    let structure = loadout::source::detect::detect(&cached).unwrap();
-    let overrides = loadout::source::normalize::Overrides {
+    let structure = equip::source::detect::detect(&cached).unwrap();
+    let overrides = equip::source::normalize::Overrides {
         plugin: Some("NotKebab"),
         skill: None,
     };
     let result =
-        loadout::source::normalize::normalize_with("test-src", &cached, &structure, &overrides);
+        equip::source::normalize::normalize_with("test-src", &cached, &structure, &overrides);
     assert!(result.is_err());
 }
 
 #[test]
 fn prompt_confirm_uses_default_non_interactive() {
     // In test harness, stdin is not a TTY, so confirm_or_override returns the default
-    let result = loadout::prompt::confirm_or_override("Source", "inferred-name", false);
+    let result = equip::prompt::confirm_or_override("Source", "inferred-name", false);
     assert_eq!(result, "inferred-name");
 }
 
 #[test]
 fn prompt_select_errors_non_interactive() {
     let options = vec!["alpha".to_string(), "beta".to_string()];
-    let result = loadout::prompt::select_from("Source", &options, false);
+    let result = equip::prompt::select_from("Source", &options, false);
     assert!(
         result.is_err(),
         "select_from should error when not interactive"
@@ -538,9 +538,9 @@ fn fetch_local_symlink_creates_symlink() {
     let cached = cache_dir.path().join("linked-src");
 
     let source_url =
-        loadout::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
+        equip::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
 
-    loadout::source::fetch::fetch_with_mode(&source_url, &cached, None, true).unwrap();
+    equip::source::fetch::fetch_with_mode(&source_url, &cached, None, true).unwrap();
 
     // Cache path should be a symlink
     assert!(cached.symlink_metadata().unwrap().file_type().is_symlink());
@@ -557,9 +557,9 @@ fn fetch_local_copy_creates_real_dir() {
     let cached = cache_dir.path().join("copied-src");
 
     let source_url =
-        loadout::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
+        equip::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
 
-    loadout::source::fetch::fetch_with_mode(&source_url, &cached, None, false).unwrap();
+    equip::source::fetch::fetch_with_mode(&source_url, &cached, None, false).unwrap();
 
     // Cache path should be a real directory, not a symlink
     assert!(cached.is_dir());
@@ -575,10 +575,10 @@ fn fetch_local_single_file_always_copies() {
     let cache_dir = TempDir::new().unwrap();
     let cached = cache_dir.path().join("file-src");
 
-    let source_url = loadout::source::SourceUrl::parse(skill_file.to_str().unwrap()).unwrap();
+    let source_url = equip::source::SourceUrl::parse(skill_file.to_str().unwrap()).unwrap();
 
     // Even with symlink=true, single file should be copied
-    loadout::source::fetch::fetch_with_mode(&source_url, &cached, None, true).unwrap();
+    equip::source::fetch::fetch_with_mode(&source_url, &cached, None, true).unwrap();
 
     assert!(cached.is_dir());
     assert!(cached.join("SKILL.md").exists());
@@ -588,6 +588,6 @@ fn fetch_local_single_file_always_copies() {
 
 #[test]
 fn prompt_fetch_mode_returns_symlink_non_interactive() {
-    let result = loadout::prompt::prompt_fetch_mode(false);
+    let result = equip::prompt::prompt_fetch_mode(false);
     assert_eq!(result, "symlink");
 }

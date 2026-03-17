@@ -195,7 +195,7 @@ pub(crate) fn resolve_agents<'a>(
 ) -> anyhow::Result<Vec<&'a crate::config::AgentConfig>> {
     if all_agents {
         if config.agent.is_empty() {
-            anyhow::bail!("no agents configured. Use `loadout agent add` first.");
+            anyhow::bail!("no agents configured. Use `equip agent add` first.");
         }
         return Ok(config.agent.iter().collect());
     }
@@ -218,7 +218,7 @@ pub(crate) fn resolve_agents<'a>(
 
     let auto: Vec<_> = config.agent.iter().filter(|t| t.sync == "auto").collect();
     if auto.is_empty() {
-        anyhow::bail!("no agents configured. Use `loadout agent add` first.");
+        anyhow::bail!("no agents configured. Use `equip agent add` first.");
     }
     Ok(auto)
 }
@@ -420,7 +420,7 @@ pub(crate) fn generate_marketplace(data_dir: &std::path::Path) -> anyhow::Result
     }
 
     let marketplace = serde_json::json!({
-        "name": "loadout-marketplace",
+        "name": "equip-marketplace",
         "plugins": plugins,
     });
 

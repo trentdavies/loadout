@@ -1,4 +1,4 @@
-# Loadout Command & Flag Reference
+# Equip Command & Flag Reference
 
 Agent skill manager — add, update, and install skills across coding agents.
 
@@ -41,13 +41,13 @@ Before clap parses args, `src/cli/args.rs` rewrites the raw arg vector.
 When the first positional arg (after global flags) starts with `@` or `+`, the preprocessor injects the hidden `_equip` subcommand:
 
 ```
-loadout @claude dev*        → loadout _equip dev* --agent claude
-loadout +developer          → loadout _equip --kit developer
-loadout -n @claude +dev *   → loadout -n _equip * --agent claude --kit dev
-loadout @claude dev* --remove --force → loadout _equip dev* --remove --force --agent claude
+equip @claude dev*        → equip _equip dev* --agent claude
+equip +developer          → equip _equip --kit developer
+equip -n @claude +dev *   → equip -n _equip * --agent claude --kit dev
+equip @claude dev* --remove --force → equip _equip dev* --remove --force --agent claude
 ```
 
-There is no `loadout equip` or `loadout unequip` command. Equip is the default action when using `@`/`+` shorthand. Unequip is `--remove`.
+There is no `equip equip` or `equip unequip` command. Equip is the default action when using `@`/`+` shorthand. Unequip is `--remove`.
 
 ### Equip flags
 
@@ -85,13 +85,13 @@ There is no `loadout equip` or `loadout unequip` command. Equip is the default a
 
 **Examples:**
 ```
-loadout @claude dev*                    # equip matching skills to claude
-loadout @claude +dev                    # equip kit "dev" to claude
-loadout +dev                            # equip kit to auto-sync agents
-loadout @claude +dev --remove --force   # unequip kit from claude
-loadout @claude dev* --remove --force   # unequip matching skills
-loadout -n @claude +dev                 # dry-run equip
-loadout @claude +newkit -s dev* -f      # equip and save as kit
+equip @claude dev*                    # equip matching skills to claude
+equip @claude +dev                    # equip kit "dev" to claude
+equip +dev                            # equip kit to auto-sync agents
+equip @claude +dev --remove --force   # unequip kit from claude
+equip @claude dev* --remove --force   # unequip matching skills
+equip -n @claude +dev                 # dry-run equip
+equip @claude +newkit -s dev* -f      # equip and save as kit
 ```
 
 ### Expansion ordering
@@ -109,10 +109,10 @@ Stops shorthand expansion for everything after it. Tokens after `--` are passed 
 
 ### `init`
 
-Initialize loadout configuration.
+Initialize equip configuration.
 
 ```
-loadout init [URL]
+equip init [URL]
 ```
 
 | Argument | Type | Required | Description |
@@ -120,10 +120,10 @@ loadout init [URL]
 | `url` | positional | no | Source URL to populate cache (GitHub URL or local path) |
 
 **Behavior:**
-- If config already exists: prints message and exits (no-op). If `url` was given, suggests `loadout add` instead.
-- Creates directory structure: `data/`, `plugins/`, `cache/`, `.loadout/` (internal).
-- Writes `.gitignore` (`external/`, `.loadout/`).
-- Migrates legacy `sources/` → `external/` and `registry.json` → `.loadout/registry.json` if present.
+- If config already exists: prints message and exits (no-op). If `url` was given, suggests `equip add` instead.
+- Creates directory structure: `data/`, `plugins/`, `cache/`, `.equip/` (internal).
+- Writes `.gitignore` (`external/`, `.equip/`).
+- Migrates legacy `sources/` → `external/` and `registry.json` → `.equip/registry.json` if present.
 - If `url` provided: fetches, detects, normalizes, and registers the source immediately.
 - **Interactive wizard** (when not `--quiet` and stdin is a TTY):
   1. Prompts to `git init` the data dir (default: yes).
@@ -138,7 +138,7 @@ loadout init [URL]
 Add a skill source.
 
 ```
-loadout add <URL> [flags]
+equip add <URL> [flags]
 ```
 
 | Argument | Type | Required | Description |
@@ -174,7 +174,7 @@ loadout add <URL> [flags]
 List skills, or show details for one.
 
 ```
-loadout list [PATTERNS...] [flags]
+equip list [PATTERNS...] [flags]
 ```
 
 | Argument | Type | Required | Description |
@@ -201,7 +201,7 @@ loadout list [PATTERNS...] [flags]
 Remove a skill source.
 
 ```
-loadout remove [NAME] [flags]
+equip remove [NAME] [flags]
 ```
 
 | Argument | Type | Required | Description |
@@ -223,7 +223,7 @@ loadout remove [NAME] [flags]
 Update source(s) from remote.
 
 ```
-loadout update [NAME] [flags]
+equip update [NAME] [flags]
 ```
 
 | Argument | Type | Required | Description |
@@ -245,7 +245,7 @@ loadout update [NAME] [flags]
 Show current status.
 
 ```
-loadout status
+equip status
 ```
 
 No additional flags or arguments.
@@ -262,7 +262,7 @@ No additional flags or arguments.
 Generate shell completions.
 
 ```
-loadout completions <SHELL> [flags]
+equip completions <SHELL> [flags]
 ```
 
 | Argument | Type | Required | Description |
@@ -284,7 +284,7 @@ loadout completions <SHELL> [flags]
 Internal command used by shell completion scripts.
 
 ```
-loadout _complete <KIND>
+equip _complete <KIND>
 ```
 
 | Argument | Type | Required | Description |
@@ -302,7 +302,7 @@ Manage configuration. Requires a subcommand.
 Show current configuration.
 
 ```
-loadout config show
+equip config show
 ```
 
 No additional flags or arguments.
@@ -312,7 +312,7 @@ No additional flags or arguments.
 Open config in editor.
 
 ```
-loadout config edit
+equip config edit
 ```
 
 No additional flags or arguments.
@@ -328,7 +328,7 @@ Manage skill kits. Requires a subcommand.
 Create a new kit, optionally seeding it with skills.
 
 ```
-loadout kit create <NAME> [SKILLS...]
+equip kit create <NAME> [SKILLS...]
 ```
 
 | Argument | Type | Required | Description |
@@ -341,7 +341,7 @@ loadout kit create <NAME> [SKILLS...]
 Delete a kit.
 
 ```
-loadout kit delete <NAME> [flags]
+equip kit delete <NAME> [flags]
 ```
 
 | Argument | Type | Required | Description |
@@ -357,7 +357,7 @@ loadout kit delete <NAME> [flags]
 List all kits, optionally filtered by name pattern.
 
 ```
-loadout kit list [PATTERNS...]
+equip kit list [PATTERNS...]
 ```
 
 | Argument | Type | Required | Description |
@@ -369,7 +369,7 @@ loadout kit list [PATTERNS...]
 Show kit details.
 
 ```
-loadout kit show <NAME>
+equip kit show <NAME>
 ```
 
 | Argument | Type | Required | Description |
@@ -381,7 +381,7 @@ loadout kit show <NAME>
 Add skills to a kit.
 
 ```
-loadout kit add <NAME> <SKILLS...>
+equip kit add <NAME> <SKILLS...>
 ```
 
 | Argument | Type | Required | Description |
@@ -394,7 +394,7 @@ loadout kit add <NAME> <SKILLS...>
 Remove skills from a kit.
 
 ```
-loadout kit drop <NAME> <SKILLS...>
+equip kit drop <NAME> <SKILLS...>
 ```
 
 | Argument | Type | Required | Description |
@@ -413,7 +413,7 @@ Manage agents. Requires a subcommand.
 Add an agent.
 
 ```
-loadout agent add <AGENT_TYPE> [PATH] [flags]
+equip agent add <AGENT_TYPE> [PATH] [flags]
 ```
 
 | Argument | Type | Required | Description |
@@ -438,7 +438,7 @@ loadout agent add <AGENT_TYPE> [PATH] [flags]
 Remove an agent.
 
 ```
-loadout agent remove <NAME> [flags]
+equip agent remove <NAME> [flags]
 ```
 
 | Argument | Type | Required | Description |
@@ -454,7 +454,7 @@ loadout agent remove <NAME> [flags]
 List all agents.
 
 ```
-loadout agent list
+equip agent list
 ```
 
 No additional flags or arguments.
@@ -464,7 +464,7 @@ No additional flags or arguments.
 Show agent details.
 
 ```
-loadout agent show <NAME>
+equip agent show <NAME>
 ```
 
 | Argument | Type | Required | Description |
@@ -476,7 +476,7 @@ loadout agent show <NAME>
 Detect agent installations and prompt to add them.
 
 ```
-loadout agent detect [flags]
+equip agent detect [flags]
 ```
 
 | Flag | Type | Default | Description |
@@ -494,7 +494,7 @@ loadout agent detect [flags]
 Collect skills from an agent back to source.
 
 ```
-loadout agent collect [flags]
+equip agent collect [flags]
 ```
 
 | Flag | Type | Default | Description |

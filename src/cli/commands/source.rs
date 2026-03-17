@@ -333,7 +333,7 @@ pub(crate) fn run_list(
         if config_for_list.source.is_empty() {
             let output =
                 crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
-            output.info("No sources configured. Use `loadout add` to add one.");
+            output.info("No sources configured. Use `equip add` to add one.");
             return Ok(());
         }
 
@@ -527,7 +527,7 @@ pub(crate) fn run_list(
         let output = crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
         if skills.is_empty() {
             if patterns.is_empty() {
-                output.info("No skills found. Add a source with `loadout add`");
+                output.info("No skills found. Add a source with `equip add`");
             } else {
                 output.info("No skills matched the given pattern(s)");
             }
@@ -654,7 +654,7 @@ pub(crate) fn run_update(
 
     if update_ref.is_some() && name.is_none() {
         anyhow::bail!(
-            "--ref requires a source name (e.g., loadout update my-source --ref v2.0)"
+            "--ref requires a source name (e.g., equip update my-source --ref v2.0)"
         );
     }
 
