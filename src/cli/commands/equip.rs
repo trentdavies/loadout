@@ -2,9 +2,8 @@ use colored::Colorize;
 
 use crate::cli::flags::Flags;
 use crate::cli::helpers::{
-    fully_qualified_skill_ids, load_context, print_apply_summary, prompt_conflict,
-    record_provenance, resolve_agents, resolve_skill_patterns, unique_skill_names, ConflictAction,
-    ResolvedSkill,
+    apply_skill_to_agent, fully_qualified_skill_ids, load_context, print_apply_summary,
+    resolve_agents, resolve_skill_patterns, unique_skill_names, ApplySkillOutcome, ResolvedSkill,
 };
 
 pub(crate) fn run(
@@ -211,9 +210,8 @@ fn run_equip(
         }
 
         for (src_name, plugin, s) in &skills_to_apply {
-            let status = adapter.compare_skill(s, &ac.path)?;
-
             if flags.dry_run {
+                let status = adapter.compare_skill(s, &ac.path)?;
                 if !flags.quiet {
                     let label = match status {
                         crate::agent::SkillStatus::New => "new",
@@ -230,65 +228,37 @@ fn run_equip(
                 continue;
             }
 
-            match status {
-                crate::agent::SkillStatus::Unchanged => {
+            match apply_skill_to_agent(
+                &adapter,
+                &mut reg,
+                &data_dir,
+                ac,
+                (*src_name, *plugin, *s),
+                interactive,
+                &mut force_remaining,
+            )? {
+                ApplySkillOutcome::Unchanged => {
                     unchanged_count += 1;
-                    continue;
                 }
-                crate::agent::SkillStatus::New => {
-                    adapter.install_skill(s, &ac.path)?;
-                    record_provenance(&mut reg, &data_dir, ac, src_name, &plugin.name, s);
+                ApplySkillOutcome::New => {
                     new_count += 1;
                 }
-                crate::agent::SkillStatus::Changed => {
-                    if force_remaining {
-                        adapter.install_skill(s, &ac.path)?;
-                        record_provenance(&mut reg, &data_dir, ac, src_name, &plugin.name, s);
-                        updated_count += 1;
-                    } else if interactive {
-                        let action = prompt_conflict(s, &adapter, &ac.path)?;
-                        match action {
-                            ConflictAction::Skip => {
-                                conflict_skipped += 1;
-                            }
-                            ConflictAction::Overwrite => {
-                                adapter.install_skill(s, &ac.path)?;
-                                record_provenance(
-                                    &mut reg,
-                                    &data_dir,
-                                    ac,
-                                    src_name,
-                                    &plugin.name,
-                                    s,
-                                );
-                                updated_count += 1;
-                            }
-                            ConflictAction::ForceAll => {
-                                adapter.install_skill(s, &ac.path)?;
-                                record_provenance(
-                                    &mut reg,
-                                    &data_dir,
-                                    ac,
-                                    src_name,
-                                    &plugin.name,
-                                    s,
-                                );
-                                updated_count += 1;
-                                force_remaining = true;
-                            }
-                            ConflictAction::Quit => {
-                                crate::registry::save_registry(&reg, &data_dir)?;
-                                print_apply_summary(
-                                    new_count,
-                                    updated_count,
-                                    unchanged_count,
-                                    conflict_skipped,
-                                    flags.quiet,
-                                );
-                                return Ok(());
-                            }
-                        }
-                    }
+                ApplySkillOutcome::Updated => {
+                    updated_count += 1;
+                }
+                ApplySkillOutcome::ConflictSkipped => {
+                    conflict_skipped += 1;
+                }
+                ApplySkillOutcome::Quit => {
+                    crate::registry::save_registry(&reg, &data_dir)?;
+                    print_apply_summary(
+                        new_count,
+                        updated_count,
+                        unchanged_count,
+                        conflict_skipped,
+                        flags.quiet,
+                    );
+                    return Ok(());
                 }
             }
         }

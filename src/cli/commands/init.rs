@@ -61,24 +61,20 @@ pub(crate) fn run(url: Option<String>, flags: &Flags) -> anyhow::Result<()> {
 
         crate::source::fetch::fetch(&source_url, &cache_path, None)?;
 
-        let parsed = crate::source::ParsedSource::parse(&cache_path)?
-            .with_source_name(&source_name)
-            .with_url(source_url.url_string());
-        let registered = crate::source::normalize::normalize(&parsed)?;
+        let prepared = crate::source::prepare_source(
+            &source_name,
+            &source_url,
+            &cache_path,
+            None,
+            None,
+            &crate::source::normalize::Overrides::default(),
+        )?;
 
         let data_dir = crate::config::data_dir();
         let mut registry = crate::registry::load_registry(&data_dir)?;
-        registry.sources.push(registered);
-        crate::registry::save_registry(&registry, &data_dir)?;
-
         let mut config = crate::config::load(flags.config_path())?;
-        config.source.push(crate::config::SourceConfig {
-            name: source_name.clone(),
-            url: source_url.url_string(),
-            source_type: source_url.source_type().to_string(),
-            r#ref: None,
-            mode: None,
-        });
+        crate::source::persist_prepared_source(&mut config, &mut registry, prepared);
+        crate::registry::save_registry(&registry, &data_dir)?;
         crate::config::save(&config, flags.config_path())?;
 
         if !flags.quiet {
@@ -191,32 +187,25 @@ pub(crate) fn run(url: Option<String>, flags: &Flags) -> anyhow::Result<()> {
                         continue;
                     }
                 }
-                match crate::source::ParsedSource::parse(&cache_path) {
-                    Ok(parsed) => {
-                        let parsed = parsed
-                            .with_source_name(&source_name)
-                            .with_url(url.to_string());
-                        match crate::source::normalize::normalize(&parsed) {
-                            Ok(registered) => {
-                                registry.sources.retain(|s| s.name != source_name);
-                                registry.sources.push(registered);
-                                config.source.push(crate::config::SourceConfig {
-                                    name: source_name.clone(),
-                                    url: url.to_string(),
-                                    source_type: "git".to_string(),
-                                    r#ref: None,
-                                    mode: None,
-                                });
-                                if !flags.quiet {
-                                    println!("  Added source '{}'", source_name);
-                                }
-                            }
-                            Err(e) => {
-                                eprintln!("warning: failed to normalize '{}': {}", name, e)
-                            }
+                match crate::source::prepare_source(
+                    &source_name,
+                    &source_url,
+                    &cache_path,
+                    None,
+                    None,
+                    &crate::source::normalize::Overrides::default(),
+                ) {
+                    Ok(prepared) => {
+                        crate::source::persist_prepared_source(
+                            &mut config,
+                            &mut registry,
+                            prepared,
+                        );
+                        if !flags.quiet {
+                            println!("  Added source '{}'", source_name);
                         }
                     }
-                    Err(e) => eprintln!("warning: failed to parse '{}': {}", name, e),
+                    Err(e) => eprintln!("warning: failed to prepare '{}': {}", name, e),
                 }
             }
 

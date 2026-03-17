@@ -326,6 +326,62 @@ pub(crate) fn record_provenance(
     );
 }
 
+pub(crate) enum ApplySkillOutcome {
+    New,
+    Updated,
+    Unchanged,
+    ConflictSkipped,
+    Quit,
+}
+
+pub(crate) fn apply_skill_to_agent(
+    adapter: &crate::agent::Adapter,
+    reg: &mut crate::registry::Registry,
+    data_dir: &std::path::Path,
+    ac: &crate::config::AgentConfig,
+    resolved_skill: ResolvedSkill<'_>,
+    interactive: bool,
+    force_all: &mut bool,
+) -> anyhow::Result<ApplySkillOutcome> {
+    let (src_name, plugin, skill) = resolved_skill;
+
+    match adapter.compare_skill(skill, &ac.path)? {
+        crate::agent::SkillStatus::Unchanged => Ok(ApplySkillOutcome::Unchanged),
+        crate::agent::SkillStatus::New => {
+            adapter.install_skill(skill, &ac.path)?;
+            record_provenance(reg, data_dir, ac, src_name, &plugin.name, skill);
+            Ok(ApplySkillOutcome::New)
+        }
+        crate::agent::SkillStatus::Changed if *force_all => {
+            adapter.install_skill(skill, &ac.path)?;
+            record_provenance(reg, data_dir, ac, src_name, &plugin.name, skill);
+            Ok(ApplySkillOutcome::Updated)
+        }
+        crate::agent::SkillStatus::Changed if interactive => {
+            match prompt_conflict(skill, adapter, &ac.path)? {
+                ConflictAction::Skip => Ok(ApplySkillOutcome::ConflictSkipped),
+                ConflictAction::Overwrite => {
+                    adapter.install_skill(skill, &ac.path)?;
+                    record_provenance(reg, data_dir, ac, src_name, &plugin.name, skill);
+                    Ok(ApplySkillOutcome::Updated)
+                }
+                ConflictAction::ForceAll => {
+                    adapter.install_skill(skill, &ac.path)?;
+                    record_provenance(reg, data_dir, ac, src_name, &plugin.name, skill);
+                    *force_all = true;
+                    Ok(ApplySkillOutcome::Updated)
+                }
+                ConflictAction::Quit => Ok(ApplySkillOutcome::Quit),
+            }
+        }
+        crate::agent::SkillStatus::Changed => anyhow::bail!(
+            "skill '{}' has changed at agent '{}'; use --force or -i to continue",
+            skill.name,
+            ac.name
+        ),
+    }
+}
+
 /// Action chosen by user in interactive conflict resolution.
 pub(crate) enum ConflictAction {
     Skip,

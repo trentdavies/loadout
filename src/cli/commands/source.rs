@@ -84,15 +84,12 @@ pub(crate) fn run_add(
             use_symlink,
         )?;
 
-        // Detect on subpath within the clone if the URL points into a tree
-        let detect_path = if let Some(subpath) = source_url.subpath() {
-            cache_path.join(subpath)
-        } else {
-            cache_path.clone()
-        };
-        let parsed = crate::source::ParsedSource::parse(&detect_path)?
-            .with_source_name(&source_name)
-            .with_url(source_url.url_string());
+        let parsed = crate::source::ParsedSource::parse(&crate::source::detect_path(
+            &source_url,
+            &cache_path,
+        ))?
+        .with_source_name(&source_name)
+        .with_url(source_url.url_string());
 
         let overrides = {
             let plugin_override: Option<String> = if plugin.is_some() {
@@ -131,11 +128,23 @@ pub(crate) fn run_add(
             skill: overrides.1.as_deref(),
         };
 
-        let registered = crate::source::normalize::normalize_with(&parsed, &norm_overrides)?;
+        let prepared = crate::source::PreparedSource {
+            config: crate::source::build_source_config(
+                &source_name,
+                &source_url,
+                r#ref.clone(),
+                if use_symlink {
+                    Some("symlink".to_string())
+                } else {
+                    None
+                },
+            ),
+            registered: crate::source::normalize::normalize_with(&parsed, &norm_overrides)?,
+        };
 
         // In non-interactive/quiet mode, show what was resolved
         if !flags.quiet && !crate::prompt::is_interactive() {
-            for p in &registered.plugins {
+            for p in &prepared.registered.plugins {
                 for s in &p.skills {
                     eprintln!(
                         "resolved: {}",
@@ -146,21 +155,8 @@ pub(crate) fn run_add(
         }
 
         let mut registry = crate::registry::load_registry(&data_dir)?;
-        registry.sources.retain(|s| s.name != source_name);
-        registry.sources.push(registered);
+        crate::source::persist_prepared_source(&mut config, &mut registry, prepared);
         crate::registry::save_registry(&registry, &data_dir)?;
-
-        config.source.push(crate::config::SourceConfig {
-            name: source_name.clone(),
-            url: source_url.url_string(),
-            source_type: source_url.source_type().to_string(),
-            r#ref: r#ref.clone(),
-            mode: if use_symlink {
-                Some("symlink".to_string())
-            } else {
-                None
-            },
-        });
         crate::config::save(&config, config_path_str)?;
     }
 
@@ -532,13 +528,13 @@ pub(crate) fn run_update(
     }
 
     // Determine which sources to update
-    let sources_to_update: Vec<&crate::config::SourceConfig> = if let Some(ref n) = name {
+    let sources_to_update: Vec<crate::config::SourceConfig> = if let Some(ref n) = name {
         let src = config
             .source
             .iter()
             .find(|s| s.name == *n)
             .ok_or_else(|| anyhow::anyhow!("source '{}' not found", n))?;
-        vec![src]
+        vec![src.clone()]
     } else {
         if config.source.is_empty() {
             if !flags.quiet {
@@ -546,7 +542,7 @@ pub(crate) fn run_update(
             }
             return Ok(());
         }
-        config.source.iter().collect()
+        config.source.clone()
     };
 
     let mut updated_registry = registry;
@@ -568,110 +564,37 @@ pub(crate) fn run_update(
         }
 
         let cache_path = crate::config::cache_dir().join(&src.name);
+        if src.mode.as_deref() == Some("symlink") && !flags.quiet {
+            println!("  (symlinked, re-detecting)");
+        }
 
-        let source_url = match crate::source::SourceUrl::parse(&src.url) {
-            Ok(u) => u,
+        match crate::source::refresh_source(src, &cache_path, update_ref.as_deref()) {
+            Ok(crate::source::RefreshSource::Updated(prepared)) => {
+                if update_ref.is_some()
+                    && prepared.config.r#ref != src.r#ref
+                    && prepared.config.source_type == "git"
+                {
+                    ref_changed = true;
+                }
+                crate::source::persist_prepared_source(
+                    &mut config,
+                    &mut updated_registry,
+                    prepared,
+                );
+                updated_count += 1;
+            }
+            Ok(crate::source::RefreshSource::SkippedPinned { pinned_ref }) => {
+                if !flags.quiet {
+                    eprintln!(
+                        "warning: source '{}' is pinned to {}, skipping",
+                        src.name, pinned_ref
+                    );
+                }
+                continue;
+            }
             Err(e) => {
                 errors.push(format!("{}: {}", src.name, e));
                 continue;
-            }
-        };
-
-        let is_symlinked = src.mode.as_deref() == Some("symlink");
-        match &source_url {
-            crate::source::SourceUrl::Local(path) => {
-                if is_symlinked {
-                    if !flags.quiet {
-                        println!("  (symlinked, re-detecting)");
-                    }
-                } else {
-                    if cache_path.exists() {
-                        std::fs::remove_dir_all(&cache_path)?;
-                    }
-                    if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path, None) {
-                        errors.push(format!("{}: {}", src.name, e));
-                        continue;
-                    }
-                }
-                let _ = path;
-            }
-            crate::source::SourceUrl::Git(..) => {
-                if let Some(ref new_ref) = update_ref {
-                    if !cache_path.exists() {
-                        let effective_ref = if new_ref == "latest" {
-                            None
-                        } else {
-                            Some(new_ref.as_str())
-                        };
-                        if let Err(e) =
-                            crate::source::fetch::fetch(&source_url, &cache_path, effective_ref)
-                        {
-                            errors.push(format!("{}: {}", src.name, e));
-                            continue;
-                        }
-                    } else if new_ref == "latest" {
-                        if let Err(e) = crate::source::fetch::update_git(&cache_path, None) {
-                            errors.push(format!("{}: {}", src.name, e));
-                            continue;
-                        }
-                    } else if let Err(e) = crate::source::fetch::switch_ref(&cache_path, new_ref) {
-                        errors.push(format!("{}: {}", src.name, e));
-                        continue;
-                    }
-                    ref_changed = true;
-                } else if cache_path.exists() {
-                    match crate::source::fetch::update_git_ref(&cache_path, src.r#ref.as_deref()) {
-                        Ok(None) => {
-                            if !flags.quiet {
-                                let tag = src.r#ref.as_deref().unwrap_or("unknown");
-                                eprintln!(
-                                    "warning: source '{}' is pinned to {}, skipping",
-                                    src.name, tag
-                                );
-                            }
-                            continue;
-                        }
-                        Ok(Some(_)) => {}
-                        Err(e) => {
-                            errors.push(format!("{}: {}", src.name, e));
-                            continue;
-                        }
-                    }
-                } else if let Err(e) =
-                    crate::source::fetch::fetch(&source_url, &cache_path, src.r#ref.as_deref())
-                {
-                    errors.push(format!("{}: {}", src.name, e));
-                    continue;
-                }
-            }
-            crate::source::SourceUrl::Archive(_) => {
-                if cache_path.exists() {
-                    std::fs::remove_dir_all(&cache_path)?;
-                }
-                if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path, None) {
-                    errors.push(format!("{}: {}", src.name, e));
-                    continue;
-                }
-            }
-        }
-
-        // Re-parse and re-normalize
-        let parsed = match crate::source::ParsedSource::parse(&cache_path) {
-            Ok(parsed) => parsed.with_source_name(&src.name).with_url(src.url.clone()),
-            Err(e) => {
-                errors.push(format!("{}: parsing failed: {}", src.name, e));
-                continue;
-            }
-        };
-
-        match crate::source::normalize::normalize(&parsed) {
-            Ok(registered) => {
-                updated_registry.sources.retain(|s| s.name != src.name);
-                updated_registry.sources.push(registered);
-                updated_count += 1;
-            }
-            Err(e) => {
-                errors.push(format!("{}: normalization failed: {}", src.name, e));
             }
         }
     }
