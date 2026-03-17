@@ -6,6 +6,18 @@ pub(crate) const AGENT_PREFIXES: &[(&str, &str)] = &[
     ("cursor", ".cursor"),
 ];
 
+pub(crate) type ResolvedSkill<'a> = (
+    &'a str,
+    &'a crate::registry::RegisteredPlugin,
+    &'a crate::registry::RegisteredSkill,
+);
+
+pub(crate) struct CommandContext {
+    pub config: crate::config::Config,
+    pub registry: crate::registry::Registry,
+    pub data_dir: std::path::PathBuf,
+}
+
 /// Extract the domain from a URL. Returns empty string for local paths.
 pub(crate) fn extract_domain(url: &str) -> String {
     let (host, path) = if let Some(rest) = url.strip_prefix("git@") {
@@ -65,34 +77,97 @@ pub(crate) fn resolve_skills_for_bundle(
     registry: &crate::registry::Registry,
 ) -> anyhow::Result<Vec<(String, String)>> {
     let mut results = Vec::new();
+    for (src, plugin, skill) in resolve_skill_query(skill_id, registry)? {
+        let fq = crate::output::plain_identity(src, &plugin.name, &skill.name);
+        results.push((src.to_string(), fq));
+    }
+    Ok(results)
+}
+
+pub(crate) fn load_context(flags: &crate::cli::flags::Flags) -> anyhow::Result<CommandContext> {
+    let config = crate::config::load(flags.config_path())?;
+    let data_dir = crate::config::data_dir();
+    let mut registry = crate::registry::load_registry(&data_dir)?;
+    let renames = crate::registry::reconcile_with_config(&mut registry, &config.source, &data_dir)?;
+    if !renames.is_empty() {
+        crate::registry::save_registry(&registry, &data_dir)?;
+        if !flags.quiet {
+            for rename in &renames {
+                eprintln!("source renamed: {}", rename);
+            }
+        }
+    }
+
+    Ok(CommandContext {
+        config,
+        registry,
+        data_dir,
+    })
+}
+
+pub(crate) fn resolve_skill_query<'a>(
+    skill_id: &str,
+    registry: &'a crate::registry::Registry,
+) -> anyhow::Result<Vec<ResolvedSkill<'a>>> {
     if crate::registry::is_glob(skill_id) {
         let matches = registry.match_skills(skill_id);
         if matches.is_empty() {
             anyhow::bail!("no skills matched pattern '{}'", skill_id);
         }
-        for (src, plugin, skill) in &matches {
-            let fq = crate::output::plain_identity(src, &plugin.name, &skill.name);
-            results.push((src.to_string(), fq));
-        }
-    } else {
-        match registry.find_skill(skill_id) {
-            Ok((src, plug, sk)) => {
-                let fq = crate::output::plain_identity(src, plug, &sk.name);
-                results.push((src.to_string(), fq));
+        return Ok(matches);
+    }
+
+    match registry.find_skill_entry(skill_id) {
+        Ok(skill) => Ok(vec![skill]),
+        Err(_) => {
+            let matches = registry.match_skills(skill_id);
+            if matches.is_empty() {
+                anyhow::bail!("no skills matched '{}'", skill_id);
             }
-            Err(_) => {
-                let matches = registry.match_skills(skill_id);
-                if matches.is_empty() {
-                    anyhow::bail!("no skills matched '{}'", skill_id);
-                }
-                for (src, plugin, skill) in &matches {
-                    let fq = crate::output::plain_identity(src, &plugin.name, &skill.name);
-                    results.push((src.to_string(), fq));
-                }
+            Ok(matches)
+        }
+    }
+}
+
+pub(crate) fn resolve_skill_patterns<'a>(
+    patterns: &[String],
+    registry: &'a crate::registry::Registry,
+    dedupe: bool,
+) -> anyhow::Result<Vec<ResolvedSkill<'a>>> {
+    let mut results = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+
+    for pattern in patterns {
+        for triple in resolve_skill_query(pattern, registry)? {
+            let id = crate::output::plain_identity(triple.0, &triple.1.name, &triple.2.name);
+            if !dedupe || seen.insert(id) {
+                results.push(triple);
             }
         }
     }
+
     Ok(results)
+}
+
+pub(crate) fn fully_qualified_skill_ids(skills: &[ResolvedSkill<'_>]) -> Vec<String> {
+    let mut ids = Vec::new();
+    for (src, plugin, skill) in skills {
+        let fq = crate::output::plain_identity(src, &plugin.name, &skill.name);
+        if !ids.contains(&fq) {
+            ids.push(fq);
+        }
+    }
+    ids
+}
+
+pub(crate) fn unique_skill_names(skills: &[ResolvedSkill<'_>]) -> Vec<String> {
+    let mut names = Vec::new();
+    for (_, _, skill) in skills {
+        if !names.contains(&skill.name) {
+            names.push(skill.name.clone());
+        }
+    }
+    names
 }
 
 /// Scan home and cwd for agent installation directories.

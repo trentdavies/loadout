@@ -2,7 +2,9 @@ use colored::Colorize;
 
 use crate::cli::flags::Flags;
 use crate::cli::helpers::{
-    print_apply_summary, prompt_conflict, record_provenance, resolve_agents, ConflictAction,
+    fully_qualified_skill_ids, load_context, print_apply_summary, prompt_conflict,
+    record_provenance, resolve_agents, resolve_skill_patterns, unique_skill_names, ConflictAction,
+    ResolvedSkill,
 };
 
 pub(crate) fn run(
@@ -39,8 +41,8 @@ fn run_equip(
     interactive: bool,
     flags: &Flags,
 ) -> anyhow::Result<()> {
-    let config_path_str = flags.config_path();
-    let config = crate::config::load(config_path_str)?;
+    let ctx = load_context(flags)?;
+    let config = ctx.config;
 
     // Parse @agent and +kit prefixes from positional patterns
     let mut agent = agent;
@@ -67,59 +69,22 @@ fn run_equip(
         std::process::exit(2);
     }
 
-    let data_dir = crate::config::data_dir();
-    let mut registry = crate::registry::load_registry(&data_dir)?;
-    let renames = crate::registry::reconcile_with_config(&mut registry, &config.source, &data_dir)?;
-    if !renames.is_empty() {
-        crate::registry::save_registry(&registry, &data_dir)?;
-        if !flags.quiet {
-            for r in &renames {
-                eprintln!("source renamed: {}", r);
-            }
-        }
-    }
+    let data_dir = ctx.data_dir;
+    let registry = ctx.registry;
 
     let agents = resolve_agents(&config, &agent, all)?;
 
     // Collect skills to equip with provenance: (source, plugin, skill)
-    let mut skills_to_apply: Vec<(&str, &str, &crate::registry::RegisteredSkill)> = Vec::new();
+    let mut skills_to_apply: Vec<ResolvedSkill<'_>> = Vec::new();
 
     // From positional patterns
-    for pattern in &skill_patterns {
-        if crate::registry::is_glob(pattern) {
-            let matches = registry.match_skills(pattern);
-            if matches.is_empty() {
-                anyhow::bail!("no skills matched pattern '{}'", pattern);
-            }
-            for (src, plugin, s) in matches {
-                skills_to_apply.push((src, &plugin.name, s));
-            }
-        } else {
-            match registry.find_skill(pattern) {
-                Ok((src, plug, s)) => {
-                    skills_to_apply.push((src, plug, s));
-                }
-                Err(_) => {
-                    let matches = registry.match_skills(pattern);
-                    if matches.is_empty() {
-                        anyhow::bail!("no skills matched '{}'", pattern);
-                    }
-                    for (src, plugin, s) in matches {
-                        skills_to_apply.push((src, &plugin.name, s));
-                    }
-                }
-            }
-        }
-    }
+    skills_to_apply.extend(resolve_skill_patterns(&skill_patterns, &registry, false)?);
 
     // From --kit / +kit — resolve skills, track whether kit exists
     let kit_exists = if let Some(ref kit_name) = kit {
         match config.kit.get(kit_name) {
             Some(kit_cfg) => {
-                for skill_id in &kit_cfg.skills {
-                    let (src, plug, s) = registry.find_skill(skill_id)?;
-                    skills_to_apply.push((src, plug, s));
-                }
+                skills_to_apply.extend(resolve_skill_patterns(&kit_cfg.skills, &registry, false)?);
                 true
             }
             None if save && !skill_patterns.is_empty() => false,
@@ -141,8 +106,11 @@ fn run_equip(
     // Interactive confirmation: show skills, prompt for kit creation, then proceed
     if !force && !flags.dry_run && !skills_to_apply.is_empty() && crate::prompt::is_interactive() {
         eprintln!("Skills to equip:");
-        for (src, plug, s) in &skills_to_apply {
-            eprintln!("  {}", crate::output::format_identity(src, plug, &s.name));
+        for (src, plugin, s) in &skills_to_apply {
+            eprintln!(
+                "  {}",
+                crate::output::format_identity(src, &plugin.name, &s.name)
+            );
         }
         eprintln!("Agents:");
         for ac in &agents {
@@ -161,13 +129,7 @@ fn run_equip(
                 let mut input = String::new();
                 std::io::stdin().read_line(&mut input).unwrap_or(0);
                 if input.trim().eq_ignore_ascii_case("y") {
-                    let mut skill_ids: Vec<String> = Vec::new();
-                    for (src, plug, s) in &skills_to_apply {
-                        let fq = crate::output::plain_identity(src, plug, &s.name);
-                        if !skill_ids.contains(&fq) {
-                            skill_ids.push(fq);
-                        }
-                    }
+                    let skill_ids = fully_qualified_skill_ids(&skills_to_apply);
                     let mut save_config = crate::config::load(flags.config_path())?;
                     save_config.kit.insert(
                         kit_name.clone(),
@@ -200,13 +162,7 @@ fn run_equip(
     } else if save && !kit_exists {
         // Non-interactive / --force: create kit silently
         if let Some(ref kit_name) = kit {
-            let mut skill_ids: Vec<String> = Vec::new();
-            for (src, plug, s) in &skills_to_apply {
-                let fq = crate::output::plain_identity(src, plug, &s.name);
-                if !skill_ids.contains(&fq) {
-                    skill_ids.push(fq);
-                }
-            }
+            let skill_ids = fully_qualified_skill_ids(&skills_to_apply);
             let mut save_config = crate::config::load(flags.config_path())?;
             save_config.kit.insert(
                 kit_name.clone(),
@@ -254,7 +210,7 @@ fn run_equip(
             }
         }
 
-        for (src_name, plug_name, s) in &skills_to_apply {
+        for (src_name, plugin, s) in &skills_to_apply {
             let status = adapter.compare_skill(s, &ac.path)?;
 
             if flags.dry_run {
@@ -266,7 +222,7 @@ fn run_equip(
                     };
                     println!(
                         "  (dry run) {} → {} [{}]",
-                        crate::output::format_identity(src_name, plug_name, &s.name),
+                        crate::output::format_identity(src_name, &plugin.name, &s.name),
                         ac.name,
                         label
                     );
@@ -281,13 +237,13 @@ fn run_equip(
                 }
                 crate::agent::SkillStatus::New => {
                     adapter.install_skill(s, &ac.path)?;
-                    record_provenance(&mut reg, &data_dir, ac, src_name, plug_name, s);
+                    record_provenance(&mut reg, &data_dir, ac, src_name, &plugin.name, s);
                     new_count += 1;
                 }
                 crate::agent::SkillStatus::Changed => {
                     if force_remaining {
                         adapter.install_skill(s, &ac.path)?;
-                        record_provenance(&mut reg, &data_dir, ac, src_name, plug_name, s);
+                        record_provenance(&mut reg, &data_dir, ac, src_name, &plugin.name, s);
                         updated_count += 1;
                     } else if interactive {
                         let action = prompt_conflict(s, &adapter, &ac.path)?;
@@ -297,12 +253,26 @@ fn run_equip(
                             }
                             ConflictAction::Overwrite => {
                                 adapter.install_skill(s, &ac.path)?;
-                                record_provenance(&mut reg, &data_dir, ac, src_name, plug_name, s);
+                                record_provenance(
+                                    &mut reg,
+                                    &data_dir,
+                                    ac,
+                                    src_name,
+                                    &plugin.name,
+                                    s,
+                                );
                                 updated_count += 1;
                             }
                             ConflictAction::ForceAll => {
                                 adapter.install_skill(s, &ac.path)?;
-                                record_provenance(&mut reg, &data_dir, ac, src_name, plug_name, s);
+                                record_provenance(
+                                    &mut reg,
+                                    &data_dir,
+                                    ac,
+                                    src_name,
+                                    &plugin.name,
+                                    s,
+                                );
                                 updated_count += 1;
                                 force_remaining = true;
                             }
@@ -332,13 +302,7 @@ fn run_equip(
     if save && kit_exists {
         let kit_name = kit.as_ref().unwrap();
         let mut config = crate::config::load(flags.config_path())?;
-        let mut skill_ids: Vec<String> = Vec::new();
-        for (src, plug, s) in &skills_to_apply {
-            let fq = crate::output::plain_identity(src, plug, &s.name);
-            if !skill_ids.contains(&fq) {
-                skill_ids.push(fq);
-            }
-        }
+        let skill_ids = fully_qualified_skill_ids(&skills_to_apply);
 
         let should_save = if force || !crate::prompt::is_interactive() {
             true
@@ -388,8 +352,8 @@ fn run_unequip(
     force: bool,
     flags: &Flags,
 ) -> anyhow::Result<()> {
-    let config_path_str = flags.config_path();
-    let config = crate::config::load(config_path_str)?;
+    let ctx = load_context(flags)?;
+    let config = ctx.config;
 
     // Parse @agent and +kit prefixes from positional patterns
     let mut agent = agent;
@@ -416,72 +380,25 @@ fn run_unequip(
         std::process::exit(2);
     }
 
-    let data_dir = crate::config::data_dir();
-    let mut registry = crate::registry::load_registry(&data_dir)?;
-    let renames = crate::registry::reconcile_with_config(&mut registry, &config.source, &data_dir)?;
-    if !renames.is_empty() {
-        crate::registry::save_registry(&registry, &data_dir)?;
-        if !flags.quiet {
-            for r in &renames {
-                eprintln!("source renamed: {}", r);
-            }
-        }
-    }
+    let data_dir = ctx.data_dir;
+    let mut registry = ctx.registry;
     let out = crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
 
     let agents = resolve_agents(&config, &agent, all)?;
 
-    // Collect skill names to remove
-    let mut skill_names: Vec<String> = Vec::new();
-
-    for pattern in &skill_patterns {
-        if crate::registry::is_glob(pattern) {
-            let matches = registry.match_skills(pattern);
-            if matches.is_empty() {
-                anyhow::bail!("no skills matched pattern '{}'", pattern);
-            }
-            for (_, _, s) in matches {
-                if !skill_names.contains(&s.name) {
-                    skill_names.push(s.name.clone());
-                }
-            }
-        } else {
-            match registry.find_skill(pattern) {
-                Ok((_, _, s)) => {
-                    if !skill_names.contains(&s.name) {
-                        skill_names.push(s.name.clone());
-                    }
-                }
-                Err(_) => {
-                    let matches = registry.match_skills(pattern);
-                    if matches.is_empty() {
-                        anyhow::bail!("no skills matched '{}'", pattern);
-                    }
-                    for (_, _, s) in matches {
-                        if !skill_names.contains(&s.name) {
-                            skill_names.push(s.name.clone());
-                        }
-                    }
-                }
-            }
-        }
-    }
+    let mut resolved_skills = resolve_skill_patterns(&skill_patterns, &registry, true)?;
 
     if let Some(ref kit_name) = kit {
         match config.kit.get(kit_name) {
             Some(kit_cfg) => {
-                for skill_id in &kit_cfg.skills {
-                    let (_, _, s) = registry.find_skill(skill_id)?;
-                    if !skill_names.contains(&s.name) {
-                        skill_names.push(s.name.clone());
-                    }
-                }
+                resolved_skills.extend(resolve_skill_patterns(&kit_cfg.skills, &registry, true)?);
             }
             None => {
                 anyhow::bail!("kit '{}' not found", kit_name);
             }
         }
     }
+    let skill_names = unique_skill_names(&resolved_skills);
 
     let execute = force && !flags.dry_run;
     let mut total_removed = 0usize;

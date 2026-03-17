@@ -1,7 +1,7 @@
 use colored::Colorize;
 
 use crate::cli::flags::Flags;
-use crate::cli::helpers::extract_domain;
+use crate::cli::helpers::{extract_domain, load_context, resolve_skill_patterns};
 
 pub(crate) fn run_add(
     url: String,
@@ -228,19 +228,9 @@ pub(crate) fn run_list(
     fzf: bool,
     flags: &Flags,
 ) -> anyhow::Result<()> {
-    let data_dir = crate::config::data_dir();
-    let config_for_list = crate::config::load(flags.config_path())?;
-    let mut registry = crate::registry::load_registry(&data_dir)?;
-    let renames =
-        crate::registry::reconcile_with_config(&mut registry, &config_for_list.source, &data_dir)?;
-    if !renames.is_empty() {
-        crate::registry::save_registry(&registry, &data_dir)?;
-        if !flags.quiet {
-            for r in &renames {
-                eprintln!("source renamed: {}", r);
-            }
-        }
-    }
+    let ctx = load_context(flags)?;
+    let config_for_list = ctx.config;
+    let registry = ctx.registry;
 
     if external {
         // List external sources in table format
@@ -309,50 +299,7 @@ pub(crate) fn run_list(
     )> = if patterns.is_empty() {
         registry.all_skills()
     } else {
-        let mut seen = std::collections::HashSet::new();
-        let mut result = Vec::new();
-        for pat in &patterns {
-            if crate::registry::is_glob(pat) {
-                for triple in registry.match_skills(pat) {
-                    let id =
-                        crate::output::plain_identity(triple.0, &triple.1.name, &triple.2.name);
-                    if seen.insert(id) {
-                        result.push(triple);
-                    }
-                }
-            } else {
-                match registry.find_skill(pat) {
-                    Ok((src, plug, sk)) => {
-                        let id = crate::output::plain_identity(src, plug, &sk.name);
-                        if seen.insert(id) {
-                            result.push((
-                                src,
-                                registry
-                                    .sources
-                                    .iter()
-                                    .flat_map(|s| s.plugins.iter())
-                                    .find(|p| p.name == plug)
-                                    .unwrap(),
-                                sk,
-                            ));
-                        }
-                    }
-                    Err(_) => {
-                        for triple in registry.match_skills(pat) {
-                            let id = crate::output::plain_identity(
-                                triple.0,
-                                &triple.1.name,
-                                &triple.2.name,
-                            );
-                            if seen.insert(id) {
-                                result.push(triple);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        result
+        resolve_skill_patterns(&patterns, &registry, true)?
     };
 
     // Interactive fzf mode

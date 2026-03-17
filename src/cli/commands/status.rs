@@ -1,20 +1,12 @@
 use colored::Colorize;
 
 use crate::cli::flags::Flags;
+use crate::cli::helpers::load_context;
 
 pub(crate) fn run(flags: &Flags) -> anyhow::Result<()> {
-    let config = crate::config::load(flags.config_path())?;
-    let data_dir = crate::config::data_dir();
-    let mut registry = crate::registry::load_registry(&data_dir)?;
-    let renames = crate::registry::reconcile_with_config(&mut registry, &config.source, &data_dir)?;
-    if !renames.is_empty() {
-        crate::registry::save_registry(&registry, &data_dir)?;
-        if !flags.quiet {
-            for r in &renames {
-                eprintln!("source renamed: {}", r);
-            }
-        }
-    }
+    let ctx = load_context(flags)?;
+    let config = ctx.config;
+    let registry = ctx.registry;
 
     // Count installed skills across agents
     let mut total_installed = 0;

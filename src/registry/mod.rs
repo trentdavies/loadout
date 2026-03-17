@@ -129,8 +129,11 @@ impl Registry {
 
     /// Find a skill by identity string.
     /// Accepts `plugin/skill` or `source:plugin/skill`.
-    /// Returns (source_name, plugin_name, skill) tuple.
-    pub fn find_skill(&self, identity: &str) -> Result<(&str, &str, &RegisteredSkill)> {
+    /// Returns (source_name, plugin, skill) tuple.
+    pub fn find_skill_entry(
+        &self,
+        identity: &str,
+    ) -> Result<(&str, &RegisteredPlugin, &RegisteredSkill)> {
         let (source_filter, plugin_name, skill_name) = parse_skill_identity(identity)?;
 
         let mut matches = Vec::new();
@@ -147,7 +150,7 @@ impl Registry {
                 }
                 for skill in &plugin.skills {
                     if skill.name == skill_name {
-                        matches.push((&*src.name, &*plugin.name, skill));
+                        matches.push((&*src.name, plugin, skill));
                     }
                 }
             }
@@ -159,7 +162,7 @@ impl Registry {
             _ => {
                 let sources: Vec<String> = matches
                     .iter()
-                    .map(|(s, p, sk)| format!("  {}:{}/{}", s, p, sk.name))
+                    .map(|(s, p, sk)| format!("  {}:{}/{}", s, p.name, sk.name))
                     .collect();
                 anyhow::bail!(
                     "skill '{}' is ambiguous. Use fully qualified form:\n{}",
@@ -168,6 +171,14 @@ impl Registry {
                 );
             }
         }
+    }
+
+    /// Find a skill by identity string.
+    /// Accepts `plugin/skill` or `source:plugin/skill`.
+    /// Returns (source_name, plugin_name, skill) tuple.
+    pub fn find_skill(&self, identity: &str) -> Result<(&str, &str, &RegisteredSkill)> {
+        let (source_name, plugin, skill) = self.find_skill_entry(identity)?;
+        Ok((source_name, plugin.name.as_str(), skill))
     }
 
     /// Iterate all (source_name, plugin, skill) triples.
