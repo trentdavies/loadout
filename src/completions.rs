@@ -309,18 +309,93 @@ _equip_kits() {
     equip _complete kits 2>/dev/null
 }
 
+# Progressive skill identity completion: source:plugin/skill
+# Level 1: "m<TAB>"  → "my-source:"
+# Level 2: "my-source:ex<TAB>"  → "my-source:example-plugin/"
+# Level 3: "my-source:example-plugin/si<TAB>"  → "my-source:example-plugin/single-skill"
+# Skips completion if cur contains glob characters (* ? [)
+_equip_complete_identity() {
+    local cur="$1"
+
+    # Don't complete if the word already contains glob characters
+    [[ "$cur" == *[\*\?\[]* ]] && return
+
+    local IFS=$'\n'
+    local all_skills
+    all_skills=($(_equip_skills))
+    [[ ${#all_skills[@]} -eq 0 ]] && return
+
+    if [[ "$cur" != *:* ]]; then
+        # No colon — complete source names, append ":"
+        local -A seen
+        local sources=()
+        for s in "${all_skills[@]}"; do
+            local src="${s%%:*}"
+            if [[ -z "${seen[$src]+x}" ]]; then
+                seen[$src]=1
+                sources+=("$src")
+            fi
+        done
+        COMPREPLY=($(compgen -W "${sources[*]}" -- "$cur"))
+        if [[ ${#COMPREPLY[@]} -eq 1 ]]; then
+            COMPREPLY=("${COMPREPLY[0]}:")
+        fi
+        compopt -o nospace
+    elif [[ "$cur" != */* ]]; then
+        # Has colon, no slash — complete plugin names, append "/"
+        local source="${cur%%:*}"
+        local partial="${cur#*:}"
+        local -A seen
+        local plugins=()
+        for s in "${all_skills[@]}"; do
+            if [[ "$s" == "${source}:"* ]]; then
+                local rest="${s#*:}"
+                local plug="${rest%%/*}"
+                if [[ -z "${seen[$plug]+x}" ]]; then
+                    seen[$plug]=1
+                    plugins+=("$plug")
+                fi
+            fi
+        done
+        COMPREPLY=($(compgen -P "${source}:" -W "${plugins[*]}" -- "$partial"))
+        if [[ ${#COMPREPLY[@]} -eq 1 ]]; then
+            COMPREPLY=("${COMPREPLY[0]}/")
+        fi
+        compopt -o nospace
+    else
+        # Has colon and slash — complete skill name
+        local source="${cur%%:*}"
+        local rest="${cur#*:}"
+        local plugin="${rest%%/*}"
+        local partial="${rest#*/}"
+        local skills=()
+        for s in "${all_skills[@]}"; do
+            if [[ "$s" == "${source}:${plugin}/"* ]]; then
+                skills+=("${s#${source}:${plugin}/}")
+            fi
+        done
+        COMPREPLY=($(compgen -P "${source}:${plugin}/" -W "${skills[*]}" -- "$partial"))
+    fi
+
+    # Fix readline display when completions contain colons
+    [[ ${#COMPREPLY[@]} -gt 0 ]] && __ltrim_colon_completions "$cur"
+}
+
 _equip() {
     local cur prev words cword
-    _init_completion || return
+    _init_completion -n : || return
 
     local commands="init add list remove update status kit agent config completions"
     local global_flags="--dry-run -n --verbose -v --quiet -q --json --config --help -h --version"
+    local equip_flags="--force -f --interactive -i --save -s --remove -r --all"
 
-    # Find the primary command (first non-flag arg after 'equip')
+    # Find the primary command (skip flags and @agent/+kit tokens)
     local cmd="" cmd_idx=0
+    local in_shorthand=false
     for ((i=1; i < cword; i++)); do
         case "${words[i]}" in
             -*) continue ;;
+            @*|+*) in_shorthand=true; continue ;;
             *)
                 if [[ -z "$cmd" ]]; then
                     cmd="${words[i]}"
@@ -329,9 +404,28 @@ _equip() {
                 ;;
         esac
     done
+    [[ "$cur" == @* || "$cur" == +* ]] && in_shorthand=true
 
-    # No command yet — complete command names or global flags
+    # No recognized command — either shorthand mode or top-level completion
     if [[ -z "$cmd" ]]; then
+        if [[ "$cur" == @* ]]; then
+            local partial="${cur#@}"
+            COMPREPLY=($(compgen -P "@" -W "$(_equip_agents)" -- "$partial"))
+            return
+        elif [[ "$cur" == +* ]]; then
+            local partial="${cur#+}"
+            COMPREPLY=($(compgen -P "+" -W "$(_equip_kits)" -- "$partial"))
+            return
+        elif $in_shorthand; then
+            # After @agent/+kit tokens, complete flags or skill identities
+            if [[ "$cur" == -* ]]; then
+                COMPREPLY=($(compgen -W "$global_flags $equip_flags" -- "$cur"))
+            else
+                _equip_complete_identity "$cur"
+            fi
+            return
+        fi
+
         if [[ "$cur" == -* ]]; then
             COMPREPLY=($(compgen -W "$global_flags" -- "$cur"))
         else
@@ -366,7 +460,9 @@ _equip() {
         ;;
     list)
         if [[ "$cur" == -* ]]; then
-            COMPREPLY=($(compgen -W "$global_flags --external" -- "$cur"))
+            COMPREPLY=($(compgen -W "$global_flags --external --fzf" -- "$cur"))
+        else
+            _equip_complete_identity "$cur"
         fi
         ;;
     remove)
@@ -415,7 +511,6 @@ _equip() {
             list)
                 ;;
             add|drop)
-                # First arg after subcmd is kit name, rest are skills
                 local args_after=0
                 for ((i=cmd_idx+1; i < cword; i++)); do
                     case "${words[i]}" in
@@ -426,7 +521,7 @@ _equip() {
                 if [[ $args_after -eq 0 ]]; then
                     COMPREPLY=($(compgen -W "$(_equip_kits)" -- "$cur"))
                 else
-                    COMPREPLY=($(compgen -W "$(_equip_skills)" -- "$cur"))
+                    _equip_complete_identity "$cur"
                 fi
                 ;;
             esac
@@ -437,7 +532,7 @@ _equip() {
             if [[ "$cur" == -* ]]; then
                 COMPREPLY=($(compgen -W "$global_flags" -- "$cur"))
             else
-                COMPREPLY=($(compgen -W "add remove list show detect equip unequip collect" -- "$cur"))
+                COMPREPLY=($(compgen -W "add remove list show detect collect" -- "$cur"))
             fi
         else
             case "$subcmd" in
@@ -450,7 +545,7 @@ _equip() {
                         if [[ "$cur" == -* ]]; then
                             COMPREPLY=($(compgen -W "--name --scope --sync" -- "$cur"))
                         else
-                            COMPREPLY=($(compgen -W "claude codex cursor" -- "$cur"))
+                            COMPREPLY=($(compgen -W "claude codex cursor gemini vscode" -- "$cur"))
                         fi
                         ;;
                 esac
@@ -468,37 +563,12 @@ _equip() {
             detect)
                 [[ "$cur" == -* ]] && COMPREPLY=($(compgen -W "--force" -- "$cur"))
                 ;;
-            equip)
-                case "$prev" in
-                    -a|--agent) COMPREPLY=($(compgen -W "$(_equip_agents)" -- "$cur")) ;;
-                    -k|--kit) COMPREPLY=($(compgen -W "$(_equip_kits)" -- "$cur")) ;;
-                    -s|--save-kit) ;;
-                    *)
-                        if [[ "$cur" == -* ]]; then
-                            COMPREPLY=($(compgen -W "--agent -a --all --kit -k --save-kit -s --force -f --interactive -i" -- "$cur"))
-                        else
-                            COMPREPLY=($(compgen -W "$(_equip_skills)" -- "$cur"))
-                        fi
-                        ;;
-                esac
-                ;;
-            unequip)
-                case "$prev" in
-                    -a|--agent) COMPREPLY=($(compgen -W "$(_equip_agents)" -- "$cur")) ;;
-                    -k|--kit) COMPREPLY=($(compgen -W "$(_equip_kits)" -- "$cur")) ;;
-                    *)
-                        if [[ "$cur" == -* ]]; then
-                            COMPREPLY=($(compgen -W "--agent -a --all --kit -k --force -f" -- "$cur"))
-                        else
-                            COMPREPLY=($(compgen -W "$(_equip_skills)" -- "$cur"))
-                        fi
-                        ;;
-                esac
-                ;;
             collect)
                 case "$prev" in
-                    --skill) COMPREPLY=($(compgen -W "$(_equip_skills)" -- "$cur")) ;;
                     --agent) COMPREPLY=($(compgen -W "$(_equip_agents)" -- "$cur")) ;;
+                    --skill)
+                        _equip_complete_identity "$cur"
+                        ;;
                     *)
                         [[ "$cur" == -* ]] && COMPREPLY=($(compgen -W "--agent --skill --adopt --force" -- "$cur"))
                         ;;
