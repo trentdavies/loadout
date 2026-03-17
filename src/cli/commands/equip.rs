@@ -2,8 +2,9 @@ use colored::Colorize;
 
 use crate::cli::flags::Flags;
 use crate::cli::helpers::{
-    apply_skill_to_agent, fully_qualified_skill_ids, load_context, print_apply_summary,
-    resolve_agents, resolve_skill_patterns, unique_skill_names, ApplySkillOutcome, ResolvedSkill,
+    apply_skill_to_agent, load_context, parse_apply_selection, persist_kit_selection,
+    print_apply_summary, resolve_agents, resolve_skill_patterns, unique_skill_names,
+    ApplySkillOutcome, PersistKitMode, PersistKitResult, ResolvedSkill,
 };
 
 pub(crate) fn run(
@@ -43,25 +44,10 @@ fn run_equip(
     let ctx = load_context(flags)?;
     let config = ctx.config;
 
-    // Parse @agent and +kit prefixes from positional patterns
-    let mut agent = agent;
-    let mut kit = kit;
-    let mut skill_patterns: Vec<String> = Vec::new();
-    for pat in &patterns {
-        if let Some(name) = pat.strip_prefix('@') {
-            let agents = agent.get_or_insert_with(Vec::new);
-            if !agents.contains(&name.to_string()) {
-                agents.push(name.to_string());
-            }
-        } else if let Some(name) = pat.strip_prefix('+') {
-            if kit.is_some() {
-                anyhow::bail!("multiple kits specified (--kit and +{})", name);
-            }
-            kit = Some(name.to_string());
-        } else {
-            skill_patterns.push(pat.clone());
-        }
-    }
+    let selection = parse_apply_selection(patterns, agent, kit)?;
+    let agent = selection.agent;
+    let kit = selection.kit;
+    let skill_patterns = selection.skill_patterns;
 
     if skill_patterns.is_empty() && kit.is_none() {
         eprintln!("error: equip requires skill patterns or a kit (+name / --kit)");
@@ -101,6 +87,7 @@ fn run_equip(
     } else {
         false
     };
+    let skill_ids = save.then(|| crate::cli::helpers::fully_qualified_skill_ids(&skills_to_apply));
 
     // Interactive confirmation: show skills, prompt for kit creation, then proceed
     if !force && !flags.dry_run && !skills_to_apply.is_empty() && crate::prompt::is_interactive() {
@@ -119,26 +106,16 @@ fn run_equip(
         // Prompt to create missing kit before proceeding
         if save && !kit_exists {
             if let Some(ref kit_name) = kit {
-                eprint!(
-                    "Create kit '{}' ({} skill{})? [y/N] ",
-                    kit_name,
-                    skills_to_apply.len(),
-                    if skills_to_apply.len() == 1 { "" } else { "s" },
-                );
-                let mut input = String::new();
-                std::io::stdin().read_line(&mut input).unwrap_or(0);
-                if input.trim().eq_ignore_ascii_case("y") {
-                    let skill_ids = fully_qualified_skill_ids(&skills_to_apply);
-                    let mut save_config = crate::config::load(flags.config_path())?;
-                    save_config.kit.insert(
-                        kit_name.clone(),
-                        crate::config::KitConfig { skills: skill_ids },
-                    );
-                    crate::config::save(&save_config, flags.config_path())?;
-                    if !flags.quiet {
-                        println!("Created kit '{}'", kit_name);
-                    }
-                } else {
+                if matches!(
+                    persist_kit_selection(
+                        flags,
+                        kit_name,
+                        skill_ids.as_deref().unwrap_or(&[]),
+                        PersistKitMode::Create,
+                        false,
+                    )?,
+                    PersistKitResult::Aborted
+                ) {
                     eprintln!("Aborted.");
                     return Ok(());
                 }
@@ -161,16 +138,13 @@ fn run_equip(
     } else if save && !kit_exists {
         // Non-interactive / --force: create kit silently
         if let Some(ref kit_name) = kit {
-            let skill_ids = fully_qualified_skill_ids(&skills_to_apply);
-            let mut save_config = crate::config::load(flags.config_path())?;
-            save_config.kit.insert(
-                kit_name.clone(),
-                crate::config::KitConfig { skills: skill_ids },
-            );
-            crate::config::save(&save_config, flags.config_path())?;
-            if !flags.quiet {
-                println!("Created kit '{}'", kit_name);
-            }
+            persist_kit_selection(
+                flags,
+                kit_name,
+                skill_ids.as_deref().unwrap_or(&[]),
+                PersistKitMode::Create,
+                true,
+            )?;
         }
     }
 
@@ -271,33 +245,13 @@ fn run_equip(
     // --save: update existing kit with resolved skill set
     if save && kit_exists {
         let kit_name = kit.as_ref().unwrap();
-        let mut config = crate::config::load(flags.config_path())?;
-        let skill_ids = fully_qualified_skill_ids(&skills_to_apply);
-
-        let should_save = if force || !crate::prompt::is_interactive() {
-            true
-        } else {
-            eprint!(
-                "Update kit '{}' ({} skill{})? [y/N] ",
-                kit_name,
-                skill_ids.len(),
-                if skill_ids.len() == 1 { "" } else { "s" },
-            );
-            let mut input = String::new();
-            std::io::stdin().read_line(&mut input).unwrap_or(0);
-            input.trim().eq_ignore_ascii_case("y")
-        };
-
-        if should_save {
-            config.kit.insert(
-                kit_name.clone(),
-                crate::config::KitConfig { skills: skill_ids },
-            );
-            crate::config::save(&config, flags.config_path())?;
-            if !flags.quiet {
-                println!("Updated kit '{}'", kit_name);
-            }
-        }
+        persist_kit_selection(
+            flags,
+            kit_name,
+            skill_ids.as_deref().unwrap_or(&[]),
+            PersistKitMode::Update,
+            force || !crate::prompt::is_interactive(),
+        )?;
     } else if save && kit.is_none() {
         anyhow::bail!("--save requires --kit (or +name) to specify the kit name");
     }
@@ -325,25 +279,10 @@ fn run_unequip(
     let ctx = load_context(flags)?;
     let config = ctx.config;
 
-    // Parse @agent and +kit prefixes from positional patterns
-    let mut agent = agent;
-    let mut kit = kit;
-    let mut skill_patterns: Vec<String> = Vec::new();
-    for pat in &patterns {
-        if let Some(name) = pat.strip_prefix('@') {
-            let agents = agent.get_or_insert_with(Vec::new);
-            if !agents.contains(&name.to_string()) {
-                agents.push(name.to_string());
-            }
-        } else if let Some(name) = pat.strip_prefix('+') {
-            if kit.is_some() {
-                anyhow::bail!("multiple kits specified (--kit and +{})", name);
-            }
-            kit = Some(name.to_string());
-        } else {
-            skill_patterns.push(pat.clone());
-        }
-    }
+    let selection = parse_apply_selection(patterns, agent, kit)?;
+    let agent = selection.agent;
+    let kit = selection.kit;
+    let skill_patterns = selection.skill_patterns;
 
     if skill_patterns.is_empty() && kit.is_none() {
         eprintln!("error: unequip requires skill patterns or a kit (+name / --kit)");

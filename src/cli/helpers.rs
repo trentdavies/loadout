@@ -18,6 +18,23 @@ pub(crate) struct CommandContext {
     pub data_dir: std::path::PathBuf,
 }
 
+pub(crate) struct ApplySelection {
+    pub agent: Option<Vec<String>>,
+    pub kit: Option<String>,
+    pub skill_patterns: Vec<String>,
+}
+
+pub(crate) enum PersistKitMode {
+    Create,
+    Update,
+}
+
+pub(crate) enum PersistKitResult {
+    Saved,
+    Skipped,
+    Aborted,
+}
+
 /// Extract the domain from a URL. Returns empty string for local paths.
 pub(crate) fn extract_domain(url: &str) -> String {
     let (host, path) = if let Some(rest) = url.strip_prefix("git@") {
@@ -105,6 +122,36 @@ pub(crate) fn load_context(flags: &crate::cli::flags::Flags) -> anyhow::Result<C
     })
 }
 
+pub(crate) fn parse_apply_selection(
+    patterns: Vec<String>,
+    mut agent: Option<Vec<String>>,
+    mut kit: Option<String>,
+) -> anyhow::Result<ApplySelection> {
+    let mut skill_patterns = Vec::new();
+
+    for pat in patterns {
+        if let Some(name) = pat.strip_prefix('@') {
+            let agents = agent.get_or_insert_with(Vec::new);
+            if !agents.contains(&name.to_string()) {
+                agents.push(name.to_string());
+            }
+        } else if let Some(name) = pat.strip_prefix('+') {
+            if kit.is_some() {
+                anyhow::bail!("multiple kits specified (--kit and +{})", name);
+            }
+            kit = Some(name.to_string());
+        } else {
+            skill_patterns.push(pat);
+        }
+    }
+
+    Ok(ApplySelection {
+        agent,
+        kit,
+        skill_patterns,
+    })
+}
+
 pub(crate) fn resolve_skill_query<'a>(
     skill_id: &str,
     registry: &'a crate::registry::Registry,
@@ -168,6 +215,61 @@ pub(crate) fn unique_skill_names(skills: &[ResolvedSkill<'_>]) -> Vec<String> {
         }
     }
     names
+}
+
+pub(crate) fn persist_kit_selection(
+    flags: &crate::cli::flags::Flags,
+    kit_name: &str,
+    skill_ids: &[String],
+    mode: PersistKitMode,
+    auto_confirm: bool,
+) -> anyhow::Result<PersistKitResult> {
+    let should_save = if auto_confirm || !crate::prompt::is_interactive() {
+        true
+    } else {
+        eprint!(
+            "{} kit '{}' ({} skill{})? [y/N] ",
+            match mode {
+                PersistKitMode::Create => "Create",
+                PersistKitMode::Update => "Update",
+            },
+            kit_name,
+            skill_ids.len(),
+            if skill_ids.len() == 1 { "" } else { "s" },
+        );
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input).unwrap_or(0);
+        input.trim().eq_ignore_ascii_case("y")
+    };
+
+    if !should_save {
+        return Ok(match mode {
+            PersistKitMode::Create => PersistKitResult::Aborted,
+            PersistKitMode::Update => PersistKitResult::Skipped,
+        });
+    }
+
+    let mut config = crate::config::load(flags.config_path())?;
+    config.kit.insert(
+        kit_name.to_string(),
+        crate::config::KitConfig {
+            skills: skill_ids.to_vec(),
+        },
+    );
+    crate::config::save(&config, flags.config_path())?;
+
+    if !flags.quiet {
+        println!(
+            "{} kit '{}'",
+            match mode {
+                PersistKitMode::Create => "Created",
+                PersistKitMode::Update => "Updated",
+            },
+            kit_name
+        );
+    }
+
+    Ok(PersistKitResult::Saved)
 }
 
 /// Scan home and cwd for agent installation directories.
