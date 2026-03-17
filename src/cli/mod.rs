@@ -7,6 +7,36 @@ pub use helpers::{add_detected_agents, detect_agents};
 
 use clap::{Parser, Subcommand, ValueEnum};
 
+const HELP_PRIMARY: &str = "\
+\x1b[1;4mApply Skills\x1b[0m  (primary action)
+
+  equip @<agent> +<kit> [--save] [--remove] [--force] [--interactive] <patterns...>
+
+  Flags:
+    @<agent>           Target agent(s)            --agent <name>
+    +<kit>             Use a kit                  --kit <name>
+    -s, --save         Save matched skills as the kit
+    -r, --remove       Unequip instead of equip
+    -f, --force        Overwrite changed skills without prompting
+    -i, --interactive  Interactively resolve conflicts
+
+  Patterns are globs matched against skill identities (source:plugin/skill):
+    \"dev*\"              all skills starting with dev
+    \"legal/*\"           all skills in the legal plugin
+    \"my-src:*\"          everything from a specific source
+";
+
+const HELP_EXAMPLES: &str = "\
+\x1b[1;4mQuick Start\x1b[0m
+
+  equip init https://github.com/myorg/my-skills
+  equip add https://github.com/anthropics/skills.git
+  equip add https://github.com/anthropics/claude-plugins-official.git
+  equip agent detect
+
+  equip @claude +frontend-dev -s \"dev*\"
+    shorthand for:  equip --agent claude --kit frontend-dev -s \"dev*\"";
+
 #[derive(Parser)]
 #[command(
     name = "equip",
@@ -14,7 +44,25 @@ use clap::{Parser, Subcommand, ValueEnum};
     version,
     propagate_version = true,
     subcommand_required = true,
-    arg_required_else_help = true
+    arg_required_else_help = true,
+    before_help = HELP_PRIMARY,
+    after_help = HELP_EXAMPLES,
+    before_long_help = HELP_PRIMARY,
+    after_long_help = HELP_EXAMPLES,
+    subcommand_help_heading = "Management Commands",
+    help_template = "\
+{about-with-newline}
+{before-help}
+{usage-heading} {usage}
+
+\x1b[1;4mManagement Commands\x1b[0m
+{subcommands}
+
+\x1b[1;4mOptions\x1b[0m
+{options}
+
+{after-help}
+",
 )]
 pub struct Cli {
     #[command(subcommand)]
