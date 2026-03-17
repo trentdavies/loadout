@@ -111,9 +111,7 @@ fn bundle_drop_skills() {
     bundle.skills.retain(|s| s != "plug/sk2");
 
     assert_eq!(config.kit["dev"].skills.len(), 2);
-    assert!(!config.kit["dev"]
-        .skills
-        .contains(&"plug/sk2".to_string()));
+    assert!(!config.kit["dev"].skills.contains(&"plug/sk2".to_string()));
 }
 
 #[test]

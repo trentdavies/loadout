@@ -61,15 +61,7 @@ fn parse_equip_parses_ok() {
 #[test]
 fn parse_agent_add() {
     let cli = Cli::try_parse_from([
-        "equip",
-        "agent",
-        "add",
-        "claude",
-        "/tmp/t",
-        "--scope",
-        "repo",
-        "--name",
-        "my-agent",
+        "equip", "agent", "add", "claude", "/tmp/t", "--scope", "repo", "--name", "my-agent",
     ])
     .unwrap();
     match cli.command {
@@ -299,8 +291,7 @@ fn parse_kit_create() {
 
 #[test]
 fn parse_kit_delete() {
-    let cli =
-        Cli::try_parse_from(["equip", "kit", "delete", "dev", "--force"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "kit", "delete", "dev", "--force"]).unwrap();
     match cli.command {
         equip::cli::Command::Kit { command } => match command {
             equip::cli::KitCommand::Delete { name, force } => {
@@ -329,14 +320,7 @@ fn parse_kit_show() {
 
 #[test]
 fn parse_kit_add_skills() {
-    let cli = Cli::try_parse_from([
-        "equip",
-        "kit",
-        "add",
-        "dev",
-        "plugin/skill-a",
-    ])
-    .unwrap();
+    let cli = Cli::try_parse_from(["equip", "kit", "add", "dev", "plugin/skill-a"]).unwrap();
     match cli.command {
         equip::cli::Command::Kit { command } => match command {
             equip::cli::KitCommand::Add { name, skills } => {
@@ -351,14 +335,7 @@ fn parse_kit_add_skills() {
 
 #[test]
 fn parse_kit_drop_skills() {
-    let cli = Cli::try_parse_from([
-        "equip",
-        "kit",
-        "drop",
-        "dev",
-        "plugin/skill-a",
-    ])
-    .unwrap();
+    let cli = Cli::try_parse_from(["equip", "kit", "drop", "dev", "plugin/skill-a"]).unwrap();
     match cli.command {
         equip::cli::Command::Kit { command } => match command {
             equip::cli::KitCommand::Drop { name, skills } => {
@@ -448,10 +425,7 @@ fn shorthand_at_plus_with_save() {
             assert_eq!(agent, Some(vec!["claude".to_string()]));
             assert_eq!(kit, Some("developer".to_string()));
             assert!(save);
-            assert_eq!(
-                patterns,
-                vec!["dev*".to_string(), "legal/*".to_string()]
-            );
+            assert_eq!(patterns, vec!["dev*".to_string(), "legal/*".to_string()]);
         }
         _ => panic!("expected Equip"),
     }

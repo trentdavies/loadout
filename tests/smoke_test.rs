@@ -55,9 +55,10 @@ fn full_lifecycle_smoke_test() {
     let cached = cache_dir.join("smoke-src");
     copy_dir_recursive(source_dir.path(), &cached).unwrap();
 
-    let structure = equip::source::detect::detect(&cached).unwrap();
-    let registered =
-        equip::source::normalize::normalize("smoke-src", &cached, &structure).unwrap();
+    let parsed = equip::source::ParsedSource::parse(&cached)
+        .unwrap()
+        .with_source_name("smoke-src");
+    let registered = equip::source::normalize::normalize(&parsed).unwrap();
 
     assert!(!registered.plugins.is_empty(), "should detect plugin");
     let total_skills: usize = registered.plugins.iter().map(|p| p.skills.len()).sum();

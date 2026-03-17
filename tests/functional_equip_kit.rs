@@ -6,7 +6,7 @@ use tempfile::TempDir;
 
 use equip::cli::args::preprocess;
 use equip::cli::{Cli, Command};
-use equip::config::{Config, AgentConfig, KitConfig, SourceConfig};
+use equip::config::{AgentConfig, Config, KitConfig, SourceConfig};
 use equip::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry};
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -99,8 +99,7 @@ fn run_cli(args: &[&str], config_path: &str) -> anyhow::Result<()> {
     let mut full_args = vec!["equip", "--config", config_path, "-q"];
     full_args.extend_from_slice(args);
     let processed = pp(&full_args);
-    let cli = Cli::try_parse_from(&processed)
-        .map_err(|e| anyhow::anyhow!("parse error: {}", e))?;
+    let cli = Cli::try_parse_from(&processed).map_err(|e| anyhow::anyhow!("parse error: {}", e))?;
     equip::cli::run(cli)
 }
 
@@ -125,7 +124,10 @@ fn parse_equip_plus_kit_with_save() {
     let cli = Cli::try_parse_from(&processed).unwrap();
     match cli.command {
         Command::Equip {
-            kit, save, patterns, ..
+            kit,
+            save,
+            patterns,
+            ..
         } => {
             assert_eq!(kit, Some("dev".to_string()));
             assert!(save);
@@ -141,7 +143,10 @@ fn parse_equip_at_agent_plus_kit() {
     let cli = Cli::try_parse_from(&processed).unwrap();
     match cli.command {
         Command::Equip {
-            agent, kit, patterns, ..
+            agent,
+            kit,
+            patterns,
+            ..
         } => {
             assert_eq!(agent, Some(vec!["claude".to_string()]));
             assert_eq!(kit, Some("dev".to_string()));
@@ -156,7 +161,9 @@ fn parse_unequip_with_plus_kit() {
     let processed = pp(&["equip", "_equip", "+dev", "--remove", "--force"]);
     let cli = Cli::try_parse_from(&processed).unwrap();
     match cli.command {
-        Command::Equip { kit, force, remove, .. } => {
+        Command::Equip {
+            kit, force, remove, ..
+        } => {
             assert_eq!(kit, Some("dev".to_string()));
             assert!(force);
             assert!(remove);
@@ -217,12 +224,13 @@ fn equip_existing_kit_works() {
     );
     equip::config::save_to(&config, &config_path).unwrap();
 
-    let result = run_cli(
-        &["_equip", "+dev", "-f"],
-        config_path.to_str().unwrap(),
-    );
+    let result = run_cli(&["_equip", "+dev", "-f"], config_path.to_str().unwrap());
 
-    assert!(result.is_ok(), "equip with existing kit should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "equip with existing kit should succeed: {:?}",
+        result.err()
+    );
 }
 
 #[test]
@@ -243,7 +251,11 @@ fn equip_existing_kit_plus_patterns_works() {
         config_path.to_str().unwrap(),
     );
 
-    assert!(result.is_ok(), "equip with existing kit + patterns should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "equip with existing kit + patterns should succeed: {:?}",
+        result.err()
+    );
 }
 
 #[test]
@@ -256,12 +268,22 @@ fn equip_missing_kit_with_save_creates_kit() {
         config_path.to_str().unwrap(),
     );
 
-    assert!(result.is_ok(), "equip with -s and missing kit should create it: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "equip with -s and missing kit should create it: {:?}",
+        result.err()
+    );
 
     // Verify the kit was created in config
     let config = equip::config::load_from(&config_path).unwrap();
-    assert!(config.kit.contains_key("newkit"), "kit 'newkit' should exist after --save");
-    assert!(!config.kit["newkit"].skills.is_empty(), "kit should have skills");
+    assert!(
+        config.kit.contains_key("newkit"),
+        "kit 'newkit' should exist after --save"
+    );
+    assert!(
+        !config.kit["newkit"].skills.is_empty(),
+        "kit should have skills"
+    );
 }
 
 #[test]
@@ -284,11 +306,18 @@ fn equip_existing_kit_with_save_updates_kit() {
         config_path.to_str().unwrap(),
     );
 
-    assert!(result.is_ok(), "equip with -s and existing kit should update it: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "equip with -s and existing kit should update it: {:?}",
+        result.err()
+    );
 
     // Verify the kit was updated
     let config = equip::config::load_from(&config_path).unwrap();
-    assert!(config.kit["dev"].skills.len() > 1, "kit should have more skills after update");
+    assert!(
+        config.kit["dev"].skills.len() > 1,
+        "kit should have more skills after update"
+    );
 }
 
 #[test]

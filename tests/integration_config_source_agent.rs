@@ -159,8 +159,10 @@ fn frontmatter_missing_returns_none() {
 #[test]
 fn normalize_flat_skills() {
     let path = fixtures_dir().join("flat-skills");
-    let structure = equip::source::detect::detect(&path).unwrap();
-    let registered = equip::source::normalize::normalize("flat", &path, &structure).unwrap();
+    let parsed = equip::source::ParsedSource::parse(&path)
+        .unwrap()
+        .with_source_name("flat");
+    let registered = equip::source::normalize::normalize(&parsed).unwrap();
     assert_eq!(registered.name, "flat");
     assert!(!registered.plugins.is_empty());
     let total_skills: usize = registered.plugins.iter().map(|p| p.skills.len()).sum();
@@ -170,8 +172,10 @@ fn normalize_flat_skills() {
 #[test]
 fn normalize_plugin_source() {
     let path = fixtures_dir().join("plugin-source");
-    let structure = equip::source::detect::detect(&path).unwrap();
-    let registered = equip::source::normalize::normalize("psrc", &path, &structure).unwrap();
+    let parsed = equip::source::ParsedSource::parse(&path)
+        .unwrap()
+        .with_source_name("psrc");
+    let registered = equip::source::normalize::normalize(&parsed).unwrap();
     assert_eq!(registered.name, "psrc");
     assert!(registered.plugins.iter().any(|p| p.name == "test-plugin"));
     let plugin = registered

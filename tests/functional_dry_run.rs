@@ -31,9 +31,10 @@ fn setup_env() -> (TempDir, TempDir, TempDir, PathBuf, PathBuf) {
     make_skill_fixture(source_dir.path(), "skill-b");
 
     // Build registry
-    let structure = equip::source::detect::detect(source_dir.path()).unwrap();
-    let registered =
-        equip::source::normalize::normalize("test-src", source_dir.path(), &structure).unwrap();
+    let parsed = equip::source::ParsedSource::parse(source_dir.path())
+        .unwrap()
+        .with_source_name("test-src");
+    let registered = equip::source::normalize::normalize(&parsed).unwrap();
     let mut registry = equip::registry::Registry::default();
     registry.sources.push(registered);
     equip::registry::save_registry(&registry, &data_dir).unwrap();

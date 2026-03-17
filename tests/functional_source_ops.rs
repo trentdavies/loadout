@@ -76,9 +76,10 @@ fn add_source(
     let cached = cache_dir.join(source_name);
     copy_dir_recursive(source_dir, &cached).unwrap();
 
-    let structure = equip::source::detect::detect(&cached).unwrap();
-    let registered =
-        equip::source::normalize::normalize(source_name, &cached, &structure).unwrap();
+    let parsed = equip::source::ParsedSource::parse(&cached)
+        .unwrap()
+        .with_source_name(source_name);
+    let registered = equip::source::normalize::normalize(&parsed).unwrap();
 
     let mut registry = equip::registry::load_registry(data_dir).unwrap();
     registry.sources.push(registered);
@@ -113,15 +114,15 @@ fn add_local_source_and_verify_registry() {
     make_source_with_skills(source_dir.path(), &["analyze", "transform"]);
 
     // Parse URL, fetch, detect, normalize, save
-    let source_url =
-        equip::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
+    let source_url = equip::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
     let default_name = source_url.default_name();
     let cached = cache_dir.join(&default_name);
     equip::source::fetch::fetch(&source_url, &cached, None).unwrap();
 
-    let structure = equip::source::detect::detect(&cached).unwrap();
-    let registered =
-        equip::source::normalize::normalize(&default_name, &cached, &structure).unwrap();
+    let parsed = equip::source::ParsedSource::parse(&cached)
+        .unwrap()
+        .with_source_name(&default_name);
+    let registered = equip::source::normalize::normalize(&parsed).unwrap();
 
     assert!(
         !registered.plugins.is_empty(),
@@ -161,17 +162,17 @@ fn add_source_with_custom_name() {
     let source_dir = TempDir::new().unwrap();
     make_source_with_skills(source_dir.path(), &["deploy"]);
 
-    let source_url =
-        equip::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
+    let source_url = equip::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
 
     // Use a custom name instead of the default
     let custom_name = "my-custom-source";
     let cached = cache_dir.join(custom_name);
     equip::source::fetch::fetch(&source_url, &cached, None).unwrap();
 
-    let structure = equip::source::detect::detect(&cached).unwrap();
-    let registered =
-        equip::source::normalize::normalize(custom_name, &cached, &structure).unwrap();
+    let parsed = equip::source::ParsedSource::parse(&cached)
+        .unwrap()
+        .with_source_name(custom_name);
+    let registered = equip::source::normalize::normalize(&parsed).unwrap();
 
     let mut registry = equip::registry::Registry::default();
     registry.sources.push(registered);
@@ -433,9 +434,10 @@ fn update_source_re_detects() {
     copy_dir_recursive(source_dir.path(), &cached).unwrap();
 
     // Re-detect and re-normalize
-    let structure = equip::source::detect::detect(&cached).unwrap();
-    let updated =
-        equip::source::normalize::normalize("evolving-src", &cached, &structure).unwrap();
+    let parsed = equip::source::ParsedSource::parse(&cached)
+        .unwrap()
+        .with_source_name("evolving-src");
+    let updated = equip::source::normalize::normalize(&parsed).unwrap();
 
     // Replace the source in the registry
     let mut registry = equip::registry::load_registry(&data_dir).unwrap();
@@ -472,19 +474,18 @@ fn normalize_with_overrides_uses_custom_names() {
     let source_dir = TempDir::new().unwrap();
     make_source_with_skills(source_dir.path(), &["original"]);
 
-    let source_url =
-        equip::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
+    let source_url = equip::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
     let cached = cache_dir.join("test-src");
     equip::source::fetch::fetch(&source_url, &cached, None).unwrap();
 
-    let structure = equip::source::detect::detect(&cached).unwrap();
+    let parsed = equip::source::ParsedSource::parse(&cached)
+        .unwrap()
+        .with_source_name("test-src");
     let overrides = equip::source::normalize::Overrides {
         plugin: Some("custom-plug"),
         skill: None,
     };
-    let registered =
-        equip::source::normalize::normalize_with("test-src", &cached, &structure, &overrides)
-            .unwrap();
+    let registered = equip::source::normalize::normalize_with(&parsed, &overrides).unwrap();
 
     assert_eq!(registered.plugins[0].name, "custom-plug");
 }
@@ -497,18 +498,18 @@ fn normalize_with_overrides_rejects_invalid_kebab() {
     let source_dir = TempDir::new().unwrap();
     make_source_with_skills(source_dir.path(), &["original"]);
 
-    let source_url =
-        equip::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
+    let source_url = equip::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
     let cached = cache_dir.join("test-src");
     equip::source::fetch::fetch(&source_url, &cached, None).unwrap();
 
-    let structure = equip::source::detect::detect(&cached).unwrap();
+    let parsed = equip::source::ParsedSource::parse(&cached)
+        .unwrap()
+        .with_source_name("test-src");
     let overrides = equip::source::normalize::Overrides {
         plugin: Some("NotKebab"),
         skill: None,
     };
-    let result =
-        equip::source::normalize::normalize_with("test-src", &cached, &structure, &overrides);
+    let result = equip::source::normalize::normalize_with(&parsed, &overrides);
     assert!(result.is_err());
 }
 
@@ -537,8 +538,7 @@ fn fetch_local_symlink_creates_symlink() {
     let cache_dir = TempDir::new().unwrap();
     let cached = cache_dir.path().join("linked-src");
 
-    let source_url =
-        equip::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
+    let source_url = equip::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
 
     equip::source::fetch::fetch_with_mode(&source_url, &cached, None, true).unwrap();
 
@@ -556,8 +556,7 @@ fn fetch_local_copy_creates_real_dir() {
     let cache_dir = TempDir::new().unwrap();
     let cached = cache_dir.path().join("copied-src");
 
-    let source_url =
-        equip::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
+    let source_url = equip::source::SourceUrl::parse(source_dir.path().to_str().unwrap()).unwrap();
 
     equip::source::fetch::fetch_with_mode(&source_url, &cached, None, false).unwrap();
 

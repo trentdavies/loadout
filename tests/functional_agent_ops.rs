@@ -3,8 +3,8 @@ use std::path::PathBuf;
 
 use tempfile::TempDir;
 
-use equip::config::{load_from, save_to, Config, AgentConfig};
 use equip::agent::resolve_adapter;
+use equip::config::{load_from, save_to, AgentConfig, Config};
 
 fn make_agent(name: &str, agent_type: &str, path: PathBuf) -> AgentConfig {
     AgentConfig {

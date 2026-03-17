@@ -7,7 +7,10 @@ fn parse_unequip_with_patterns() {
         Cli::try_parse_from(["equip", "_equip", "--remove", "legal/review", "--force"]).unwrap();
     match cli.command {
         Command::Equip {
-            patterns, force, remove, ..
+            patterns,
+            force,
+            remove,
+            ..
         } => {
             assert_eq!(patterns, vec!["legal/review".to_string()]);
             assert!(force);
@@ -20,18 +23,16 @@ fn parse_unequip_with_patterns() {
 #[test]
 fn parse_unequip_kit() {
     let cli = Cli::try_parse_from([
-        "equip",
-        "_equip",
-        "--remove",
-        "--kit",
-        "work",
-        "--all",
-        "--force",
+        "equip", "_equip", "--remove", "--kit", "work", "--all", "--force",
     ])
     .unwrap();
     match cli.command {
         Command::Equip {
-            kit, all, force, remove, ..
+            kit,
+            all,
+            force,
+            remove,
+            ..
         } => {
             assert_eq!(kit, Some("work".to_string()));
             assert!(all);
@@ -58,10 +59,7 @@ fn parse_unequip_multiple_agents() {
     .unwrap();
     match cli.command {
         Command::Equip { agent, remove, .. } => {
-            assert_eq!(
-                agent,
-                Some(vec!["claude".to_string(), "codex".to_string()])
-            );
+            assert_eq!(agent, Some(vec!["claude".to_string(), "codex".to_string()]));
             assert!(remove);
         }
         _ => panic!("expected Equip"),
@@ -80,7 +78,9 @@ fn parse_unequip_multiple_patterns() {
     ])
     .unwrap();
     match cli.command {
-        Command::Equip { patterns, remove, .. } => {
+        Command::Equip {
+            patterns, remove, ..
+        } => {
             assert_eq!(
                 patterns,
                 vec!["legal/review".to_string(), "sales/pitch".to_string()]
@@ -99,10 +99,7 @@ fn parse_equip_multiple_agents() {
     .unwrap();
     match cli.command {
         Command::Equip { agent, all, .. } => {
-            assert_eq!(
-                agent,
-                Some(vec!["claude".to_string(), "codex".to_string()])
-            );
+            assert_eq!(agent, Some(vec!["claude".to_string(), "codex".to_string()]));
             assert!(!all);
         }
         _ => panic!("expected Equip"),
@@ -111,8 +108,7 @@ fn parse_equip_multiple_agents() {
 
 #[test]
 fn parse_equip_all() {
-    let cli =
-        Cli::try_parse_from(["equip", "_equip", "legal/*", "--all"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "_equip", "legal/*", "--all"]).unwrap();
     match cli.command {
         Command::Equip { all, .. } => {
             assert!(all);
@@ -123,13 +119,7 @@ fn parse_equip_all() {
 
 #[test]
 fn parse_equip_multiple_patterns() {
-    let cli = Cli::try_parse_from([
-        "equip",
-        "_equip",
-        "legal/review",
-        "sales/pitch",
-    ])
-    .unwrap();
+    let cli = Cli::try_parse_from(["equip", "_equip", "legal/review", "sales/pitch"]).unwrap();
     match cli.command {
         Command::Equip { patterns, .. } => {
             assert_eq!(
@@ -143,9 +133,7 @@ fn parse_equip_multiple_patterns() {
 
 #[test]
 fn parse_equip_single_agent_still_works() {
-    let cli =
-        Cli::try_parse_from(["equip", "_equip", "legal/*", "--agent", "claude"])
-            .unwrap();
+    let cli = Cli::try_parse_from(["equip", "_equip", "legal/*", "--agent", "claude"]).unwrap();
     match cli.command {
         Command::Equip { agent, .. } => {
             assert_eq!(agent, Some(vec!["claude".to_string()]));
@@ -156,33 +144,14 @@ fn parse_equip_single_agent_still_works() {
 
 #[test]
 fn equip_agent_conflicts_with_all() {
-    let result = Cli::try_parse_from([
-        "equip",
-        "_equip",
-        "legal/*",
-        "--agent",
-        "claude",
-        "--all",
-    ]);
-    assert!(
-        result.is_err(),
-        "--agent and --all should conflict"
-    );
+    let result = Cli::try_parse_from(["equip", "_equip", "legal/*", "--agent", "claude", "--all"]);
+    assert!(result.is_err(), "--agent and --all should conflict");
 }
 
 #[test]
 fn unequip_agent_conflicts_with_all() {
     let result = Cli::try_parse_from([
-        "equip",
-        "_equip",
-        "--remove",
-        "foo",
-        "--agent",
-        "claude",
-        "--all",
+        "equip", "_equip", "--remove", "foo", "--agent", "claude", "--all",
     ]);
-    assert!(
-        result.is_err(),
-        "--agent and --all should conflict"
-    );
+    assert!(result.is_err(), "--agent and --all should conflict");
 }

@@ -3,13 +3,13 @@ use std::path::PathBuf;
 
 use tempfile::TempDir;
 
+use equip::agent::resolve_adapter;
 use equip::config::{
-    load_from, save_to, AdapterConfig, KitConfig, Config, SourceConfig, AgentConfig,
+    load_from, save_to, AdapterConfig, AgentConfig, Config, KitConfig, SourceConfig,
 };
 use equip::registry::{
     load_registry, save_registry, RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry,
 };
-use equip::agent::resolve_adapter;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 

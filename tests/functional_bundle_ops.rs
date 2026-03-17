@@ -3,9 +3,9 @@ use std::path::PathBuf;
 
 use tempfile::TempDir;
 
-use equip::config::{load_from, save_to, KitConfig, Config, AgentConfig};
-use equip::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry};
 use equip::agent::resolve_adapter;
+use equip::config::{load_from, save_to, AgentConfig, Config, KitConfig};
+use equip::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource, Registry};
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -112,15 +112,9 @@ fn drop_skill_from_bundle() {
 
     let reloaded = load_from(&config_path).unwrap();
     assert_eq!(reloaded.kit["trio"].skills.len(), 2);
-    assert!(reloaded.kit["trio"]
-        .skills
-        .contains(&"p/alpha".to_string()));
-    assert!(reloaded.kit["trio"]
-        .skills
-        .contains(&"p/gamma".to_string()));
-    assert!(!reloaded.kit["trio"]
-        .skills
-        .contains(&"p/beta".to_string()));
+    assert!(reloaded.kit["trio"].skills.contains(&"p/alpha".to_string()));
+    assert!(reloaded.kit["trio"].skills.contains(&"p/gamma".to_string()));
+    assert!(!reloaded.kit["trio"].skills.contains(&"p/beta".to_string()));
 }
 
 /// Create two bundles with different skills backed by real fixture files.

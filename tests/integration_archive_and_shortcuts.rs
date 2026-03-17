@@ -70,15 +70,15 @@ fn source_add_zip_end_to_end() {
     assert!(source_cache.join("skill-a/SKILL.md").exists());
 
     // Detect
-    let structure = equip::source::detect::detect(&source_cache).unwrap();
+    let parsed = equip::source::ParsedSource::parse(&source_cache).unwrap();
     assert!(matches!(
-        structure,
-        equip::source::detect::SourceStructure::SinglePlugin
+        parsed.kind,
+        equip::source::SourceKind::SinglePlugin
     ));
 
     // Normalize
     let registered =
-        equip::source::normalize::normalize("my-plugin", &source_cache, &structure).unwrap();
+        equip::source::normalize::normalize(&parsed.with_source_name("my-plugin")).unwrap();
     assert_eq!(registered.plugins.len(), 1);
     assert_eq!(registered.plugins[0].name, "my-plugin");
     assert_eq!(registered.plugins[0].skills.len(), 2);
@@ -110,10 +110,10 @@ fn source_add_skill_file_end_to_end() {
     equip::source::fetch::fetch(&source_url, &source_cache, None).unwrap();
     assert!(source_cache.join("SKILL.md").exists());
 
-    let structure = equip::source::detect::detect(&source_cache).unwrap();
+    let parsed = equip::source::ParsedSource::parse(&source_cache).unwrap();
     assert!(matches!(
-        structure,
-        equip::source::detect::SourceStructure::SingleSkillDir { .. }
+        parsed.kind,
+        equip::source::SourceKind::SingleSkillDir
     ));
 }
 
@@ -138,15 +138,15 @@ fn source_add_claude_plugin_end_to_end() {
     make_skill_fixture(&plugin_dir, "tool-a");
 
     // Detect
-    let structure = equip::source::detect::detect(&plugin_dir).unwrap();
+    let parsed = equip::source::ParsedSource::parse(&plugin_dir).unwrap();
     assert!(matches!(
-        structure,
-        equip::source::detect::SourceStructure::SinglePlugin
+        parsed.kind,
+        equip::source::SourceKind::SinglePlugin
     ));
 
     // Normalize — should pick up .claude-plugin metadata
     let registered =
-        equip::source::normalize::normalize("my-claude-plugin", &plugin_dir, &structure).unwrap();
+        equip::source::normalize::normalize(&parsed.with_source_name("my-claude-plugin")).unwrap();
     assert_eq!(registered.plugins.len(), 1);
     assert_eq!(registered.plugins[0].name, "claude-tool");
     assert_eq!(registered.plugins[0].version.as_deref(), Some("2.0"));
@@ -187,8 +187,8 @@ fn list_parses() {
 #[test]
 fn init_with_url_parses() {
     use clap::Parser;
-    let cli = equip::cli::Cli::try_parse_from(["equip", "init", "https://github.com/org/repo"])
-        .unwrap();
+    let cli =
+        equip::cli::Cli::try_parse_from(["equip", "init", "https://github.com/org/repo"]).unwrap();
     match cli.command {
         equip::cli::Command::Init { url } => {
             assert_eq!(url.as_deref(), Some("https://github.com/org/repo"));
