@@ -69,11 +69,7 @@ fn run_equip(
 
     let data_dir = crate::config::data_dir();
     let mut registry = crate::registry::load_registry(&data_dir)?;
-    let renames = crate::registry::reconcile_with_config(
-        &mut registry,
-        &config.source,
-        &data_dir,
-    )?;
+    let renames = crate::registry::reconcile_with_config(&mut registry, &config.source, &data_dir)?;
     if !renames.is_empty() {
         crate::registry::save_registry(&registry, &data_dir)?;
         if !flags.quiet {
@@ -86,8 +82,7 @@ fn run_equip(
     let agents = resolve_agents(&config, &agent, all)?;
 
     // Collect skills to equip with provenance: (source, plugin, skill)
-    let mut skills_to_apply: Vec<(&str, &str, &crate::registry::RegisteredSkill)> =
-        Vec::new();
+    let mut skills_to_apply: Vec<(&str, &str, &crate::registry::RegisteredSkill)> = Vec::new();
 
     // From positional patterns
     for pattern in &skill_patterns {
@@ -129,7 +124,11 @@ fn run_equip(
             }
             None if save && !skill_patterns.is_empty() => false,
             None if !skill_patterns.is_empty() => {
-                anyhow::bail!("kit '{}' not found; add -s to create '{}'", kit_name, kit_name);
+                anyhow::bail!(
+                    "kit '{}' not found; add -s to create '{}'",
+                    kit_name,
+                    kit_name
+                );
             }
             None => {
                 anyhow::bail!("kit '{}' not found", kit_name);
@@ -298,16 +297,12 @@ fn run_equip(
                             }
                             ConflictAction::Overwrite => {
                                 adapter.install_skill(s, &ac.path)?;
-                                record_provenance(
-                                    &mut reg, &data_dir, ac, src_name, plug_name, s,
-                                );
+                                record_provenance(&mut reg, &data_dir, ac, src_name, plug_name, s);
                                 updated_count += 1;
                             }
                             ConflictAction::ForceAll => {
                                 adapter.install_skill(s, &ac.path)?;
-                                record_provenance(
-                                    &mut reg, &data_dir, ac, src_name, plug_name, s,
-                                );
+                                record_provenance(&mut reg, &data_dir, ac, src_name, plug_name, s);
                                 updated_count += 1;
                                 force_remaining = true;
                             }
@@ -423,11 +418,7 @@ fn run_unequip(
 
     let data_dir = crate::config::data_dir();
     let mut registry = crate::registry::load_registry(&data_dir)?;
-    let renames = crate::registry::reconcile_with_config(
-        &mut registry,
-        &config.source,
-        &data_dir,
-    )?;
+    let renames = crate::registry::reconcile_with_config(&mut registry, &config.source, &data_dir)?;
     if !renames.is_empty() {
         crate::registry::save_registry(&registry, &data_dir)?;
         if !flags.quiet {
@@ -516,11 +507,7 @@ fn run_unequip(
                     if let Some(agent_map) = registry.installed.get_mut(&ac.name) {
                         agent_map.remove(name);
                     }
-                    out.success(&format!(
-                        "Removed {} from {}",
-                        identity,
-                        ac.name.bold()
-                    ));
+                    out.success(&format!("Removed {} from {}", identity, ac.name.bold()));
                     total_removed += 1;
                 } else {
                     out.info(&format!("  {} from {}", identity, ac.name.bold()));

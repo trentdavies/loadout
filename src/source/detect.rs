@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::Result;
 use std::fs;
 use std::path::Path;
 
@@ -27,63 +27,18 @@ pub enum SourceStructure {
 /// 5. Directory containing SKILL.md directly → SingleSkillDir
 /// 6. Error
 pub fn detect(path: &Path) -> Result<SourceStructure> {
-    // 1. Single file
-    if path.is_file() {
-        let name = path
-            .file_stem()
-            .and_then(|n| n.to_str())
-            .unwrap_or("unnamed")
-            .to_string();
-
-        if has_skill_frontmatter(path) {
-            return Ok(SourceStructure::SingleFile { skill_name: name });
-        }
-        bail!(
-            "file does not appear to be a valid skill (no YAML frontmatter with name/description): {}",
-            path.display()
-        );
-    }
-
-    if !path.is_dir() {
-        bail!("source path is not a file or directory: {}", path.display());
-    }
-
-    // 2. .claude-plugin/marketplace.json
-    if path.join(".claude-plugin/marketplace.json").exists() {
-        return Ok(SourceStructure::Marketplace);
-    }
-
-    // 3. .claude-plugin/plugin.json
-    if path.join(".claude-plugin/plugin.json").exists() {
-        return Ok(SourceStructure::SinglePlugin);
-    }
-
-    // 4. Subdirs with SKILL.md
-    if has_skill_subdirs(path) {
-        return Ok(SourceStructure::FlatSkills);
-    }
-
-    // 5. SKILL.md in this directory
-    if path.join("SKILL.md").exists() {
-        let name = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("unnamed")
-            .to_string();
-        return Ok(SourceStructure::SingleSkillDir { skill_name: name });
-    }
-
-    // 6. Error
-    bail!(
-        "cannot determine source structure at: {}\n\
-         Expected one of:\n\
-         - A SKILL.md file with YAML frontmatter\n\
-         - A directory with .claude-plugin/marketplace.json (multi-plugin marketplace)\n\
-         - A directory with .claude-plugin/plugin.json (single plugin)\n\
-         - A directory with subdirectories containing SKILL.md files\n\
-         - A directory containing SKILL.md directly",
-        path.display()
-    );
+    let parsed = super::parsed::ParsedSource::parse(path)?;
+    Ok(match parsed.kind {
+        super::parsed::SourceKind::SingleFile => SourceStructure::SingleFile {
+            skill_name: parsed.skill_name.unwrap_or_else(|| "unnamed".to_string()),
+        },
+        super::parsed::SourceKind::Marketplace => SourceStructure::Marketplace,
+        super::parsed::SourceKind::SinglePlugin => SourceStructure::SinglePlugin,
+        super::parsed::SourceKind::FlatSkills => SourceStructure::FlatSkills,
+        super::parsed::SourceKind::SingleSkillDir => SourceStructure::SingleSkillDir {
+            skill_name: parsed.skill_name.unwrap_or_else(|| "unnamed".to_string()),
+        },
+    })
 }
 
 /// Check if a file has YAML frontmatter with `name:` and `description:` fields.

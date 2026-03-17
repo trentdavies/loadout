@@ -659,7 +659,11 @@ mod tests {
             cache_path: std::path::PathBuf::from("/tmp"),
         });
         let matches = registry.match_skills("cl*sk*");
-        assert_eq!(matches.len(), 1, "cl*sk* should match claude-plugins:agent-skills/my-foo-skill");
+        assert_eq!(
+            matches.len(),
+            1,
+            "cl*sk* should match claude-plugins:agent-skills/my-foo-skill"
+        );
         assert_eq!(matches[0].2.name, "my-foo-skill");
     }
 
@@ -724,8 +728,7 @@ mod tests {
             mode: None,
         }];
 
-        let renames =
-            reconcile_with_config(&mut registry, &config_sources, tmp.path()).unwrap();
+        let renames = reconcile_with_config(&mut registry, &config_sources, tmp.path()).unwrap();
         assert_eq!(renames.len(), 1);
         assert_eq!(registry.sources[0].name, "new-name");
 
@@ -756,22 +759,19 @@ mod tests {
             plugins: vec![],
             cache_path: ext_dir.clone(),
         });
-        registry.installed.insert(
-            "my-agent".to_string(),
-            {
-                let mut m = std::collections::BTreeMap::new();
-                m.insert(
-                    "my-skill".to_string(),
-                    InstalledSkill {
-                        source: "old-src".to_string(),
-                        plugin: "plug".to_string(),
-                        skill: "my-skill".to_string(),
-                        origin: "external/old-src/plug/skills/my-skill".to_string(),
-                    },
-                );
-                m
-            },
-        );
+        registry.installed.insert("my-agent".to_string(), {
+            let mut m = std::collections::BTreeMap::new();
+            m.insert(
+                "my-skill".to_string(),
+                InstalledSkill {
+                    source: "old-src".to_string(),
+                    plugin: "plug".to_string(),
+                    skill: "my-skill".to_string(),
+                    origin: "external/old-src/plug/skills/my-skill".to_string(),
+                },
+            );
+            m
+        });
 
         let config_sources = vec![crate::config::SourceConfig {
             name: "new-src".to_string(),
@@ -805,8 +805,7 @@ mod tests {
             mode: None,
         }];
 
-        let renames =
-            reconcile_with_config(&mut registry, &config_sources, tmp.path()).unwrap();
+        let renames = reconcile_with_config(&mut registry, &config_sources, tmp.path()).unwrap();
         assert!(renames.is_empty());
         assert_eq!(registry.sources[0].name, "same");
     }
@@ -830,8 +829,7 @@ mod tests {
             mode: None,
         }];
 
-        let renames =
-            reconcile_with_config(&mut registry, &config_sources, tmp.path()).unwrap();
+        let renames = reconcile_with_config(&mut registry, &config_sources, tmp.path()).unwrap();
         assert!(renames.is_empty());
         assert_eq!(registry.sources[0].name, "legacy");
     }

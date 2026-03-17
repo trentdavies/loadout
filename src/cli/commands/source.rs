@@ -90,99 +90,37 @@ pub(crate) fn run_add(
         } else {
             cache_path.clone()
         };
-        let structure = crate::source::detect::detect(&detect_path)?;
+        let parsed = crate::source::ParsedSource::parse(&detect_path)?
+            .with_source_name(&source_name)
+            .with_url(source_url.url_string());
 
-        // Determine default plugin/skill names from structure for prompting
         let overrides = {
-            use crate::source::detect::SourceStructure;
-
             let plugin_override: Option<String> = if plugin.is_some() {
                 plugin
-            } else {
-                let default_plugin = match &structure {
-                    SourceStructure::SingleFile { .. }
-                    | SourceStructure::SingleSkillDir { .. } => None,
-                    SourceStructure::FlatSkills => {
-                        let dir = detect_path
-                            .file_name()
-                            .and_then(|n| n.to_str())
-                            .map(|n| n.strip_prefix('.').unwrap_or(n))
-                            .unwrap_or(&source_name);
-                        if dir == source_name {
-                            None
-                        } else {
-                            Some(dir.to_string())
-                        }
-                    }
-                    SourceStructure::SinglePlugin => {
-                        let plugin_json = detect_path.join(".claude-plugin/plugin.json");
-                        if plugin_json.exists() {
-                            let m = crate::source::manifest::load_plugin_manifest(
-                                &plugin_json,
-                            )?;
-                            if m.name == source_name {
-                                None
-                            } else {
-                                Some(m.name)
-                            }
-                        } else {
-                            let n = detect_path
-                                .file_name()
-                                .and_then(|n| n.to_str())
-                                .unwrap_or("unnamed")
-                                .to_string();
-                            if n == source_name {
-                                None
-                            } else {
-                                Some(n)
-                            }
-                        }
-                    }
-                    SourceStructure::Marketplace => None,
-                };
-                if let Some(ref dp) = default_plugin {
-                    let confirmed =
-                        crate::prompt::confirm_or_override("Plugin name", dp, flags.quiet);
-                    if confirmed != *dp {
-                        Some(confirmed)
-                    } else {
-                        None
-                    }
+            } else if let Some(default_plugin) = parsed.prompt_plugin_name() {
+                let confirmed =
+                    crate::prompt::confirm_or_override("Plugin name", default_plugin, flags.quiet);
+                if confirmed != default_plugin {
+                    Some(confirmed)
                 } else {
                     None
                 }
+            } else {
+                None
             };
 
             let skill_override: Option<String> = if skill.is_some() {
                 skill
-            } else {
-                match &structure {
-                    SourceStructure::SingleFile { skill_name } => {
-                        let confirmed = crate::prompt::confirm_or_override(
-                            "Skill name",
-                            skill_name,
-                            flags.quiet,
-                        );
-                        if confirmed != *skill_name {
-                            Some(confirmed)
-                        } else {
-                            None
-                        }
-                    }
-                    SourceStructure::SingleSkillDir { skill_name } => {
-                        let confirmed = crate::prompt::confirm_or_override(
-                            "Skill name",
-                            skill_name,
-                            flags.quiet,
-                        );
-                        if confirmed != *skill_name {
-                            Some(confirmed)
-                        } else {
-                            None
-                        }
-                    }
-                    _ => None,
+            } else if let Some(default_skill) = parsed.prompt_skill_name() {
+                let confirmed =
+                    crate::prompt::confirm_or_override("Skill name", default_skill, flags.quiet);
+                if confirmed != default_skill {
+                    Some(confirmed)
+                } else {
+                    None
                 }
+            } else {
+                None
             };
 
             (plugin_override, skill_override)
@@ -193,13 +131,7 @@ pub(crate) fn run_add(
             skill: overrides.1.as_deref(),
         };
 
-        let mut registered = crate::source::normalize::normalize_with(
-            &source_name,
-            &detect_path,
-            &structure,
-            &norm_overrides,
-        )?;
-        registered.url = source_url.url_string();
+        let registered = crate::source::normalize::normalize_with(&parsed, &norm_overrides)?;
 
         // In non-interactive/quiet mode, show what was resolved
         if !flags.quiet && !crate::prompt::is_interactive() {
@@ -244,12 +176,14 @@ pub(crate) fn run_add(
                 "{} Added source {} {} {}",
                 "✓".green(),
                 source_name.bold(),
-                format!("({} plugin{}, {} skill{})",
+                format!(
+                    "({} plugin{}, {} skill{})",
                     plugin_count,
                     if plugin_count == 1 { "" } else { "s" },
                     skill_count,
                     if skill_count == 1 { "" } else { "s" },
-                ).dimmed(),
+                )
+                .dimmed(),
                 if let Some(r) = &r#ref {
                     format!("@ {}", r.cyan())
                 } else {
@@ -261,7 +195,11 @@ pub(crate) fn run_add(
                 for p in &src.plugins {
                     println!("  {} {}", "├──".dimmed(), p.name.green());
                     for (i, s) in p.skills.iter().enumerate() {
-                        let connector = if i == p.skills.len() - 1 { "└──" } else { "├──" };
+                        let connector = if i == p.skills.len() - 1 {
+                            "└──"
+                        } else {
+                            "├──"
+                        };
                         let desc = s.description.as_deref().unwrap_or("");
                         if desc.is_empty() {
                             println!("  {}   {} {}", "│".dimmed(), connector.dimmed(), s.name);
@@ -293,11 +231,8 @@ pub(crate) fn run_list(
     let data_dir = crate::config::data_dir();
     let config_for_list = crate::config::load(flags.config_path())?;
     let mut registry = crate::registry::load_registry(&data_dir)?;
-    let renames = crate::registry::reconcile_with_config(
-        &mut registry,
-        &config_for_list.source,
-        &data_dir,
-    )?;
+    let renames =
+        crate::registry::reconcile_with_config(&mut registry, &config_for_list.source, &data_dir)?;
     if !renames.is_empty() {
         crate::registry::save_registry(&registry, &data_dir)?;
         if !flags.quiet {
@@ -335,8 +270,7 @@ pub(crate) fn run_list(
         }
 
         if config_for_list.source.is_empty() {
-            let output =
-                crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
+            let output = crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
             output.info("No sources configured. Use `equip add` to add one.");
             return Ok(());
         }
@@ -380,11 +314,8 @@ pub(crate) fn run_list(
         for pat in &patterns {
             if crate::registry::is_glob(pat) {
                 for triple in registry.match_skills(pat) {
-                    let id = crate::output::plain_identity(
-                        triple.0,
-                        &triple.1.name,
-                        &triple.2.name,
-                    );
+                    let id =
+                        crate::output::plain_identity(triple.0, &triple.1.name, &triple.2.name);
                     if seen.insert(id) {
                         result.push(triple);
                     }
@@ -455,7 +386,9 @@ pub(crate) fn run_list(
             .spawn()
             .map_err(|e| {
                 if e.kind() == std::io::ErrorKind::NotFound {
-                    anyhow::anyhow!("fzf not found in PATH. Install fzf: https://github.com/junegunn/fzf")
+                    anyhow::anyhow!(
+                        "fzf not found in PATH. Install fzf: https://github.com/junegunn/fzf"
+                    )
                 } else {
                     anyhow::anyhow!("failed to spawn fzf: {}", e)
                 }
@@ -547,11 +480,7 @@ pub(crate) fn run_list(
     Ok(())
 }
 
-pub(crate) fn run_remove(
-    name: Option<String>,
-    force: bool,
-    flags: &Flags,
-) -> anyhow::Result<()> {
+pub(crate) fn run_remove(name: Option<String>, force: bool, flags: &Flags) -> anyhow::Result<()> {
     let config_path_str = flags.config_path();
     let mut config = crate::config::load(config_path_str)?;
     let data_dir = crate::config::data_dir();
@@ -559,8 +488,7 @@ pub(crate) fn run_remove(
     let name = match name {
         Some(n) => n,
         None => {
-            let source_names: Vec<String> =
-                config.source.iter().map(|s| s.name.clone()).collect();
+            let source_names: Vec<String> = config.source.iter().map(|s| s.name.clone()).collect();
             if source_names.is_empty() {
                 anyhow::bail!("no sources configured");
             }
@@ -642,11 +570,7 @@ pub(crate) fn run_update(
     let mut config = crate::config::load(config_path_str)?;
     let data_dir = crate::config::data_dir();
     let mut registry = crate::registry::load_registry(&data_dir)?;
-    let renames = crate::registry::reconcile_with_config(
-        &mut registry,
-        &config.source,
-        &data_dir,
-    )?;
+    let renames = crate::registry::reconcile_with_config(&mut registry, &config.source, &data_dir)?;
     if !renames.is_empty() {
         crate::registry::save_registry(&registry, &data_dir)?;
         if !flags.quiet {
@@ -657,9 +581,7 @@ pub(crate) fn run_update(
     }
 
     if update_ref.is_some() && name.is_none() {
-        anyhow::bail!(
-            "--ref requires a source name (e.g., equip update my-source --ref v2.0)"
-        );
+        anyhow::bail!("--ref requires a source name (e.g., equip update my-source --ref v2.0)");
     }
 
     // Determine which sources to update
@@ -719,9 +641,7 @@ pub(crate) fn run_update(
                     if cache_path.exists() {
                         std::fs::remove_dir_all(&cache_path)?;
                     }
-                    if let Err(e) =
-                        crate::source::fetch::fetch(&source_url, &cache_path, None)
-                    {
+                    if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path, None) {
                         errors.push(format!("{}: {}", src.name, e));
                         continue;
                     }
@@ -736,32 +656,24 @@ pub(crate) fn run_update(
                         } else {
                             Some(new_ref.as_str())
                         };
-                        if let Err(e) = crate::source::fetch::fetch(
-                            &source_url,
-                            &cache_path,
-                            effective_ref,
-                        ) {
-                            errors.push(format!("{}: {}", src.name, e));
-                            continue;
-                        }
-                    } else if new_ref == "latest" {
-                        if let Err(e) = crate::source::fetch::update_git(&cache_path, None)
+                        if let Err(e) =
+                            crate::source::fetch::fetch(&source_url, &cache_path, effective_ref)
                         {
                             errors.push(format!("{}: {}", src.name, e));
                             continue;
                         }
-                    } else if let Err(e) =
-                        crate::source::fetch::switch_ref(&cache_path, new_ref)
-                    {
+                    } else if new_ref == "latest" {
+                        if let Err(e) = crate::source::fetch::update_git(&cache_path, None) {
+                            errors.push(format!("{}: {}", src.name, e));
+                            continue;
+                        }
+                    } else if let Err(e) = crate::source::fetch::switch_ref(&cache_path, new_ref) {
                         errors.push(format!("{}: {}", src.name, e));
                         continue;
                     }
                     ref_changed = true;
                 } else if cache_path.exists() {
-                    match crate::source::fetch::update_git_ref(
-                        &cache_path,
-                        src.r#ref.as_deref(),
-                    ) {
+                    match crate::source::fetch::update_git_ref(&cache_path, src.r#ref.as_deref()) {
                         Ok(None) => {
                             if !flags.quiet {
                                 let tag = src.r#ref.as_deref().unwrap_or("unknown");
@@ -778,11 +690,9 @@ pub(crate) fn run_update(
                             continue;
                         }
                     }
-                } else if let Err(e) = crate::source::fetch::fetch(
-                    &source_url,
-                    &cache_path,
-                    src.r#ref.as_deref(),
-                ) {
+                } else if let Err(e) =
+                    crate::source::fetch::fetch(&source_url, &cache_path, src.r#ref.as_deref())
+                {
                     errors.push(format!("{}: {}", src.name, e));
                     continue;
                 }
@@ -791,26 +701,24 @@ pub(crate) fn run_update(
                 if cache_path.exists() {
                     std::fs::remove_dir_all(&cache_path)?;
                 }
-                if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path, None)
-                {
+                if let Err(e) = crate::source::fetch::fetch(&source_url, &cache_path, None) {
                     errors.push(format!("{}: {}", src.name, e));
                     continue;
                 }
             }
         }
 
-        // Re-detect and re-normalize
-        let structure = match crate::source::detect::detect(&cache_path) {
-            Ok(s) => s,
+        // Re-parse and re-normalize
+        let parsed = match crate::source::ParsedSource::parse(&cache_path) {
+            Ok(parsed) => parsed.with_source_name(&src.name).with_url(src.url.clone()),
             Err(e) => {
-                errors.push(format!("{}: detection failed: {}", src.name, e));
+                errors.push(format!("{}: parsing failed: {}", src.name, e));
                 continue;
             }
         };
 
-        match crate::source::normalize::normalize(&src.name, &cache_path, &structure) {
-            Ok(mut registered) => {
-                registered.url = src.url.clone();
+        match crate::source::normalize::normalize(&parsed) {
+            Ok(registered) => {
                 updated_registry.sources.retain(|s| s.name != src.name);
                 updated_registry.sources.push(registered);
                 updated_count += 1;
@@ -826,8 +734,7 @@ pub(crate) fn run_update(
         if ref_changed {
             if let Some(ref new_ref) = update_ref {
                 if let Some(ref source_name) = name {
-                    if let Some(cfg_src) =
-                        config.source.iter_mut().find(|s| s.name == *source_name)
+                    if let Some(cfg_src) = config.source.iter_mut().find(|s| s.name == *source_name)
                     {
                         cfg_src.r#ref = if new_ref == "latest" {
                             None

@@ -385,19 +385,43 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             r#ref,
             symlink,
             copy,
-        } => commands::source::run_add(url, source, plugin, skill, name, r#ref, symlink, copy, &flags),
-        Command::List { patterns, external, fzf } => {
-            commands::source::run_list(patterns, external, fzf, &flags)
-        }
+        } => commands::source::run_add(
+            url, source, plugin, skill, name, r#ref, symlink, copy, &flags,
+        ),
+        Command::List {
+            patterns,
+            external,
+            fzf,
+        } => commands::source::run_list(patterns, external, fzf, &flags),
         Command::Remove { name, force } => commands::source::run_remove(name, force, &flags),
         Command::Update { name, r#ref } => commands::source::run_update(name, r#ref, &flags),
         Command::Status => commands::status::run(&flags),
         Command::Kit { command } => commands::kit::run(command, &flags),
         Command::Agent { command } => commands::agent::run(command, &flags),
         Command::Config { command } => commands::config::run(command, &flags),
-        Command::Completions { shell, install } => commands::completions::run(shell, install, &flags),
+        Command::Completions { shell, install } => {
+            commands::completions::run(shell, install, &flags)
+        }
         Command::Complete { kind } => commands::completions::run_complete(kind, &flags),
-        Command::Equip { patterns, agent, all, kit, save, force, interactive, remove }
-            => commands::equip::run(patterns, agent, all, kit, save, force, interactive, remove, &flags),
+        Command::Equip {
+            patterns,
+            agent,
+            all,
+            kit,
+            save,
+            force,
+            interactive,
+            remove,
+        } => commands::equip::run(
+            patterns,
+            agent,
+            all,
+            kit,
+            save,
+            force,
+            interactive,
+            remove,
+            &flags,
+        ),
     }
 }

@@ -61,9 +61,10 @@ pub(crate) fn run(url: Option<String>, flags: &Flags) -> anyhow::Result<()> {
 
         crate::source::fetch::fetch(&source_url, &cache_path, None)?;
 
-        let structure = crate::source::detect::detect(&cache_path)?;
-        let registered =
-            crate::source::normalize::normalize(&source_name, &cache_path, &structure)?;
+        let parsed = crate::source::ParsedSource::parse(&cache_path)?
+            .with_source_name(&source_name)
+            .with_url(source_url.url_string());
+        let registered = crate::source::normalize::normalize(&parsed)?;
 
         let data_dir = crate::config::data_dir();
         let mut registry = crate::registry::load_registry(&data_dir)?;
@@ -132,12 +133,8 @@ pub(crate) fn run(url: Option<String>, flags: &Flags) -> anyhow::Result<()> {
     let should_detect = if flags.quiet || !crate::prompt::is_interactive() {
         true
     } else {
-        crate::prompt::confirm_or_override(
-            "Detect and add agents? [Y/n]",
-            "Y",
-            flags.quiet,
-        )
-        .to_uppercase()
+        crate::prompt::confirm_or_override("Detect and add agents? [Y/n]", "Y", flags.quiet)
+            .to_uppercase()
             != "N"
     };
     if should_detect {
@@ -194,13 +191,12 @@ pub(crate) fn run(url: Option<String>, flags: &Flags) -> anyhow::Result<()> {
                         continue;
                     }
                 }
-                match crate::source::detect::detect(&cache_path) {
-                    Ok(structure) => {
-                        match crate::source::normalize::normalize(
-                            &source_name,
-                            &cache_path,
-                            &structure,
-                        ) {
+                match crate::source::ParsedSource::parse(&cache_path) {
+                    Ok(parsed) => {
+                        let parsed = parsed
+                            .with_source_name(&source_name)
+                            .with_url(url.to_string());
+                        match crate::source::normalize::normalize(&parsed) {
                             Ok(registered) => {
                                 registry.sources.retain(|s| s.name != source_name);
                                 registry.sources.push(registered);
@@ -220,7 +216,7 @@ pub(crate) fn run(url: Option<String>, flags: &Flags) -> anyhow::Result<()> {
                             }
                         }
                     }
-                    Err(e) => eprintln!("warning: failed to detect '{}': {}", name, e),
+                    Err(e) => eprintln!("warning: failed to parse '{}': {}", name, e),
                 }
             }
 

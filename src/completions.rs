@@ -769,8 +769,7 @@ pub fn install_zsh(quiet: bool) -> Result<PathBuf> {
         (zfunc.join("_equip"), hint)
     };
 
-    fs::write(&dest, ZSH_SCRIPT)
-        .with_context(|| format!("failed to write {}", dest.display()))?;
+    fs::write(&dest, ZSH_SCRIPT).with_context(|| format!("failed to write {}", dest.display()))?;
 
     if !quiet {
         println!(
@@ -795,8 +794,7 @@ pub fn install_bash(quiet: bool) -> Result<PathBuf> {
         .with_context(|| format!("failed to create {}", comp_dir.display()))?;
 
     let dest = comp_dir.join("equip");
-    fs::write(&dest, BASH_SCRIPT)
-        .with_context(|| format!("failed to write {}", dest.display()))?;
+    fs::write(&dest, BASH_SCRIPT).with_context(|| format!("failed to write {}", dest.display()))?;
 
     if !quiet {
         println!(
@@ -821,8 +819,7 @@ pub fn install_fish(quiet: bool) -> Result<PathBuf> {
         .with_context(|| format!("failed to create {}", comp_dir.display()))?;
 
     let dest = comp_dir.join("equip.fish");
-    fs::write(&dest, FISH_SCRIPT)
-        .with_context(|| format!("failed to write {}", dest.display()))?;
+    fs::write(&dest, FISH_SCRIPT).with_context(|| format!("failed to write {}", dest.display()))?;
 
     if !quiet {
         println!(

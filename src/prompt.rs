@@ -14,15 +14,13 @@ pub fn is_interactive() -> bool {
 /// Format a prompt label in gh-cli style: `? Label (default)`
 fn styled_prompt(label: &str, default: Option<&str>) -> String {
     match default {
-        Some(d) => format!("{} {} {}",
+        Some(d) => format!(
+            "{} {} {}",
             "?".green().bold(),
             label.bold(),
             format!("({})", d).dimmed(),
         ),
-        None => format!("{} {}",
-            "?".green().bold(),
-            label.bold(),
-        ),
+        None => format!("{} {}", "?".green().bold(), label.bold(),),
     }
 }
 

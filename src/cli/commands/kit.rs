@@ -11,8 +11,7 @@ pub(crate) fn run(command: KitCommand, flags: &Flags) -> anyhow::Result<()> {
 
     match command {
         KitCommand::Create { name, skills } => {
-            let out =
-                crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
+            let out = crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
             if config.kit.contains_key(&name) {
                 anyhow::bail!("kit '{}' already exists", name);
             }
@@ -28,9 +27,7 @@ pub(crate) fn run(command: KitCommand, flags: &Flags) -> anyhow::Result<()> {
                 let ext_sources = external_source_set(&config);
                 let kit = config.kit.get_mut(&name).unwrap();
                 for skill_id in &skills {
-                    let resolved = resolve_skills_for_bundle(
-                        skill_id, &registry,
-                    )?;
+                    let resolved = resolve_skills_for_bundle(skill_id, &registry)?;
                     for (src, fq) in resolved {
                         if !kit.skills.contains(&fq) {
                             kit.skills.push(fq);
@@ -61,8 +58,7 @@ pub(crate) fn run(command: KitCommand, flags: &Flags) -> anyhow::Result<()> {
             Ok(())
         }
         KitCommand::Delete { name, force } => {
-            let out =
-                crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
+            let out = crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
             if !config.kit.contains_key(&name) {
                 anyhow::bail!("kit '{}' not found", name);
             }
@@ -79,24 +75,23 @@ pub(crate) fn run(command: KitCommand, flags: &Flags) -> anyhow::Result<()> {
             Ok(())
         }
         KitCommand::List { patterns } => {
-            let kits: Vec<(&String, &crate::config::KitConfig)> =
-                if patterns.is_empty() {
-                    config.kit.iter().collect()
-                } else {
-                    config
-                        .kit
-                        .iter()
-                        .filter(|(name, _)| {
-                            patterns.iter().any(|pat| {
-                                if crate::registry::is_glob(pat) {
-                                    glob_match::glob_match(pat, name)
-                                } else {
-                                    *name == pat || name.contains(pat.as_str())
-                                }
-                            })
+            let kits: Vec<(&String, &crate::config::KitConfig)> = if patterns.is_empty() {
+                config.kit.iter().collect()
+            } else {
+                config
+                    .kit
+                    .iter()
+                    .filter(|(name, _)| {
+                        patterns.iter().any(|pat| {
+                            if crate::registry::is_glob(pat) {
+                                glob_match::glob_match(pat, name)
+                            } else {
+                                *name == pat || name.contains(pat.as_str())
+                            }
                         })
-                        .collect()
-                };
+                    })
+                    .collect()
+            };
 
             if flags.json {
                 let entries: Vec<serde_json::Value> = kits
@@ -123,9 +118,17 @@ pub(crate) fn run(command: KitCommand, flags: &Flags) -> anyhow::Result<()> {
             }
 
             for (name, b) in &kits {
-                println!("{} {}", name.bold(), format!("({})", b.skills.len()).dimmed());
+                println!(
+                    "{} {}",
+                    name.bold(),
+                    format!("({})", b.skills.len()).dimmed()
+                );
                 for (i, skill_id) in b.skills.iter().enumerate() {
-                    let connector = if i == b.skills.len() - 1 { "└──" } else { "├──" };
+                    let connector = if i == b.skills.len() - 1 {
+                        "└──"
+                    } else {
+                        "├──"
+                    };
                     let display = if let Some((source, rest)) = skill_id.split_once(':') {
                         if let Some((plugin, skill)) = rest.split_once('/') {
                             crate::output::format_identity(source, plugin, skill)
@@ -169,18 +172,14 @@ pub(crate) fn run(command: KitCommand, flags: &Flags) -> anyhow::Result<()> {
             Ok(())
         }
         KitCommand::Add { name, skills } => {
-            let out =
-                crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
+            let out = crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
             if !config.kit.contains_key(&name) {
                 anyhow::bail!("kit '{}' not found", name);
             }
 
             let mut registry = crate::registry::load_registry(&data_dir)?;
-            let renames = crate::registry::reconcile_with_config(
-                &mut registry,
-                &config.source,
-                &data_dir,
-            )?;
+            let renames =
+                crate::registry::reconcile_with_config(&mut registry, &config.source, &data_dir)?;
             if !renames.is_empty() {
                 crate::registry::save_registry(&registry, &data_dir)?;
                 if !flags.quiet {
@@ -196,9 +195,7 @@ pub(crate) fn run(command: KitCommand, flags: &Flags) -> anyhow::Result<()> {
             let mut external = 0usize;
             let mut local = 0usize;
             for skill_id in &skills {
-                let resolved = resolve_skills_for_bundle(
-                    skill_id, &registry,
-                )?;
+                let resolved = resolve_skills_for_bundle(skill_id, &registry)?;
                 for (src, fq) in resolved {
                     if !kit.skills.contains(&fq) {
                         kit.skills.push(fq);
@@ -216,13 +213,15 @@ pub(crate) fn run(command: KitCommand, flags: &Flags) -> anyhow::Result<()> {
             crate::config::save(&config, config_path_str)?;
             out.success(&format!(
                 "Added {} skill(s) to kit '{}' ({}), {} total",
-                added, name, source_breakdown(external, local), total,
+                added,
+                name,
+                source_breakdown(external, local),
+                total,
             ));
             Ok(())
         }
         KitCommand::Drop { name, skills } => {
-            let out =
-                crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
+            let out = crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
             let kit = config
                 .kit
                 .get_mut(&name)

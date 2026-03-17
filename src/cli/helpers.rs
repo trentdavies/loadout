@@ -39,7 +39,9 @@ pub(crate) fn extract_domain(url: &str) -> String {
 }
 
 /// Build a set of source names that are external (git).
-pub(crate) fn external_source_set(config: &crate::config::Config) -> std::collections::HashSet<String> {
+pub(crate) fn external_source_set(
+    config: &crate::config::Config,
+) -> std::collections::HashSet<String> {
     config
         .source
         .iter()

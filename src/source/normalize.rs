@@ -1,7 +1,8 @@
 use anyhow::Result;
 use std::path::Path;
 
-use super::detect::{self, SourceStructure};
+use super::detect;
+use super::parsed::{ParsedSource, SourceKind};
 use super::{discover, manifest};
 use crate::registry::{RegisteredPlugin, RegisteredSkill, RegisteredSource};
 
@@ -12,25 +13,13 @@ pub struct Overrides<'a> {
     pub skill: Option<&'a str>,
 }
 
-/// Normalize a detected source into the canonical Source > Plugin > Skill hierarchy.
-pub fn normalize(
-    source_name: &str,
-    cache_path: &Path,
-    structure: &SourceStructure,
-) -> Result<RegisteredSource> {
-    normalize_with(source_name, cache_path, structure, &Overrides::default())
+/// Normalize a parsed source into the canonical Source > Plugin > Skill hierarchy.
+pub fn normalize(parsed: &ParsedSource) -> Result<RegisteredSource> {
+    normalize_with(parsed, &Overrides::default())
 }
 
 /// Normalize with optional name overrides for plugin and skill.
-///
-/// The `url` field on the returned `RegisteredSource` is left empty here;
-/// callers that have the source URL should set it after construction.
-pub fn normalize_with(
-    source_name: &str,
-    cache_path: &Path,
-    structure: &SourceStructure,
-    overrides: &Overrides,
-) -> Result<RegisteredSource> {
+pub fn normalize_with(parsed: &ParsedSource, overrides: &Overrides) -> Result<RegisteredSource> {
     if let Some(p) = overrides.plugin {
         if !detect::is_kebab_case(p) {
             anyhow::bail!("plugin name '{}' is not valid kebab-case", p);
@@ -42,26 +31,30 @@ pub fn normalize_with(
         }
     }
 
-    let plugins = match structure {
-        SourceStructure::SingleFile { skill_name } => {
-            let mut skill = scan_single_file_skill(skill_name, cache_path)?;
+    let plugins = match parsed.kind {
+        SourceKind::SingleFile => {
+            let skill_name = parsed.skill_name.as_deref().unwrap_or("unnamed");
+            let mut skill = scan_single_file_skill(skill_name, &parsed.path)?;
             if let Some(sk) = overrides.skill {
                 skill.name = sk.to_string();
             }
-            let plugin_name = overrides.plugin.unwrap_or(source_name);
+            let plugin_name = overrides
+                .plugin
+                .or_else(|| parsed.default_plugin_name())
+                .unwrap_or(parsed.source_name.as_str());
             vec![RegisteredPlugin {
                 name: plugin_name.to_string(),
                 version: None,
                 description: None,
                 skills: vec![skill],
-                path: cache_path.to_path_buf(),
+                path: parsed.path.clone(),
             }]
         }
 
-        SourceStructure::Marketplace => scan_marketplace(cache_path)?,
+        SourceKind::Marketplace => scan_marketplace(&parsed.path)?,
 
-        SourceStructure::SinglePlugin => {
-            let mut plugin = scan_plugin_dir(cache_path)?;
+        SourceKind::SinglePlugin => {
+            let mut plugin = scan_plugin_dir(&parsed.path)?;
             if let Some(p) = overrides.plugin {
                 plugin.name = p.to_string();
             }
@@ -73,15 +66,12 @@ pub fn normalize_with(
             vec![plugin]
         }
 
-        SourceStructure::FlatSkills => {
-            let raw_dir = cache_path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or(source_name);
-            // Strip leading dot from hidden directories (e.g. ".curated" → "curated")
-            let dir_name = raw_dir.strip_prefix('.').unwrap_or(raw_dir);
-            let plugin_name = overrides.plugin.unwrap_or(dir_name);
-            let discovered = discover::discover_skills(cache_path)?;
+        SourceKind::FlatSkills => {
+            let plugin_name = overrides
+                .plugin
+                .or_else(|| parsed.default_plugin_name())
+                .unwrap_or(parsed.source_name.as_str());
+            let discovered = discover::discover_skills(&parsed.path)?;
             let skills = discovered
                 .into_iter()
                 .map(|ds| RegisteredSkill {
@@ -97,31 +87,35 @@ pub fn normalize_with(
                 version: None,
                 description: None,
                 skills,
-                path: cache_path.to_path_buf(),
+                path: parsed.path.clone(),
             }]
         }
 
-        SourceStructure::SingleSkillDir { skill_name } => {
-            let mut skill = scan_skill_dir(skill_name, cache_path)?;
+        SourceKind::SingleSkillDir => {
+            let skill_name = parsed.skill_name.as_deref().unwrap_or("unnamed");
+            let mut skill = scan_skill_dir(skill_name, &parsed.path)?;
             if let Some(sk) = overrides.skill {
                 skill.name = sk.to_string();
             }
-            let plugin_name = overrides.plugin.unwrap_or(source_name);
+            let plugin_name = overrides
+                .plugin
+                .or_else(|| parsed.default_plugin_name())
+                .unwrap_or(parsed.source_name.as_str());
             vec![RegisteredPlugin {
                 name: plugin_name.to_string(),
                 version: None,
                 description: None,
                 skills: vec![skill],
-                path: cache_path.to_path_buf(),
+                path: parsed.path.clone(),
             }]
         }
     };
 
     Ok(RegisteredSource {
-        name: source_name.to_string(),
-        url: String::new(),
+        name: parsed.source_name.clone(),
+        url: parsed.url.clone().unwrap_or_default(),
         plugins,
-        cache_path: cache_path.to_path_buf(),
+        cache_path: parsed.path.clone(),
     })
 }
 
@@ -217,13 +211,21 @@ fn scan_plugin_dir(path: &Path) -> Result<RegisteredPlugin> {
     })
 }
 
-/// Create a RegisteredSkill from a single SKILL.md file in the cache root.
-fn scan_single_file_skill(skill_name: &str, cache_path: &Path) -> Result<RegisteredSkill> {
-    let skill_file = cache_path.join(format!("{}.md", skill_name));
-    let skill_file = if skill_file.exists() {
-        skill_file
+/// Create a RegisteredSkill from a single skill file.
+fn scan_single_file_skill(skill_name: &str, source_path: &Path) -> Result<RegisteredSkill> {
+    let (skill_file, skill_root) = if source_path.is_file() {
+        (
+            source_path.to_path_buf(),
+            source_path.parent().unwrap_or(source_path).to_path_buf(),
+        )
     } else {
-        cache_path.join("SKILL.md")
+        let named_file = source_path.join(format!("{}.md", skill_name));
+        let skill_file = if named_file.exists() {
+            named_file
+        } else {
+            source_path.join("SKILL.md")
+        };
+        (skill_file, source_path.to_path_buf())
     };
 
     if skill_file.exists() && !detect::has_skill_frontmatter(&skill_file) {
@@ -244,7 +246,7 @@ fn scan_single_file_skill(skill_name: &str, cache_path: &Path) -> Result<Registe
         description,
         author,
         version,
-        path: cache_path.to_path_buf(),
+        path: skill_root,
     })
 }
 
@@ -293,6 +295,7 @@ fn scan_skill_dir(skill_name: &str, path: &Path) -> Result<RegisteredSkill> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::source::ParsedSource;
     use std::fs;
     use tempfile::TempDir;
 
@@ -320,18 +323,13 @@ mod tests {
     #[test]
     fn normalize_single_file() {
         let tmp = TempDir::new().unwrap();
-        let cache = tmp.path().join("cache");
-        fs::create_dir_all(&cache).unwrap();
-        fs::write(
-            cache.join("test.md"),
-            "---\nname: test\ndescription: desc\n---\n",
-        )
-        .unwrap();
+        let cache = tmp.path().join("test.md");
+        fs::write(&cache, "---\nname: test\ndescription: desc\n---\n").unwrap();
 
-        let structure = SourceStructure::SingleFile {
-            skill_name: "test".to_string(),
-        };
-        let result = normalize("my-src", &cache, &structure).unwrap();
+        let parsed = ParsedSource::parse(&cache)
+            .unwrap()
+            .with_source_name("my-src");
+        let result = normalize(&parsed).unwrap();
         assert_eq!(result.name, "my-src");
         assert_eq!(result.plugins.len(), 1);
         assert_eq!(result.plugins[0].skills.len(), 1);
@@ -343,8 +341,10 @@ mod tests {
         make_skill_md(&tmp.path().join("skill-a"), "skill-a");
         make_skill_md(&tmp.path().join("skill-b"), "skill-b");
 
-        let structure = SourceStructure::FlatSkills;
-        let result = normalize("src", tmp.path(), &structure).unwrap();
+        let parsed = ParsedSource::parse(tmp.path())
+            .unwrap()
+            .with_source_name("src");
+        let result = normalize(&parsed).unwrap();
         assert_eq!(result.plugins.len(), 1);
         assert_eq!(result.plugins[0].skills.len(), 2);
     }
@@ -358,23 +358,13 @@ mod tests {
         );
         make_skill_md(&tmp.path().join("skills").join("skill-x"), "skill-x");
 
-        let structure = SourceStructure::SinglePlugin;
-        let result = normalize("src", tmp.path(), &structure).unwrap();
+        let parsed = ParsedSource::parse(tmp.path())
+            .unwrap()
+            .with_source_name("src");
+        let result = normalize(&parsed).unwrap();
         assert_eq!(result.plugins.len(), 1);
         assert_eq!(result.plugins[0].name, "my-plug");
         assert_eq!(result.plugins[0].version.as_deref(), Some("1.0"));
-        assert_eq!(result.plugins[0].skills.len(), 1);
-    }
-
-    #[test]
-    fn normalize_single_plugin_no_manifest() {
-        let tmp = TempDir::new().unwrap();
-        make_skill_md(&tmp.path().join("skills").join("skill-x"), "skill-x");
-
-        let structure = SourceStructure::SinglePlugin;
-        let result = normalize("src", tmp.path(), &structure).unwrap();
-        assert_eq!(result.plugins.len(), 1);
-        // Name falls back to directory name
         assert_eq!(result.plugins[0].skills.len(), 1);
     }
 
@@ -410,8 +400,10 @@ mod tests {
         make_plugin_json(&sales, r#"{"name": "sales", "version": "2.0"}"#);
         make_skill_md(&sales.join("skills").join("call-prep"), "call-prep");
 
-        let structure = SourceStructure::Marketplace;
-        let result = normalize("mkt", tmp.path(), &structure).unwrap();
+        let parsed = ParsedSource::parse(tmp.path())
+            .unwrap()
+            .with_source_name("mkt");
+        let result = normalize(&parsed).unwrap();
         assert_eq!(result.plugins.len(), 2);
         assert_eq!(result.plugins[0].name, "legal");
         assert_eq!(result.plugins[0].version.as_deref(), Some("1.1.0"));
@@ -437,8 +429,10 @@ mod tests {
         let exists = tmp.path().join("exists");
         make_skill_md(&exists.join("skills").join("sk"), "sk");
 
-        let structure = SourceStructure::Marketplace;
-        let result = normalize("mkt", tmp.path(), &structure).unwrap();
+        let parsed = ParsedSource::parse(tmp.path())
+            .unwrap()
+            .with_source_name("mkt");
+        let result = normalize(&parsed).unwrap();
         // Only 'exists' should be included
         assert_eq!(result.plugins.len(), 1);
         assert_eq!(result.plugins[0].name, "exists");
@@ -449,10 +443,10 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         make_skill_md(tmp.path(), "dir-skill");
 
-        let structure = SourceStructure::SingleSkillDir {
-            skill_name: "dir-skill".to_string(),
-        };
-        let result = normalize("src", tmp.path(), &structure).unwrap();
+        let parsed = ParsedSource::parse(tmp.path())
+            .unwrap()
+            .with_source_name("src");
+        let result = normalize(&parsed).unwrap();
         assert_eq!(result.plugins.len(), 1);
         assert_eq!(result.plugins[0].skills[0].name, "dir-skill");
     }

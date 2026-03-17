@@ -6,11 +6,7 @@ pub(crate) fn run(flags: &Flags) -> anyhow::Result<()> {
     let config = crate::config::load(flags.config_path())?;
     let data_dir = crate::config::data_dir();
     let mut registry = crate::registry::load_registry(&data_dir)?;
-    let renames = crate::registry::reconcile_with_config(
-        &mut registry,
-        &config.source,
-        &data_dir,
-    )?;
+    let renames = crate::registry::reconcile_with_config(&mut registry, &config.source, &data_dir)?;
     if !renames.is_empty() {
         crate::registry::save_registry(&registry, &data_dir)?;
         if !flags.quiet {
@@ -72,11 +68,7 @@ pub(crate) fn run(flags: &Flags) -> anyhow::Result<()> {
             } else {
                 format!("{} skills, @ {}, {}", skill_count, version, mode_str)
             };
-            println!(
-                "  {} {}",
-                src.name.bold(),
-                detail.dimmed(),
-            );
+            println!("  {} {}", src.name.bold(), detail.dimmed(),);
         }
     }
 
@@ -96,7 +88,11 @@ pub(crate) fn run(flags: &Flags) -> anyhow::Result<()> {
                 "  {} {} {}",
                 ac.name.bold(),
                 format!("({})", ac.agent_type).cyan(),
-                format!("{} installed, scope: {}, sync: {}", installed_count, ac.scope, ac.sync).dimmed(),
+                format!(
+                    "{} installed, scope: {}, sync: {}",
+                    installed_count, ac.scope, ac.sync
+                )
+                .dimmed(),
             );
         }
     }
@@ -117,13 +113,16 @@ pub(crate) fn run(flags: &Flags) -> anyhow::Result<()> {
 
     // Summary
     out.info("");
-    out.status("Total", &format!(
-        "{} sources, {} plugins, {} skills, {} installed",
-        config.source.len(),
-        registry.sources.iter().flat_map(|s| &s.plugins).count(),
-        total_skills,
-        total_installed,
-    ));
+    out.status(
+        "Total",
+        &format!(
+            "{} sources, {} plugins, {} skills, {} installed",
+            config.source.len(),
+            registry.sources.iter().flat_map(|s| &s.plugins).count(),
+            total_skills,
+            total_installed,
+        ),
+    );
 
     Ok(())
 }

@@ -11,7 +11,15 @@ pub fn preprocess(raw: Vec<String>) -> Vec<String> {
     result.push(raw[0].clone());
 
     // Pass 1: consume leading global flags, detect catch-all
-    let global_flags_no_arg = ["-n", "--dry-run", "-v", "--verbose", "-q", "--quiet", "--json"];
+    let global_flags_no_arg = [
+        "-n",
+        "--dry-run",
+        "-v",
+        "--verbose",
+        "-q",
+        "--quiet",
+        "--json",
+    ];
     let global_flags_with_arg = ["--config"];
 
     let mut i = 1;
@@ -107,7 +115,11 @@ enum Sub {
 
 /// Detect if the resolved args form a `_equip` or `agent collect` subcommand path.
 fn detect_subcommand(prefix: &[String], rest: &[String]) -> Option<Sub> {
-    let all: Vec<&str> = prefix.iter().chain(rest.iter()).map(|s| s.as_str()).collect();
+    let all: Vec<&str> = prefix
+        .iter()
+        .chain(rest.iter())
+        .map(|s| s.as_str())
+        .collect();
     let flags_with_arg = ["--config"];
 
     let mut found_agent = false;
@@ -168,19 +180,13 @@ mod tests {
     #[test]
     fn at_agent_in_equip() {
         let result = pp(&["equip", "_equip", "@claude", "dev*"]);
-        assert_eq!(
-            result,
-            ["equip", "_equip", "dev*", "--agent", "claude"]
-        );
+        assert_eq!(result, ["equip", "_equip", "dev*", "--agent", "claude"]);
     }
 
     #[test]
     fn plus_kit_in_equip() {
         let result = pp(&["equip", "_equip", "+developer"]);
-        assert_eq!(
-            result,
-            ["equip", "_equip", "--kit", "developer"]
-        );
+        assert_eq!(result, ["equip", "_equip", "--kit", "developer"]);
     }
 
     #[test]
@@ -195,19 +201,13 @@ mod tests {
     #[test]
     fn top_level_catchall_with_at() {
         let result = pp(&["equip", "@claude", "dev*"]);
-        assert_eq!(
-            result,
-            ["equip", "_equip", "dev*", "--agent", "claude"]
-        );
+        assert_eq!(result, ["equip", "_equip", "dev*", "--agent", "claude"]);
     }
 
     #[test]
     fn top_level_catchall_with_plus() {
         let result = pp(&["equip", "+dev"]);
-        assert_eq!(
-            result,
-            ["equip", "_equip", "--kit", "dev"]
-        );
+        assert_eq!(result, ["equip", "_equip", "--kit", "dev"]);
     }
 
     #[test]
@@ -216,7 +216,13 @@ mod tests {
         assert_eq!(
             result,
             [
-                "equip", "-n", "--verbose", "_equip", "dev*", "--agent", "claude"
+                "equip",
+                "-n",
+                "--verbose",
+                "_equip",
+                "dev*",
+                "--agent",
+                "claude"
             ]
         );
     }
@@ -227,7 +233,12 @@ mod tests {
         assert_eq!(
             result,
             [
-                "equip", "--config", "/tmp/alt.toml", "_equip", "--agent", "claude"
+                "equip",
+                "--config",
+                "/tmp/alt.toml",
+                "_equip",
+                "--agent",
+                "claude"
             ]
         );
     }
@@ -259,10 +270,7 @@ mod tests {
     #[test]
     fn quoted_values_stripped() {
         let result = pp(&["equip", "_equip", "@\"my-agent\""]);
-        assert_eq!(
-            result,
-            ["equip", "_equip", "--agent", "my-agent"]
-        );
+        assert_eq!(result, ["equip", "_equip", "--agent", "my-agent"]);
     }
 
     #[test]
@@ -280,8 +288,15 @@ mod tests {
         assert_eq!(
             result,
             [
-                "equip", "_equip", "-s", "dev*", "legal/*",
-                "--agent", "claude", "--kit", "developer"
+                "equip",
+                "_equip",
+                "-s",
+                "dev*",
+                "legal/*",
+                "--agent",
+                "claude",
+                "--kit",
+                "developer"
             ]
         );
     }

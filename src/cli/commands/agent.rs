@@ -1,9 +1,7 @@
 use colored::Colorize;
 
 use crate::cli::flags::Flags;
-use crate::cli::helpers::{
-    add_detected_agents, copy_dir_all, detect_agents, generate_marketplace,
-};
+use crate::cli::helpers::{add_detected_agents, copy_dir_all, detect_agents, generate_marketplace};
 use crate::cli::AgentCommand;
 
 /// Known built-in agent types
@@ -22,9 +20,7 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
             sync,
         } => {
             // Validate agent type against built-in + custom adapters
-            if !KNOWN_AGENTS.contains(&agent.as_str())
-                && !config.adapter.contains_key(&agent)
-            {
+            if !KNOWN_AGENTS.contains(&agent.as_str()) && !config.adapter.contains_key(&agent) {
                 let available: Vec<String> = KNOWN_AGENTS
                     .iter()
                     .map(|s| s.to_string())
@@ -247,8 +243,7 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
                     .map(std::path::PathBuf::from)
                     .or_else(|_| dirs::home_dir().ok_or(()))
                     .unwrap_or_else(|_| std::path::PathBuf::from("~"));
-                let out =
-                    crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
+                let out = crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
                 let mut added = 0;
                 for (agent, path, registered) in &found {
                     if *registered {
@@ -306,11 +301,8 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
         } => {
             let data_dir = crate::config::data_dir();
             let mut registry = crate::registry::load_registry(&data_dir)?;
-            let renames = crate::registry::reconcile_with_config(
-                &mut registry,
-                &config.source,
-                &data_dir,
-            )?;
+            let renames =
+                crate::registry::reconcile_with_config(&mut registry, &config.source, &data_dir)?;
             if !renames.is_empty() {
                 crate::registry::save_registry(&registry, &data_dir)?;
                 if !flags.quiet {
