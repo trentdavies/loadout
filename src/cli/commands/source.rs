@@ -517,7 +517,7 @@ fn detected_summary(
 
 #[cfg(test)]
 mod tests {
-    use super::{default_source_name, detected_summary, source_alias};
+    use super::{default_source_name, detected_summary, source_alias, source_remove_target};
     use crate::registry::{RegisteredPlugin, RegisteredSkill};
     use crate::source::{ParsedSource, SourceKind, SourceUrl};
     use std::path::PathBuf;
@@ -626,6 +626,15 @@ mod tests {
             "hashicorp-agent-skills"
         );
         assert_eq!(source_alias(" team__skills "), "team-skills");
+    }
+
+    #[test]
+    fn source_remove_target_prefers_exact_source_name() {
+        assert!(source_remove_target("team-skills", true));
+        assert!(!source_remove_target("team-skills/*", true));
+        assert!(!source_remove_target("local:team-skills/*", true));
+        assert!(!source_remove_target("team-*", true));
+        assert!(!source_remove_target("team-skills", false));
     }
 }
 
@@ -868,6 +877,13 @@ fn removal_action(label: &str, force: bool, flags: &Flags) -> RemovalAction {
     }
 }
 
+fn source_remove_target(pattern: &str, source_exists: bool) -> bool {
+    source_exists
+        && !pattern.contains('/')
+        && !pattern.contains(':')
+        && !crate::registry::is_glob(pattern)
+}
+
 pub(crate) fn run_remove(patterns: Vec<String>, force: bool, flags: &Flags) -> anyhow::Result<()> {
     if patterns.is_empty() {
         anyhow::bail!("remove requires a local skill pattern or `equip source remove <name>`");
@@ -886,10 +902,14 @@ pub(crate) fn run_remove(patterns: Vec<String>, force: bool, flags: &Flags) -> a
         false
     };
 
+    if patterns.len() == 1 && source_remove_target(&patterns[0], source_match) {
+        return run_source_remove(Some(patterns[0].clone()), force, flags);
+    }
+
     let resolved = crate::cli::helpers::resolve_skill_patterns(&patterns, &registry, true);
     match resolved {
         Ok(skills) => {
-            if source_match {
+            if patterns.len() == 1 && source_match {
                 if flags.quiet || !crate::prompt::is_interactive() {
                     anyhow::bail!(
                         "remove target '{}' is ambiguous. Use a fully qualified skill identity or `equip source remove {}`.",
