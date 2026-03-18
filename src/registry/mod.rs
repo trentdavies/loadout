@@ -294,7 +294,15 @@ pub fn is_glob(input: &str) -> bool {
 ///   in the full identity
 pub fn expand_pattern(input: &str) -> String {
     if input.contains(':') {
-        input.to_string()
+        if let Some((_source, rest)) = input.split_once(':') {
+            if rest.contains('/') {
+                input.to_string()
+            } else {
+                format!("{}/*", input)
+            }
+        } else {
+            input.to_string()
+        }
     } else if input.contains('/') {
         format!("*:{}", input)
     } else {
@@ -561,6 +569,13 @@ mod tests {
     }
 
     #[test]
+    fn expand_pattern_appends_slash_star_when_no_slash_after_colon() {
+        assert_eq!(expand_pattern("source:*"), "source:*/*");
+        assert_eq!(expand_pattern("source:plugin*"), "source:plugin*/*");
+        assert_eq!(expand_pattern("source:p/s"), "source:p/s");
+    }
+
+    #[test]
     fn expand_pattern_freeform_wraps_with_stars() {
         assert_eq!(expand_pattern("anthr*"), "*anthr*");
         assert_eq!(expand_pattern("*finan*"), "*finan*");
@@ -628,6 +643,16 @@ mod tests {
         let matches = reg.match_skills("alpha:*/*");
         assert_eq!(matches.len(), 2);
         assert!(matches.iter().all(|(s, _, _)| *s == "alpha"));
+    }
+
+    #[test]
+    fn match_skills_by_source_short_form() {
+        let reg = test_registry();
+        let short = reg.match_skills("alpha:*");
+        let full = reg.match_skills("alpha:*/*");
+        assert_eq!(short.len(), full.len());
+        assert_eq!(short.len(), 2);
+        assert!(short.iter().all(|(s, _, _)| *s == "alpha"));
     }
 
     #[test]
