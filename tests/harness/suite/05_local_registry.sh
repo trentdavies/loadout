@@ -85,8 +85,8 @@ test_skill_identity_ambiguous_error() {
 
 test_registry_cleared_on_source_remove() {
   "$LOADOUT" init >/dev/null 2>&1
-  "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source tp >/dev/null 2>&1
-  "$LOADOUT" remove tp --force >/dev/null 2>&1
+  "$LOADOUT" source add "$FIXTURES_DIR/full-source" --source tp >/dev/null 2>&1
+  "$LOADOUT" source remove tp --force >/dev/null 2>&1
   # Registry should no longer contain this source's entries
   if [ -f "$XDG_DATA_HOME/equip/.equip/registry.json" ]; then
     local content

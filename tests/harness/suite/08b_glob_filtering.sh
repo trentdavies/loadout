@@ -30,10 +30,10 @@ test_glob_list_by_plugin() {
 test_glob_list_by_source_qualified() {
   setup_source_and_agents
   local count
-  count=$("$LOADOUT" list --json "test-plugin:test-plugin/*" 2>/dev/null | jq 'length')
+  count=$("$LOADOUT" list --json "local:test-plugin/*" 2>/dev/null | jq 'length')
 
   if [ "$count" -eq 3 ]; then
-    _pass "list 'test-plugin:test-plugin/*' returns 3 skills"
+    _pass "list 'local:test-plugin/*' returns 3 skills"
   else
     _fail "source-qualified glob count wrong" "3" "$count"
   fi
@@ -41,13 +41,14 @@ test_glob_list_by_source_qualified() {
 
 test_glob_list_wrong_source() {
   setup_source_and_agents
-  local count
-  count=$("$LOADOUT" list --json "wrong-source:test-plugin/*" 2>/dev/null | jq 'length')
+  local output
+  output=$("$LOADOUT" list --json "wrong-source:test-plugin/*" 2>&1)
+  local exit_code=$?
 
-  if [ "$count" -eq 0 ]; then
-    _pass "glob with wrong source returns 0"
+  if [ "$exit_code" -ne 0 ] && echo "$output" | grep -qiE "no skill|no match"; then
+    _pass "glob with wrong source returns a no-match error"
   else
-    _fail "wrong source should return 0" "0" "$count"
+    _fail "wrong source should return a no-match error" "non-zero exit with no-match message" "$output"
   fi
 }
 
@@ -81,13 +82,14 @@ test_glob_list_question_mark() {
 
 test_glob_list_no_match() {
   setup_source_and_agents
-  local count
-  count=$("$LOADOUT" list --json "nonexistent/*" 2>/dev/null | jq 'length')
+  local output
+  output=$("$LOADOUT" list --json "nonexistent/*" 2>&1)
+  local exit_code=$?
 
-  if [ "$count" -eq 0 ]; then
-    _pass "nonexistent glob returns empty"
+  if [ "$exit_code" -ne 0 ] && echo "$output" | grep -qiE "no skill|no match"; then
+    _pass "nonexistent glob returns a no-match error"
   else
-    _fail "nonexistent glob should return 0" "0" "$count"
+    _fail "nonexistent glob should return a no-match error" "non-zero exit with no-match message" "$output"
   fi
 }
 
@@ -134,13 +136,14 @@ test_glob_freeform_skill_name() {
 
 test_glob_freeform_no_match() {
   setup_source_and_agents
-  local count
-  count=$("$LOADOUT" list --json "zzzzz*" 2>/dev/null | jq 'length')
+  local output
+  output=$("$LOADOUT" list --json "zzzzz*" 2>&1)
+  local exit_code=$?
 
-  if [ "$count" -eq 0 ]; then
-    _pass "freeform 'zzzzz*' returns empty"
+  if [ "$exit_code" -ne 0 ] && echo "$output" | grep -qiE "no skill|no match"; then
+    _pass "freeform 'zzzzz*' returns a no-match error"
   else
-    _fail "freeform should return 0" "0" "$count"
+    _fail "freeform should return a no-match error" "non-zero exit with no-match message" "$output"
   fi
 }
 

@@ -52,7 +52,7 @@ test_detect_plugin_directory() {
   "$LOADOUT" init >/dev/null 2>&1
   assert_exit_code 0 "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source plugged
   # Should detect plugin with 3 skills
-  assert_stdout_contains "test-plugin" "$LOADOUT" list
+  assert_stdout_contains "plugged" "$LOADOUT" list
   assert_stdout_contains "explore" "$LOADOUT" list
   assert_stdout_contains "apply" "$LOADOUT" list
   assert_stdout_contains "verify" "$LOADOUT" list
@@ -112,7 +112,7 @@ test_detect_name_derived_from_directory() {
 
 test_detect_plugin_json_metadata() {
   "$LOADOUT" init >/dev/null 2>&1
-  "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source meta-test >/dev/null 2>&1
+  "$LOADOUT" add "$FIXTURES_DIR/plugin-source" >/dev/null 2>&1
   # list <skill> should reflect metadata from plugin.json
   local output
   output=$("$LOADOUT" list test-plugin/explore 2>/dev/null)

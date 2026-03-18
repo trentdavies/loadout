@@ -101,8 +101,8 @@ test_05_list_shows_all_sources() {
 }
 
 test_06_update_all() {
-  log_cmd "$LOADOUT" update
-  assert_exit_code 0 "$LOADOUT" update
+  log_cmd "$LOADOUT" source update
+  assert_exit_code 0 "$LOADOUT" source update
 }
 
 test_07_cache_dirs_exist() {

@@ -9,6 +9,7 @@ WORKDIR /build
 
 # Copy manifests and source
 COPY Cargo.toml Cargo.loc[k] ./
+COPY build.rs ./
 COPY src/ ./src/
 
 # Build with persistent cargo caches (registry + target dir survive across builds)

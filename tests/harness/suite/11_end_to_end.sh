@@ -19,7 +19,7 @@ test_full_lifecycle() {
   assert_exit_code 0 "$LOADOUT" kit create lifecycle-kit
 
   # 5. Kit add skills
-  assert_exit_code 0 "$LOADOUT" kit add lifecycle-kit test-plugin/explore test-plugin/apply
+  assert_exit_code 0 "$LOADOUT" kit add lifecycle-kit lifecycle-src/explore lifecycle-src/apply
 
   # 6. Equip kit via shorthand
   assert_exit_code 0 "$LOADOUT" @lifecycle-agent +lifecycle-kit -f
@@ -43,7 +43,7 @@ test_full_lifecycle() {
 
   # 9. Re-equip, then equip a different kit
   "$LOADOUT" kit create lifecycle-kit-b >/dev/null 2>&1
-  "$LOADOUT" kit add lifecycle-kit-b test-plugin/verify >/dev/null 2>&1
+  "$LOADOUT" kit add lifecycle-kit-b lifecycle-src/verify >/dev/null 2>&1
   "$LOADOUT" @lifecycle-agent +lifecycle-kit -f >/dev/null 2>&1
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
 
@@ -54,9 +54,9 @@ test_full_lifecycle() {
   assert_file_not_exists "$TARGET_CLAUDE/skills/apply/SKILL.md"
   assert_file_exists "$TARGET_CLAUDE/skills/verify/SKILL.md"
 
-  # 10. Remove source (--force required)
+  # 10. Remove local skills from the imported plugin
   "$LOADOUT" @lifecycle-agent +lifecycle-kit-b -r -f >/dev/null 2>&1
-  assert_exit_code 0 "$LOADOUT" remove lifecycle-src --force
+  assert_exit_code 0 "$LOADOUT" remove lifecycle-src/* --force
 
   _pass "full lifecycle completed successfully"
 }
@@ -75,13 +75,13 @@ test_multi_source_lifecycle() {
   assert_stdout_contains "skill-one" "$LOADOUT" list
 
   # Equip from different sources via shorthand
-  assert_exit_code 0 "$LOADOUT" @tgt test-plugin/explore -f
+  assert_exit_code 0 "$LOADOUT" @tgt src-a/explore -f
   assert_exit_code 0 "$LOADOUT" @tgt test-plugin-a/skill-one -f
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_exists "$TARGET_CLAUDE/skills/skill-one/SKILL.md"
 
   # Unequip one
-  "$LOADOUT" @tgt test-plugin/explore -r -f >/dev/null 2>&1
+  "$LOADOUT" @tgt src-a/explore -r -f >/dev/null 2>&1
   assert_file_not_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_exists "$TARGET_CLAUDE/skills/skill-one/SKILL.md"
 
@@ -97,13 +97,13 @@ test_multi_agent_lifecycle() {
   "$LOADOUT" agent add codex "$TARGET_CODEX" --name tgt-codex --scope machine --sync auto >/dev/null 2>&1
 
   # Equip same skill to both agents
-  "$LOADOUT" @tgt-claude test-plugin/explore -f >/dev/null 2>&1
-  "$LOADOUT" @tgt-codex test-plugin/explore -f >/dev/null 2>&1
+  "$LOADOUT" @tgt-claude src/explore -f >/dev/null 2>&1
+  "$LOADOUT" @tgt-codex src/explore -f >/dev/null 2>&1
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_exists "$TARGET_CODEX/skills/explore/SKILL.md"
 
   # Unequip from one, verify other is untouched
-  "$LOADOUT" @tgt-claude test-plugin/explore -r -f >/dev/null 2>&1
+  "$LOADOUT" @tgt-claude src/explore -r -f >/dev/null 2>&1
   assert_file_not_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
   assert_file_exists "$TARGET_CODEX/skills/explore/SKILL.md"
 
@@ -119,9 +119,9 @@ test_kit_swap_lifecycle() {
 
   # Create kits
   "$LOADOUT" kit create dev-kit >/dev/null 2>&1
-  "$LOADOUT" kit add dev-kit test-plugin/explore test-plugin/apply >/dev/null 2>&1
+  "$LOADOUT" kit add dev-kit src/explore src/apply >/dev/null 2>&1
   "$LOADOUT" kit create prod-kit >/dev/null 2>&1
-  "$LOADOUT" kit add prod-kit test-plugin/verify >/dev/null 2>&1
+  "$LOADOUT" kit add prod-kit src/verify >/dev/null 2>&1
 
   # Equip dev
   "$LOADOUT" @tgt +dev-kit -f >/dev/null 2>&1
@@ -157,14 +157,14 @@ test_idempotent_operations_lifecycle() {
   "$LOADOUT" agent add claude "$TARGET_CLAUDE" --name tgt --scope machine --sync auto >/dev/null 2>&1
 
   # Equip same skill twice — should succeed both times
-  "$LOADOUT" @tgt test-plugin/explore -f >/dev/null 2>&1
-  assert_exit_code 0 "$LOADOUT" @tgt test-plugin/explore -f
+  "$LOADOUT" @tgt src/explore -f >/dev/null 2>&1
+  assert_exit_code 0 "$LOADOUT" @tgt src/explore -f
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
 
   # Unequip twice — second should not error
-  "$LOADOUT" @tgt test-plugin/explore -r -f >/dev/null 2>&1
+  "$LOADOUT" @tgt src/explore -r -f >/dev/null 2>&1
   local output
-  output=$("$LOADOUT" @tgt test-plugin/explore -r -f 2>&1)
+  output=$("$LOADOUT" @tgt src/explore -r -f 2>&1)
   local exit_code=$?
   if [ "$exit_code" -eq 0 ]; then
     _pass "idempotent unequip succeeds"
@@ -182,7 +182,7 @@ test_dry_run_lifecycle() {
   "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source src >/dev/null 2>&1
   "$LOADOUT" agent add claude "$TARGET_CLAUDE" --name tgt --scope machine --sync auto >/dev/null 2>&1
   "$LOADOUT" kit create dry-kit >/dev/null 2>&1
-  "$LOADOUT" kit add dry-kit test-plugin/explore test-plugin/apply >/dev/null 2>&1
+  "$LOADOUT" kit add dry-kit src/explore src/apply >/dev/null 2>&1
 
   # Dry run equip — nothing should be written
   assert_exit_code 0 "$LOADOUT" -n @tgt +dry-kit -f
@@ -212,26 +212,26 @@ test_cleanup_lifecycle() {
   "$LOADOUT" agent add claude "$TARGET_CLAUDE" --name tgt --scope machine --sync auto >/dev/null 2>&1
 
   # Equip some skills
-  "$LOADOUT" @tgt test-plugin/explore -f >/dev/null 2>&1
-  "$LOADOUT" @tgt test-plugin/apply -f >/dev/null 2>&1
+  "$LOADOUT" @tgt src/explore -f >/dev/null 2>&1
+  "$LOADOUT" @tgt src/apply -f >/dev/null 2>&1
 
   # Unequip everything
-  "$LOADOUT" @tgt test-plugin/explore -r -f >/dev/null 2>&1
-  "$LOADOUT" @tgt test-plugin/apply -r -f >/dev/null 2>&1
+  "$LOADOUT" @tgt src/explore -r -f >/dev/null 2>&1
+  "$LOADOUT" @tgt src/apply -r -f >/dev/null 2>&1
 
   # Remove agent
   "$LOADOUT" agent remove tgt --force >/dev/null 2>&1
 
-  # Remove source
-  "$LOADOUT" remove src --force >/dev/null 2>&1
+  # Remove all local skills from the imported plugin
+  "$LOADOUT" remove src/* --force >/dev/null 2>&1
 
-  # Verify sources are gone
+  # Verify local skills are gone
   local list_output
   list_output=$("$LOADOUT" list 2>/dev/null)
-  if echo "$list_output" | grep -qF "src"; then
-    _fail "source still listed after remove" "src absent" "still present"
+  if echo "$list_output" | grep -qF "src/"; then
+    _fail "local plugin skills still listed after remove" "src/* absent" "still present"
   else
-    _pass "sources cleaned up"
+    _pass "local skills cleaned up"
   fi
 
   local agent_output
@@ -252,7 +252,7 @@ test_error_recovery_lifecycle() {
 
   # Try equipping a nonexistent skill — should fail
   local output
-  output=$("$LOADOUT" @tgt test-plugin/nonexistent -f 2>&1)
+  output=$("$LOADOUT" @tgt src/nonexistent -f 2>&1)
   local exit_code=$?
   if [ "$exit_code" -ne 0 ]; then
     _pass "nonexistent skill equip fails"
@@ -261,7 +261,7 @@ test_error_recovery_lifecycle() {
   fi
 
   # After an error, valid operations should still work
-  assert_exit_code 0 "$LOADOUT" @tgt test-plugin/explore -f
+  assert_exit_code 0 "$LOADOUT" @tgt src/explore -f
   assert_file_exists "$TARGET_CLAUDE/skills/explore/SKILL.md"
 
   _pass "error recovery lifecycle completed"

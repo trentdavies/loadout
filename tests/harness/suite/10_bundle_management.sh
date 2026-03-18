@@ -124,7 +124,7 @@ test_bundle_drop_skill() {
   "$LOADOUT" kit create work >/dev/null 2>&1
   "$LOADOUT" kit add work test-plugin/explore test-plugin/apply >/dev/null 2>&1
   # kit stores fully qualified IDs: source:plugin/skill
-  assert_exit_code 0 "$LOADOUT" kit drop work test-plugin:test-plugin/explore
+  assert_exit_code 0 "$LOADOUT" kit drop work local:test-plugin/explore
   local output
   output=$("$LOADOUT" kit show work 2>/dev/null)
   if echo "$output" | grep -qF "explore"; then

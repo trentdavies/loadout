@@ -31,16 +31,16 @@ test_skill_list_empty_registry() {
 test_skill_show() {
   "$LOADOUT" init >/dev/null 2>&1
   "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source src >/dev/null 2>&1
-  assert_exit_code 0 "$LOADOUT" list test-plugin/explore
-  assert_stdout_contains "explore" "$LOADOUT" list test-plugin/explore
-  assert_stdout_contains "Description" "$LOADOUT" list test-plugin/explore
+  assert_exit_code 0 "$LOADOUT" list src/explore
+  assert_stdout_contains "explore" "$LOADOUT" list src/explore
+  assert_stdout_contains "Description" "$LOADOUT" list src/explore
 }
 
 test_skill_show_displays_source_info() {
   "$LOADOUT" init >/dev/null 2>&1
   "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source src >/dev/null 2>&1
   local output
-  output=$("$LOADOUT" list test-plugin/explore 2>/dev/null)
+  output=$("$LOADOUT" list src/explore 2>/dev/null)
   # Should show source and plugin context
   if echo "$output" | grep -qiE "src|test-plugin|plugin"; then
     _pass "list <name> displays source/plugin context"
@@ -54,7 +54,7 @@ test_skill_show_nonexistent() {
   "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source src >/dev/null 2>&1
   # Nonexistent skill: exits 0 with "no skills matched" message
   local output
-  output=$("$LOADOUT" list test-plugin/nonexistent 2>&1)
+  output=$("$LOADOUT" list src/nonexistent 2>&1)
   if echo "$output" | grep -qiE "no skill|not found|no match"; then
     _pass "nonexistent skill returns informational message"
   else

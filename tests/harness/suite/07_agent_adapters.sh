@@ -67,13 +67,13 @@ TOML
   local custom_target="/tmp/test-targets/custom"
   mkdir -p "$custom_target"
   "$LOADOUT" agent add custom-agent "$custom_target" --name test-custom >/dev/null 2>&1
-  "$LOADOUT" @test-custom test-plugin/explore -f >/dev/null 2>&1
+  "$LOADOUT" @test-custom tp/explore -f >/dev/null 2>&1
 
   # Should use the custom path template
   assert_file_exists "$custom_target/prompts/explore/SKILL.md"
 
   # copy_dirs is empty, so scripts should NOT be copied
-  "$LOADOUT" @test-custom test-plugin/apply -f >/dev/null 2>&1
+  "$LOADOUT" @test-custom tp/apply -f >/dev/null 2>&1
   assert_file_exists "$custom_target/prompts/apply/SKILL.md"
   assert_file_not_exists "$custom_target/prompts/apply/scripts"
 
