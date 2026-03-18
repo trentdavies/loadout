@@ -61,6 +61,7 @@ fn make_registered_source(
 ) -> RegisteredSource {
     RegisteredSource {
         name: name.to_string(),
+        display_name: None,
         url: String::new(),
         plugins,
         cache_path,

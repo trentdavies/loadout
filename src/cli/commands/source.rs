@@ -3,6 +3,16 @@ use colored::Colorize;
 use crate::cli::flags::Flags;
 use crate::cli::helpers::{extract_domain, load_context, resolve_skill_patterns};
 
+enum AddedSourceSummary {
+    External { source_name: String },
+    Local(crate::source::LocalImport),
+}
+
+struct StagedParsedSource {
+    parsed: crate::source::ParsedSource,
+    _temp_dir: Option<tempfile::TempDir>,
+}
+
 pub(crate) fn run_add(
     url: String,
     source: Option<String>,
@@ -24,202 +34,310 @@ pub(crate) fn run_add(
     let data_dir = crate::config::data_dir();
 
     let source_url = crate::source::SourceUrl::parse(&url)?;
-    let default_source = source_url.default_name();
-    let source_name = if let Some(s) = source {
-        s
-    } else {
-        crate::prompt::confirm_or_override("Source name", &default_source, flags.quiet)
-    };
+    let effective_ref = r#ref.as_deref().or_else(|| source_url.tree_ref());
+    let staged = stage_source_for_parse(&source_url, effective_ref, &data_dir)?;
+    let residence = crate::source::source_kind_residence(staged.parsed.kind);
 
-    if source_name == "local" {
-        anyhow::bail!("'local' is reserved for the local plugin source. Use --source to choose a different name.");
-    }
+    let source_name = match residence {
+        crate::config::SourceResidence::External => {
+            let default_source = source_url.default_name();
+            let source_name = if let Some(s) = source.clone() {
+                s
+            } else {
+                crate::prompt::confirm_or_override("Source name", &default_source, flags.quiet)
+            };
 
-    if config.source.iter().any(|s| s.name == source_name) {
-        anyhow::bail!(
-            "source '{}' already exists. Use --source to choose a different alias.",
+            if source_name == "local" {
+                anyhow::bail!(
+                    "'local' is reserved for the local plugin source. Use --source to choose a different name."
+                );
+            }
+
+            if config.source.iter().any(|existing| existing.name == source_name) {
+                anyhow::bail!(
+                    "source '{}' already exists. Use --source to choose a different alias.",
+                    source_name
+                );
+            }
+
             source_name
-        );
-    }
-
-    let residence = crate::source::default_source_residence();
-    let cache_path = crate::source::source_storage_path(&source_name, residence);
-
-    // Determine fetch mode for local directory sources
-    let use_symlink = match &source_url {
-        crate::source::SourceUrl::Local(path) if path.is_dir() => {
-            if symlink {
-                true
-            } else if copy {
-                false
-            } else {
-                crate::prompt::prompt_fetch_mode(flags.quiet) == "symlink"
-            }
         }
-        _ => false,
+        crate::config::SourceResidence::Local => "local".to_string(),
     };
 
-    if !flags.dry_run {
-        // Use tree ref from URL when no explicit --ref provided
-        let effective_ref = r#ref.as_deref().or_else(|| source_url.tree_ref());
-        if !flags.quiet {
-            let action = match &source_url {
-                crate::source::SourceUrl::Git(url, _) => format!("Cloning {}", url.dimmed()),
-                crate::source::SourceUrl::Local(path) if use_symlink => {
-                    format!("Linking {}", path.display().to_string().dimmed())
-                }
-                crate::source::SourceUrl::Local(path) => {
-                    format!("Copying {}", path.display().to_string().dimmed())
-                }
-                crate::source::SourceUrl::Archive(path) => {
-                    format!("Extracting {}", path.display().to_string().dimmed())
-                }
-            };
-            eprintln!("{}", action);
-        }
+    let overrides = prompt_add_overrides(
+        &staged.parsed,
+        source.clone(),
+        plugin,
+        skill,
+        residence,
+        flags,
+    );
+    let norm_overrides = crate::source::normalize::Overrides {
+        plugin: overrides.0.as_deref(),
+        skill: overrides.1.as_deref(),
+    };
 
-        crate::source::fetch::fetch_with_mode(
-            &source_url,
-            &cache_path,
-            effective_ref,
-            use_symlink,
-        )?;
-
-        let parsed = crate::source::ParsedSource::parse(&crate::source::detect_path(
-            &source_url,
-            &cache_path,
-        ))?
-        .with_source_name(&source_name)
-        .with_url(source_url.url_string());
-
-        let overrides = {
-            let plugin_override: Option<String> = if plugin.is_some() {
-                plugin
-            } else if let Some(default_plugin) = parsed.prompt_plugin_name() {
-                let confirmed =
-                    crate::prompt::confirm_or_override("Plugin name", default_plugin, flags.quiet);
-                if confirmed != default_plugin {
-                    Some(confirmed)
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-
-            let skill_override: Option<String> = if skill.is_some() {
-                skill
-            } else if let Some(default_skill) = parsed.prompt_skill_name() {
-                let confirmed =
-                    crate::prompt::confirm_or_override("Skill name", default_skill, flags.quiet);
-                if confirmed != default_skill {
-                    Some(confirmed)
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-
-            (plugin_override, skill_override)
-        };
-
-        let norm_overrides = crate::source::normalize::Overrides {
-            plugin: overrides.0.as_deref(),
-            skill: overrides.1.as_deref(),
-        };
-
-        let mut registered = crate::source::normalize::normalize_with(&parsed, &norm_overrides)?;
-        registered.residence = residence;
-        let prepared = crate::source::PreparedSource {
-            config: crate::source::build_source_config(
-                &source_name,
-                &source_url,
-                r#ref.clone(),
-                if use_symlink {
-                    Some("symlink".to_string())
-                } else {
-                    None
-                },
-                residence,
-            ),
-            registered,
-        };
-
-        // In non-interactive/quiet mode, show what was resolved
-        if !flags.quiet && !crate::prompt::is_interactive() {
-            for p in &prepared.registered.plugins {
-                for s in &p.skills {
-                    eprintln!(
-                        "resolved: {}",
-                        crate::output::plain_identity(&source_name, &p.name, &s.name)
-                    );
-                }
-            }
-        }
-
-        let mut registry = crate::registry::load_registry(&data_dir)?;
-        crate::source::persist_prepared_source(&mut config, &mut registry, prepared);
-        crate::registry::save_registry(&registry, &data_dir)?;
-        crate::config::save(&config, config_path_str)?;
-    }
-
-    if !flags.quiet {
-        // Load the registered source back to get plugin/skill counts
-        let data_dir = crate::config::data_dir();
-        let reg = crate::registry::load_registry(&data_dir)?;
-        if let Some(src) = reg.sources.iter().find(|s| s.name == source_name) {
-            let plugin_count = src.plugins.len();
-            let skill_count: usize = src.plugins.iter().map(|p| p.skills.len()).sum();
-
-            println!(
-                "{} Added source {} {} {}",
-                "✓".green(),
-                source_name.bold(),
-                format!(
-                    "({} plugin{}, {} skill{})",
-                    plugin_count,
-                    if plugin_count == 1 { "" } else { "s" },
-                    skill_count,
-                    if skill_count == 1 { "" } else { "s" },
-                )
-                .dimmed(),
-                if let Some(r) = &r#ref {
-                    format!("@ {}", r.cyan())
-                } else {
-                    String::new()
-                },
-            );
-
-            if flags.verbose {
-                for p in &src.plugins {
-                    println!("  {} {}", "├──".dimmed(), p.name.green());
-                    for (i, s) in p.skills.iter().enumerate() {
-                        let connector = if i == p.skills.len() - 1 {
-                            "└──"
+    let added = if flags.dry_run {
+        None
+    } else {
+        Some(match residence {
+            crate::config::SourceResidence::External => {
+                let cache_path = crate::source::source_storage_path(&source_name, residence);
+                let use_symlink = match &source_url {
+                    crate::source::SourceUrl::Local(path) if path.is_dir() => {
+                        if symlink {
+                            true
+                        } else if copy {
+                            false
                         } else {
-                            "├──"
-                        };
-                        let desc = s.description.as_deref().unwrap_or("");
-                        if desc.is_empty() {
-                            println!("  {}   {} {}", "│".dimmed(), connector.dimmed(), s.name);
-                        } else {
-                            println!(
-                                "  {}   {} {} {}",
-                                "│".dimmed(),
-                                connector.dimmed(),
-                                s.name,
-                                format!("— {}", desc).dimmed(),
+                            crate::prompt::prompt_fetch_mode(flags.quiet) == "symlink"
+                        }
+                    }
+                    _ => false,
+                };
+
+                if !flags.quiet {
+                    let action = match &source_url {
+                        crate::source::SourceUrl::Git(url, _) => format!("Cloning {}", url.dimmed()),
+                        crate::source::SourceUrl::Local(path) if use_symlink => {
+                            format!("Linking {}", path.display().to_string().dimmed())
+                        }
+                        crate::source::SourceUrl::Local(path) => {
+                            format!("Copying {}", path.display().to_string().dimmed())
+                        }
+                        crate::source::SourceUrl::Archive(path) => {
+                            format!("Extracting {}", path.display().to_string().dimmed())
+                        }
+                    };
+                    eprintln!("{}", action);
+                }
+
+                crate::source::fetch::fetch_with_mode(
+                    &source_url,
+                    &cache_path,
+                    effective_ref,
+                    use_symlink,
+                )?;
+
+                let prepared = crate::source::prepare_source(
+                    &source_name,
+                    &source_url,
+                    &cache_path,
+                    r#ref.clone(),
+                    if use_symlink {
+                        Some("symlink".to_string())
+                    } else {
+                        None
+                    },
+                    residence,
+                    &norm_overrides,
+                )?;
+
+                if !flags.quiet && !crate::prompt::is_interactive() {
+                    for plugin in &prepared.registered.plugins {
+                        for skill in &plugin.skills {
+                            eprintln!(
+                                "resolved: {}",
+                                crate::output::plain_identity(
+                                    &source_name,
+                                    &plugin.name,
+                                    &skill.name
+                                )
                             );
                         }
                     }
                 }
+
+                let mut registry = crate::registry::load_registry(&data_dir)?;
+                crate::source::persist_prepared_source(&mut config, &mut registry, prepared);
+                crate::registry::save_registry(&registry, &data_dir)?;
+                crate::config::save(&config, config_path_str)?;
+
+                AddedSourceSummary::External { source_name }
             }
-        } else {
-            println!("{} Added source {}", "✓".green(), source_name.bold());
+            crate::config::SourceResidence::Local => {
+                let imported =
+                    crate::source::import_into_local_source(&staged.parsed, &norm_overrides, &data_dir)?;
+
+                if !flags.quiet && !crate::prompt::is_interactive() {
+                    for plugin in &imported.plugins {
+                        for skill in &plugin.skills {
+                            eprintln!(
+                                "resolved: {}",
+                                crate::output::plain_identity(
+                                    &imported.source_name,
+                                    &plugin.name,
+                                    &skill.name
+                                )
+                            );
+                        }
+                    }
+                }
+
+                let registry =
+                    crate::cli::helpers::load_effective_registry(&config, &data_dir, flags.quiet)?;
+                crate::registry::save_registry(&registry, &data_dir)?;
+
+                AddedSourceSummary::Local(imported)
+            }
+        })
+    };
+
+    if !flags.quiet {
+        match added {
+            Some(AddedSourceSummary::External { source_name }) => {
+                let reg = crate::registry::load_registry(&data_dir)?;
+                if let Some(src) = reg.sources.iter().find(|s| s.name == source_name) {
+                    print_add_summary(
+                        &format!("Added source {}", source_name.bold()),
+                        &src.plugins,
+                        r#ref.as_deref(),
+                        flags.verbose,
+                    );
+                } else {
+                    println!("{} Added source {}", "✓".green(), source_name.bold());
+                }
+            }
+            Some(AddedSourceSummary::Local(imported)) => {
+                let label = imported.display_name.as_deref().unwrap_or("local");
+                let heading = if label == "local" {
+                    "Imported into local source".to_string()
+                } else {
+                    format!("Imported into local source {}", format!("({label})").dimmed())
+                };
+                print_add_summary(&heading, &imported.plugins, None, flags.verbose);
+            }
+            None => {}
         }
     }
     Ok(())
+}
+
+fn stage_source_for_parse(
+    source_url: &crate::source::SourceUrl,
+    git_ref: Option<&str>,
+    data_dir: &std::path::Path,
+) -> anyhow::Result<StagedParsedSource> {
+    match source_url {
+        crate::source::SourceUrl::Local(path) => Ok(StagedParsedSource {
+            parsed: crate::source::ParsedSource::parse(&crate::source::detect_path(source_url, path))?,
+            _temp_dir: None,
+        }),
+        crate::source::SourceUrl::Git(..) | crate::source::SourceUrl::Archive(..) => {
+            let temp_dir = tempfile::Builder::new()
+                .prefix("equip-add-")
+                .tempdir_in(crate::config::internal_dir().parent().unwrap_or(data_dir))?;
+            let staged_root = temp_dir.path().join("source");
+            crate::source::fetch::fetch(source_url, &staged_root, git_ref)?;
+            Ok(StagedParsedSource {
+                parsed: crate::source::ParsedSource::parse(&crate::source::detect_path(
+                    source_url,
+                    &staged_root,
+                ))?,
+                _temp_dir: Some(temp_dir),
+            })
+        }
+    }
+}
+
+fn prompt_add_overrides(
+    parsed: &crate::source::ParsedSource,
+    source: Option<String>,
+    plugin: Option<String>,
+    skill: Option<String>,
+    residence: crate::config::SourceResidence,
+    flags: &Flags,
+) -> (Option<String>, Option<String>) {
+    let source_as_plugin = if residence == crate::config::SourceResidence::Local {
+        source
+    } else {
+        None
+    };
+
+    let plugin_override = if let Some(plugin) = plugin {
+        Some(plugin)
+    } else if let Some(source_plugin) = source_as_plugin {
+        Some(source_plugin)
+    } else if let Some(default_plugin) = parsed.prompt_plugin_name() {
+        let confirmed = crate::prompt::confirm_or_override("Plugin name", default_plugin, flags.quiet);
+        if confirmed != default_plugin {
+            Some(confirmed)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let skill_override = if let Some(skill) = skill {
+        Some(skill)
+    } else if let Some(default_skill) = parsed.prompt_skill_name() {
+        let confirmed = crate::prompt::confirm_or_override("Skill name", default_skill, flags.quiet);
+        if confirmed != default_skill {
+            Some(confirmed)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    (plugin_override, skill_override)
+}
+
+fn print_add_summary(
+    heading: &str,
+    plugins: &[crate::registry::RegisteredPlugin],
+    git_ref: Option<&str>,
+    verbose: bool,
+) {
+    let plugin_count = plugins.len();
+    let skill_count: usize = plugins.iter().map(|plugin| plugin.skills.len()).sum();
+
+    println!(
+        "{} {} {} {}",
+        "✓".green(),
+        heading,
+        format!(
+            "({} plugin{}, {} skill{})",
+            plugin_count,
+            if plugin_count == 1 { "" } else { "s" },
+            skill_count,
+            if skill_count == 1 { "" } else { "s" },
+        )
+        .dimmed(),
+        git_ref
+            .map(|value| format!("@ {}", value.cyan()))
+            .unwrap_or_default(),
+    );
+
+    if !verbose {
+        return;
+    }
+
+    for plugin in plugins {
+        println!("  {} {}", "├──".dimmed(), plugin.name.green());
+        for (index, skill) in plugin.skills.iter().enumerate() {
+            let connector = if index == plugin.skills.len() - 1 {
+                "└──"
+            } else {
+                "├──"
+            };
+            let desc = skill.description.as_deref().unwrap_or("");
+            if desc.is_empty() {
+                println!("  {}   {} {}", "│".dimmed(), connector.dimmed(), skill.name);
+            } else {
+                println!(
+                    "  {}   {} {} {}",
+                    "│".dimmed(),
+                    connector.dimmed(),
+                    skill.name,
+                    format!("— {}", desc).dimmed(),
+                );
+            }
+        }
+    }
 }
 
 pub(crate) fn run_list(

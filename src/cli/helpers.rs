@@ -16,6 +16,7 @@ pub(crate) struct CommandContext {
     pub config: crate::config::Config,
     pub registry: crate::registry::Registry,
     pub data_dir: std::path::PathBuf,
+    pub source_labels: std::collections::BTreeMap<String, String>,
 }
 
 pub(crate) struct ApplySelection {
@@ -104,22 +105,77 @@ pub(crate) fn resolve_skills_for_bundle(
 pub(crate) fn load_context(flags: &crate::cli::flags::Flags) -> anyhow::Result<CommandContext> {
     let config = crate::config::load(flags.config_path())?;
     let data_dir = crate::config::data_dir();
-    let mut registry = crate::registry::load_registry(&data_dir)?;
-    let renames = crate::registry::reconcile_with_config(&mut registry, &config.source, &data_dir)?;
+    let registry = load_effective_registry(&config, &data_dir, flags.quiet)?;
+    let source_labels = build_source_labels(&registry, &data_dir);
+
+    Ok(CommandContext {
+        config,
+        registry,
+        data_dir,
+        source_labels,
+    })
+}
+
+pub(crate) fn load_effective_registry(
+    config: &crate::config::Config,
+    data_dir: &std::path::Path,
+    quiet: bool,
+) -> anyhow::Result<crate::registry::Registry> {
+    let mut registry = crate::registry::load_registry(data_dir)?;
+    let renames = crate::registry::reconcile_with_config(&mut registry, &config.source, data_dir)?;
     if !renames.is_empty() {
-        crate::registry::save_registry(&registry, &data_dir)?;
-        if !flags.quiet {
+        crate::registry::save_registry(&registry, data_dir)?;
+        if !quiet {
             for rename in &renames {
                 eprintln!("source reconciled: {}", rename);
             }
         }
     }
 
-    Ok(CommandContext {
-        config,
-        registry,
-        data_dir,
-    })
+    merge_local_source(&mut registry, data_dir)?;
+    Ok(registry)
+}
+
+fn merge_local_source(
+    registry: &mut crate::registry::Registry,
+    data_dir: &std::path::Path,
+) -> anyhow::Result<()> {
+    registry.sources.retain(|source| source.name != "local");
+
+    let parsed = match crate::source::ParsedSource::parse(data_dir) {
+        Ok(parsed) => parsed,
+        Err(_) => return Ok(()),
+    };
+    if parsed.kind != crate::source::SourceKind::Marketplace {
+        return Ok(());
+    }
+
+    let mut local_source = crate::source::normalize::normalize(
+        &parsed.with_source_name("local").with_url(""),
+    )?;
+    local_source.name = "local".to_string();
+    local_source.url.clear();
+    local_source.residence = crate::config::SourceResidence::Local;
+    registry.sources.push(local_source);
+    Ok(())
+}
+
+fn build_source_labels(
+    registry: &crate::registry::Registry,
+    _data_dir: &std::path::Path,
+) -> std::collections::BTreeMap<String, String> {
+    let mut labels = std::collections::BTreeMap::new();
+    for source in &registry.sources {
+        labels.insert(
+            source.name.clone(),
+            source
+                .display_name
+                .clone()
+                .unwrap_or_else(|| source.name.clone()),
+        );
+    }
+
+    labels
 }
 
 pub(crate) fn parse_apply_selection(
@@ -616,64 +672,97 @@ pub(crate) fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> anyh
 
 /// Generate .claude-plugin/marketplace.json from plugin directories in the data dir root.
 pub(crate) fn generate_marketplace(data_dir: &std::path::Path) -> anyhow::Result<()> {
-    /// Directories in the data dir that are infrastructure, not plugins.
-    const SKIP_DIRS: &[&str] = &["external"];
+    crate::marketplace::generate_local_manifest(data_dir)
+}
 
-    let mut plugins = Vec::new();
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
 
-    if data_dir.is_dir() {
-        let mut entries: Vec<_> = std::fs::read_dir(data_dir)?
-            .filter_map(|e| e.ok())
-            .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
-            .collect();
-        entries.sort_by_key(|e| e.file_name());
-
-        for entry in entries {
-            let dir_name = entry.file_name().to_string_lossy().to_string();
-            if dir_name.starts_with('.') || SKIP_DIRS.contains(&dir_name.as_str()) {
-                continue;
-            }
-
-            // Only include directories that look like plugins (have skills/ or .claude-plugin/)
-            let has_plugin_marker = entry.path().join(".claude-plugin").is_dir();
-            let has_skills = entry.path().join("skills").is_dir();
-            if !has_plugin_marker && !has_skills {
-                continue;
-            }
-
-            let plugin_json = entry.path().join(".claude-plugin/plugin.json");
-            let (name, description) = if plugin_json.exists() {
-                if let Ok(manifest) = crate::source::manifest::load_plugin_manifest(&plugin_json) {
-                    (manifest.name, manifest.description)
-                } else {
-                    (dir_name.clone(), None)
-                }
-            } else {
-                (dir_name.clone(), None)
-            };
-
-            let mut plugin_entry = serde_json::json!({
-                "name": name,
-                "source": format!("./{}", dir_name),
-            });
-            if let Some(desc) = description {
-                plugin_entry["description"] = serde_json::Value::String(desc);
-            }
-            plugins.push(plugin_entry);
-        }
+    fn make_skill(dir: &std::path::Path, name: &str) {
+        let skill_dir = dir.join("skills").join(name);
+        fs::create_dir_all(&skill_dir).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            format!("---\nname: {}\ndescription: desc\n---\nbody", name),
+        )
+        .unwrap();
     }
 
-    let marketplace = serde_json::json!({
-        "name": "equip-marketplace",
-        "plugins": plugins,
-    });
+    fn make_plugin(dir: &std::path::Path, name: &str) {
+        let plugin_dir = dir.join(name);
+        fs::create_dir_all(plugin_dir.join(".claude-plugin")).unwrap();
+        fs::write(
+            plugin_dir.join(".claude-plugin/plugin.json"),
+            format!(r#"{{"name":"{}"}}"#, name),
+        )
+        .unwrap();
+        make_skill(&plugin_dir, "skill-a");
+    }
 
-    let cp_dir = data_dir.join(".claude-plugin");
-    std::fs::create_dir_all(&cp_dir)?;
-    std::fs::write(
-        cp_dir.join("marketplace.json"),
-        serde_json::to_string_pretty(&marketplace)?,
-    )?;
+    #[test]
+    fn load_effective_registry_includes_local_source() {
+        let tmp = TempDir::new().unwrap();
+        make_plugin(tmp.path(), "tools");
+        fs::create_dir_all(tmp.path().join(".claude-plugin")).unwrap();
+        fs::write(
+            tmp.path().join(".claude-plugin/marketplace.json"),
+            r#"{"name":"Team Skills","plugins":[{"name":"tools","source":"./tools"}]}"#,
+        )
+        .unwrap();
 
-    Ok(())
+        let registry = load_effective_registry(&crate::config::Config::default(), tmp.path(), true)
+            .unwrap();
+        let local = registry
+            .sources
+            .iter()
+            .find(|source| source.name == "local")
+            .unwrap();
+
+        assert_eq!(local.residence, crate::config::SourceResidence::Local);
+        assert_eq!(local.plugins.len(), 1);
+        assert_eq!(local.plugins[0].name, "tools");
+        assert_eq!(local.plugins[0].skills[0].name, "skill-a");
+    }
+
+    #[test]
+    fn build_source_labels_uses_local_marketplace_name() {
+        let tmp = TempDir::new().unwrap();
+        make_plugin(tmp.path(), "tools");
+        fs::create_dir_all(tmp.path().join(".claude-plugin")).unwrap();
+        fs::write(
+            tmp.path().join(".claude-plugin/marketplace.json"),
+            r#"{"name":"Pretty Local","plugins":[{"name":"tools","source":"./tools"}]}"#,
+        )
+        .unwrap();
+
+        let registry = load_effective_registry(&crate::config::Config::default(), tmp.path(), true)
+            .unwrap();
+        let labels = build_source_labels(&registry, tmp.path());
+
+        assert_eq!(labels.get("local").map(String::as_str), Some("Pretty Local"));
+    }
+
+    #[test]
+    fn generate_marketplace_preserves_existing_name() {
+        let tmp = TempDir::new().unwrap();
+        make_plugin(tmp.path(), "tools");
+        fs::create_dir_all(tmp.path().join(".claude-plugin")).unwrap();
+        fs::write(
+            tmp.path().join(".claude-plugin/marketplace.json"),
+            r#"{"name":"Shared Skills","plugins":[]}"#,
+        )
+        .unwrap();
+
+        generate_marketplace(tmp.path()).unwrap();
+
+        let manifest =
+            crate::source::manifest::load_marketplace(&tmp.path().join(".claude-plugin/marketplace.json"))
+                .unwrap();
+        assert_eq!(manifest.name, "Shared Skills");
+        assert_eq!(manifest.plugins.len(), 1);
+        assert_eq!(manifest.plugins[0].name, "tools");
+    }
 }

@@ -113,6 +113,7 @@ pub fn normalize_with(parsed: &ParsedSource, overrides: &Overrides) -> Result<Re
 
     Ok(RegisteredSource {
         name: parsed.source_name.clone(),
+        display_name: parsed.display_name.clone(),
         url: parsed.url.clone().unwrap_or_default(),
         plugins,
         cache_path: parsed.path.clone(),

@@ -37,6 +37,7 @@ fn setup_test_env() -> (TempDir, TempDir, Registry, Config) {
     let mut registry = Registry::default();
     registry.sources.push(RegisteredSource {
         name: "test-source".to_string(),
+        display_name: None,
         url: String::new(),
         plugins: vec![RegisteredPlugin {
             name: "test-plugin".to_string(),

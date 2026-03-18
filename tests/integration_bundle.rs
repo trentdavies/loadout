@@ -44,6 +44,7 @@ fn make_registry_with_skills(
     let mut registry = equip::registry::Registry::default();
     registry.sources.push(equip::registry::RegisteredSource {
         name: "src".to_string(),
+        display_name: None,
         url: String::new(),
         plugins: vec![equip::registry::RegisteredPlugin {
             name: "plug".to_string(),

@@ -264,6 +264,7 @@ fn full_install_uninstall_lifecycle() {
     let mut registry = equip::registry::Registry::default();
     registry.sources.push(equip::registry::RegisteredSource {
         name: "test-src".to_string(),
+        display_name: None,
         url: String::new(),
         plugins: vec![equip::registry::RegisteredPlugin {
             name: "test-plugin".to_string(),

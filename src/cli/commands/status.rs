@@ -7,6 +7,7 @@ pub(crate) fn run(flags: &Flags) -> anyhow::Result<()> {
     let ctx = load_context(flags)?;
     let config = ctx.config;
     let registry = ctx.registry;
+    let source_labels = ctx.source_labels;
 
     // Count installed skills across agents
     let mut total_installed = 0;
@@ -28,7 +29,7 @@ pub(crate) fn run(flags: &Flags) -> anyhow::Result<()> {
 
     if flags.json {
         let json = serde_json::json!({
-            "sources": config.source.len(),
+            "sources": registry.sources.len(),
             "agents": config.agent.len(),
             "plugins": registry.sources.iter().flat_map(|s| &s.plugins).count(),
             "skills": total_skills,
@@ -43,18 +44,24 @@ pub(crate) fn run(flags: &Flags) -> anyhow::Result<()> {
 
     // Sources section
     out.header("Sources");
-    if config.source.is_empty() {
+    if registry.sources.is_empty() {
         out.info("  (none)");
     } else {
-        for src in &config.source {
+        let mut sources: Vec<&crate::registry::RegisteredSource> = registry.sources.iter().collect();
+        sources.sort_by(|a, b| a.name.cmp(&b.name));
+
+        for src in sources {
             let skill_count: usize = registry
                 .sources
                 .iter()
                 .find(|rs| rs.name == src.name)
                 .map(|rs| rs.plugins.iter().map(|p| p.skills.len()).sum())
                 .unwrap_or(0);
-            let version = src.r#ref.as_deref().unwrap_or("latest");
-            let mode_str = src.mode.as_deref().unwrap_or("");
+            let config_src = config.source.iter().find(|candidate| candidate.name == src.name);
+            let version = config_src
+                .and_then(|candidate| candidate.r#ref.as_deref())
+                .unwrap_or("latest");
+            let mode_str = config_src.and_then(|candidate| candidate.mode.as_deref()).unwrap_or("");
             let detail = if mode_str.is_empty() {
                 format!(
                     "{} skills, @ {}, {}",
@@ -71,7 +78,11 @@ pub(crate) fn run(flags: &Flags) -> anyhow::Result<()> {
                     mode_str
                 )
             };
-            println!("  {} {}", src.name.bold(), detail.dimmed(),);
+            let label = source_labels
+                .get(&src.name)
+                .map(String::as_str)
+                .unwrap_or(src.name.as_str());
+            println!("  {} {}", label.bold(), detail.dimmed(),);
         }
     }
 
@@ -120,7 +131,7 @@ pub(crate) fn run(flags: &Flags) -> anyhow::Result<()> {
         "Total",
         &format!(
             "{} sources, {} plugins, {} skills, {} installed",
-            config.source.len(),
+            registry.sources.len(),
             registry.sources.iter().flat_map(|s| &s.plugins).count(),
             total_skills,
             total_installed,

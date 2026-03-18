@@ -54,6 +54,7 @@ fn setup_env() -> (TempDir, PathBuf, TempDir, TempDir) {
     let registry = Registry {
         sources: vec![RegisteredSource {
             name: "test-source".to_string(),
+            display_name: None,
             url: String::new(),
             plugins: vec![RegisteredPlugin {
                 name: "test-plugin".to_string(),

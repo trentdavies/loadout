@@ -28,6 +28,7 @@ fn plugin(name: &str, skills: Vec<RegisteredSkill>) -> RegisteredPlugin {
 fn source(name: &str, plugins: Vec<RegisteredPlugin>) -> RegisteredSource {
     RegisteredSource {
         name: name.to_string(),
+        display_name: None,
         url: String::new(),
         plugins,
         cache_path: PathBuf::from("/tmp"),

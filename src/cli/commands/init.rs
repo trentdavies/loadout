@@ -55,33 +55,17 @@ pub(crate) fn run(url: Option<String>, flags: &Flags) -> anyhow::Result<()> {
 
     // If URL provided, fetch into cache and register as source
     if let Some(ref url_str) = url {
-        let source_url = crate::source::SourceUrl::parse(url_str)?;
-        let source_name = source_url.default_name();
-        let residence = crate::source::default_source_residence();
-        let cache_path = crate::source::source_storage_path(&source_name, residence);
-
-        crate::source::fetch::fetch(&source_url, &cache_path, None)?;
-
-        let prepared = crate::source::prepare_source(
-            &source_name,
-            &source_url,
-            &cache_path,
+        crate::cli::commands::source::run_add(
+            url_str.clone(),
             None,
             None,
-            residence,
-            &crate::source::normalize::Overrides::default(),
+            None,
+            None,
+            None,
+            false,
+            false,
+            flags,
         )?;
-
-        let data_dir = crate::config::data_dir();
-        let mut registry = crate::registry::load_registry(&data_dir)?;
-        let mut config = crate::config::load(flags.config_path())?;
-        crate::source::persist_prepared_source(&mut config, &mut registry, prepared);
-        crate::registry::save_registry(&registry, &data_dir)?;
-        crate::config::save(&config, flags.config_path())?;
-
-        if !flags.quiet {
-            println!("Added source '{}' from {}", source_name, url_str);
-        }
     }
 
     // --- Interactive wizard steps ---

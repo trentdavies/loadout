@@ -149,6 +149,7 @@ fn swap_bundle() {
     let mut registry = Registry::default();
     registry.sources.push(RegisteredSource {
         name: "src".to_string(),
+        display_name: None,
         url: String::new(),
         plugins: vec![RegisteredPlugin {
             name: "p".to_string(),

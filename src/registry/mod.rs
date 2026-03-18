@@ -381,6 +381,7 @@ mod tests {
         for src_name in &["a", "b"] {
             registry.sources.push(RegisteredSource {
                 name: src_name.to_string(),
+                display_name: None,
                 url: String::new(),
                 plugins: vec![RegisteredPlugin {
                     name: "shared".to_string(),
@@ -402,6 +403,7 @@ mod tests {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
             name: "s".to_string(),
+            display_name: None,
             url: String::new(),
             plugins: vec![RegisteredPlugin {
                 name: "p".to_string(),
@@ -436,6 +438,7 @@ mod tests {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
             name: "src".to_string(),
+            display_name: None,
             url: String::new(),
             plugins: vec![RegisteredPlugin {
                 name: "my-plugin".to_string(),
@@ -471,6 +474,7 @@ mod tests {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
             name: "s".to_string(),
+            display_name: None,
             url: String::new(),
             plugins: vec![RegisteredPlugin {
                 name: "p".to_string(),
@@ -568,6 +572,7 @@ mod tests {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
             name: "alpha".to_string(),
+            display_name: None,
             url: String::new(),
             plugins: vec![RegisteredPlugin {
                 name: "legal".to_string(),
@@ -596,6 +601,7 @@ mod tests {
         });
         registry.sources.push(RegisteredSource {
             name: "beta".to_string(),
+            display_name: None,
             url: String::new(),
             plugins: vec![RegisteredPlugin {
                 name: "sales".to_string(),
@@ -711,6 +717,7 @@ mod tests {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
             name: "claude-plugins".to_string(),
+            display_name: None,
             url: String::new(),
             plugins: vec![RegisteredPlugin {
                 name: "agent-skills".to_string(),
@@ -742,6 +749,7 @@ mod tests {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
             name: "s".to_string(),
+            display_name: None,
             url: String::new(),
             plugins: vec![RegisteredPlugin {
                 name: "p".to_string(),
@@ -774,6 +782,7 @@ mod tests {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
             name: "old-name".to_string(),
+            display_name: None,
             url: "https://github.com/example/skills.git".to_string(),
             plugins: vec![RegisteredPlugin {
                 name: "plug".to_string(),
@@ -828,6 +837,7 @@ mod tests {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
             name: "old-src".to_string(),
+            display_name: None,
             url: "https://example.com/repo.git".to_string(),
             plugins: vec![],
             cache_path: ext_dir.clone(),
@@ -870,6 +880,7 @@ mod tests {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
             name: "same-src".to_string(),
+            display_name: None,
             url: "https://example.com/repo.git".to_string(),
             plugins: vec![RegisteredPlugin {
                 name: "plug".to_string(),
@@ -933,6 +944,7 @@ mod tests {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
             name: "same".to_string(),
+            display_name: None,
             url: "https://example.com/repo.git".to_string(),
             plugins: vec![],
             cache_path: tmp.path().join("external/same"),
@@ -959,6 +971,7 @@ mod tests {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
             name: "legacy".to_string(),
+            display_name: None,
             url: String::new(),
             plugins: vec![],
             cache_path: tmp.path().join("external/legacy"),

@@ -28,12 +28,15 @@ pub(crate) fn run(shell: CompletionShell, install: bool, flags: &Flags) -> anyho
 pub(crate) fn run_complete(kind: String, flags: &Flags) -> anyhow::Result<()> {
     let config = crate::config::load(flags.config_path())?;
     let data_dir = crate::config::data_dir();
-    let registry = crate::registry::load_registry(&data_dir)?;
+    let registry = crate::cli::helpers::load_effective_registry(&config, &data_dir, flags.quiet)?;
 
     match kind.as_str() {
         "sources" => {
             for s in &config.source {
                 println!("{}", s.name);
+            }
+            if registry.sources.iter().any(|source| source.name == "local") {
+                println!("local");
             }
         }
         "plugins" => {

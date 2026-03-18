@@ -18,6 +18,7 @@ pub enum SourceKind {
 pub struct ParsedSource {
     pub kind: SourceKind,
     pub source_name: String,
+    pub display_name: Option<String>,
     pub url: Option<String>,
     pub path: PathBuf,
     pub plugin_name: Option<String>,
@@ -41,6 +42,7 @@ impl ParsedSource {
                 return Ok(Self {
                     kind: SourceKind::SingleFile,
                     source_name,
+                    display_name: None,
                     url: None,
                     path: path.to_path_buf(),
                     plugin_name: None,
@@ -60,9 +62,12 @@ impl ParsedSource {
 
         // 2. Marketplace
         if path.join(".claude-plugin/marketplace.json").exists() {
+            let display_name = manifest::load_marketplace(&path.join(".claude-plugin/marketplace.json"))?
+                .name;
             return Ok(Self {
                 kind: SourceKind::Marketplace,
                 source_name,
+                display_name: Some(display_name),
                 url: None,
                 path: path.to_path_buf(),
                 plugin_name: None,
@@ -77,6 +82,7 @@ impl ParsedSource {
             return Ok(Self {
                 kind: SourceKind::SinglePlugin,
                 source_name,
+                display_name: None,
                 url: None,
                 path: path.to_path_buf(),
                 plugin_name: Some(plugin_name),
@@ -95,6 +101,7 @@ impl ParsedSource {
             return Ok(Self {
                 kind: SourceKind::FlatSkills,
                 source_name,
+                display_name: None,
                 url: None,
                 path: path.to_path_buf(),
                 plugin_name: Some(plugin_name),
@@ -113,6 +120,7 @@ impl ParsedSource {
             return Ok(Self {
                 kind: SourceKind::SingleSkillDir,
                 source_name,
+                display_name: None,
                 url: None,
                 path: path.to_path_buf(),
                 plugin_name: None,
@@ -254,6 +262,7 @@ mod tests {
 
         let parsed = ParsedSource::parse(tmp.path()).unwrap();
         assert_eq!(parsed.kind, SourceKind::Marketplace);
+        assert_eq!(parsed.display_name.as_deref(), Some("mkt"));
         assert!(parsed.prompt_plugin_name().is_none());
         assert!(parsed.prompt_skill_name().is_none());
     }

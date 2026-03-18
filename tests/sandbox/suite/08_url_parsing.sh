@@ -107,10 +107,11 @@ test_02_anthropics_skills_flat() {
     return
   fi
 
-  local plugin_count skill_count has_claude_api
-  skill_count=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s)] | length')
-  plugin_count=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s)] | [.[].plugin] | unique | length')
-  has_claude_api=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s and .name == "claude-api")] | length')
+  local plugin_count skill_count has_claude_api local_source
+  skill_count=$(echo "$json" | jq --arg p "$source" '[.[] | select(.plugin == $p)] | length')
+  plugin_count=$(echo "$json" | jq --arg p "$source" '[.[] | select(.plugin == $p)] | [.[].plugin] | unique | length')
+  has_claude_api=$(echo "$json" | jq --arg p "$source" '[.[] | select(.plugin == $p and .name == "claude-api")] | length')
+  local_source=$(echo "$json" | jq -r --arg p "$source" '[.[] | select(.plugin == $p)] | .[0].source')
 
   if [ "$plugin_count" -eq 1 ]; then
     _pass "anthropics/skills/skills detected as FlatSkills (1 plugin)"
@@ -130,14 +131,19 @@ test_02_anthropics_skills_flat() {
     _fail "anthropics/skills/skills missing claude-api" "present" "not found"
   fi
 
-  # Identity: FlatSkills plugin name = detection root dir = "skills"
+  if [ "$local_source" = "local" ]; then
+    _pass "anthropics/skills/skills imports into local source"
+  else
+    _fail "anthropics/skills/skills source id" "local" "$local_source"
+  fi
+
+  # Identity: FlatSkills imports into the local source, and --source becomes the target plugin name.
   local identity
-  identity=$(echo "$json" | jq -r --arg s "$source" \
-    '[.[] | select(.source == $s and .name == "claude-api")] | .[0].identity')
-  if [ "$identity" = "anthropics-flat:skills/claude-api" ]; then
+  identity=$(echo "$json" | jq -r --arg p "$source" '[.[] | select(.plugin == $p and .name == "claude-api")] | .[0].identity')
+  if [ "$identity" = "local:anthropics-flat/claude-api" ]; then
     _pass "flat claude-api identity correct: $identity"
   else
-    _fail "flat claude-api identity" "anthropics-flat:skills/claude-api" "$identity"
+    _fail "flat claude-api identity" "local:anthropics-flat/claude-api" "$identity"
   fi
 
   _cleanup_source "$source"
@@ -158,10 +164,11 @@ test_03_anthropics_claude_api() {
     return
   fi
 
-  local plugin_count skill_count skill_name
-  skill_count=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s)] | length')
-  plugin_count=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s)] | [.[].plugin] | unique | length')
-  skill_name=$(echo "$json" | jq -r --arg s "$source" '[.[] | select(.source == $s)] | .[0].name')
+  local plugin_count skill_count skill_name local_source
+  skill_count=$(echo "$json" | jq --arg p "$source" '[.[] | select(.plugin == $p)] | length')
+  plugin_count=$(echo "$json" | jq --arg p "$source" '[.[] | select(.plugin == $p)] | [.[].plugin] | unique | length')
+  skill_name=$(echo "$json" | jq -r --arg p "$source" '[.[] | select(.plugin == $p)] | .[0].name')
+  local_source=$(echo "$json" | jq -r --arg p "$source" '[.[] | select(.plugin == $p)] | .[0].source')
 
   if [ "$plugin_count" -eq 1 ]; then
     _pass "claude-api detected as SingleSkillDir (1 plugin)"
@@ -181,14 +188,19 @@ test_03_anthropics_claude_api() {
     _fail "claude-api skill name" "claude-api" "$skill_name"
   fi
 
-  # Identity: SingleSkillDir plugin name = source_name
+  if [ "$local_source" = "local" ]; then
+    _pass "claude-api imports into local source"
+  else
+    _fail "claude-api source id" "local" "$local_source"
+  fi
+
+  # Identity: SingleSkillDir imports into the local source, and --source becomes the target plugin name.
   local identity
-  identity=$(echo "$json" | jq -r --arg s "$source" \
-    '[.[] | select(.source == $s)] | .[0].identity')
-  if [ "$identity" = "a-claude-api:a-claude-api/claude-api" ]; then
+  identity=$(echo "$json" | jq -r --arg p "$source" '[.[] | select(.plugin == $p)] | .[0].identity')
+  if [ "$identity" = "local:a-claude-api/claude-api" ]; then
     _pass "single claude-api identity correct: $identity"
   else
-    _fail "single claude-api identity" "a-claude-api:a-claude-api/claude-api" "$identity"
+    _fail "single claude-api identity" "local:a-claude-api/claude-api" "$identity"
   fi
 
   _cleanup_source "$source"
@@ -304,10 +316,11 @@ test_06_cloudflare_single_skill() {
     return
   fi
 
-  local plugin_count skill_count skill_name
-  skill_count=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s)] | length')
-  plugin_count=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s)] | [.[].plugin] | unique | length')
-  skill_name=$(echo "$json" | jq -r --arg s "$source" '[.[] | select(.source == $s)] | .[0].name')
+  local plugin_count skill_count skill_name local_source
+  skill_count=$(echo "$json" | jq --arg p "$source" '[.[] | select(.plugin == $p)] | length')
+  plugin_count=$(echo "$json" | jq --arg p "$source" '[.[] | select(.plugin == $p)] | [.[].plugin] | unique | length')
+  skill_name=$(echo "$json" | jq -r --arg p "$source" '[.[] | select(.plugin == $p)] | .[0].name')
+  local_source=$(echo "$json" | jq -r --arg p "$source" '[.[] | select(.plugin == $p)] | .[0].source')
 
   if [ "$plugin_count" -eq 1 ]; then
     _pass "cloudflare single skill: 1 plugin"
@@ -327,14 +340,19 @@ test_06_cloudflare_single_skill() {
     _fail "cloudflare skill name" "cloudflare" "$skill_name"
   fi
 
-  # Identity: SingleSkillDir plugin name = source_name
+  if [ "$local_source" = "local" ]; then
+    _pass "cloudflare single skill imports into local source"
+  else
+    _fail "cloudflare single skill source id" "local" "$local_source"
+  fi
+
+  # Identity: SingleSkillDir imports into the local source, and --source becomes the target plugin name.
   local identity
-  identity=$(echo "$json" | jq -r --arg s "$source" \
-    '[.[] | select(.source == $s)] | .[0].identity')
-  if [ "$identity" = "cf-cloudflare:cf-cloudflare/cloudflare" ]; then
+  identity=$(echo "$json" | jq -r --arg p "$source" '[.[] | select(.plugin == $p)] | .[0].identity')
+  if [ "$identity" = "local:cf-cloudflare/cloudflare" ]; then
     _pass "cf single skill identity correct: $identity"
   else
-    _fail "cf single skill identity" "cf-cloudflare:cf-cloudflare/cloudflare" "$identity"
+    _fail "cf single skill identity" "local:cf-cloudflare/cloudflare" "$identity"
   fi
 
   _cleanup_source "$source"
@@ -381,10 +399,11 @@ test_08_openai_curated() {
     return
   fi
 
-  local plugin_count skill_count has_doc
-  skill_count=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s)] | length')
-  plugin_count=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s)] | [.[].plugin] | unique | length')
-  has_doc=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s and .name == "doc")] | length')
+  local plugin_count skill_count has_doc local_source
+  skill_count=$(echo "$json" | jq --arg p "$source" '[.[] | select(.plugin == $p)] | length')
+  plugin_count=$(echo "$json" | jq --arg p "$source" '[.[] | select(.plugin == $p)] | [.[].plugin] | unique | length')
+  has_doc=$(echo "$json" | jq --arg p "$source" '[.[] | select(.plugin == $p and .name == "doc")] | length')
+  local_source=$(echo "$json" | jq -r --arg p "$source" '[.[] | select(.plugin == $p)] | .[0].source')
 
   if [ "$plugin_count" -eq 1 ]; then
     _pass "openai .curated detected as FlatSkills (1 plugin)"
@@ -404,14 +423,19 @@ test_08_openai_curated() {
     _fail "openai .curated missing doc" "present" "not found"
   fi
 
-  # Identity: FlatSkills plugin name = dir name with leading dot stripped = "curated"
+  if [ "$local_source" = "local" ]; then
+    _pass "openai .curated imports into local source"
+  else
+    _fail "openai .curated source id" "local" "$local_source"
+  fi
+
+  # Identity: FlatSkills imports into the local source, and --source becomes the target plugin name.
   local identity
-  identity=$(echo "$json" | jq -r --arg s "$source" \
-    '[.[] | select(.source == $s and .name == "doc")] | .[0].identity')
-  if [ "$identity" = "openai-curated:curated/doc" ]; then
+  identity=$(echo "$json" | jq -r --arg p "$source" '[.[] | select(.plugin == $p and .name == "doc")] | .[0].identity')
+  if [ "$identity" = "local:openai-curated/doc" ]; then
     _pass "openai curated doc identity correct: $identity"
   else
-    _fail "openai curated doc identity" "openai-curated:curated/doc" "$identity"
+    _fail "openai curated doc identity" "local:openai-curated/doc" "$identity"
   fi
 
   _cleanup_source "$source"
@@ -432,9 +456,10 @@ test_09_openai_doc_single() {
     return
   fi
 
-  local skill_count skill_name
-  skill_count=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s)] | length')
-  skill_name=$(echo "$json" | jq -r --arg s "$source" '[.[] | select(.source == $s)] | .[0].name')
+  local skill_count skill_name local_source
+  skill_count=$(echo "$json" | jq --arg p "$source" '[.[] | select(.plugin == $p)] | length')
+  skill_name=$(echo "$json" | jq -r --arg p "$source" '[.[] | select(.plugin == $p)] | .[0].name')
+  local_source=$(echo "$json" | jq -r --arg p "$source" '[.[] | select(.plugin == $p)] | .[0].source')
 
   if [ "$skill_count" -eq 1 ]; then
     _pass "openai doc: exactly 1 skill"
@@ -448,14 +473,19 @@ test_09_openai_doc_single() {
     _fail "openai doc skill name" "doc" "$skill_name"
   fi
 
-  # Identity: SingleSkillDir plugin name = source_name
+  if [ "$local_source" = "local" ]; then
+    _pass "openai doc imports into local source"
+  else
+    _fail "openai doc source id" "local" "$local_source"
+  fi
+
+  # Identity: SingleSkillDir imports into the local source, and --source becomes the target plugin name.
   local identity
-  identity=$(echo "$json" | jq -r --arg s "$source" \
-    '[.[] | select(.source == $s)] | .[0].identity')
-  if [ "$identity" = "openai-doc:openai-doc/doc" ]; then
+  identity=$(echo "$json" | jq -r --arg p "$source" '[.[] | select(.plugin == $p)] | .[0].identity')
+  if [ "$identity" = "local:openai-doc/doc" ]; then
     _pass "openai single doc identity correct: $identity"
   else
-    _fail "openai single doc identity" "openai-doc:openai-doc/doc" "$identity"
+    _fail "openai single doc identity" "local:openai-doc/doc" "$identity"
   fi
 
   _cleanup_source "$source"
@@ -476,9 +506,10 @@ test_10_vv_harness() {
     return
   fi
 
-  local plugin_count skill_count
-  skill_count=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s)] | length')
-  plugin_count=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s)] | [.[].plugin] | unique | length')
+  local plugin_count skill_count local_source
+  skill_count=$(echo "$json" | jq --arg p "$source" '[.[] | select(.plugin == $p)] | length')
+  plugin_count=$(echo "$json" | jq --arg p "$source" '[.[] | select(.plugin == $p)] | [.[].plugin] | unique | length')
+  local_source=$(echo "$json" | jq -r --arg p "$source" '[.[] | select(.plugin == $p)] | .[0].source')
 
   if [ "$plugin_count" -eq 1 ]; then
     _pass "vv-harness detected as FlatSkills (1 plugin)"
@@ -492,17 +523,22 @@ test_10_vv_harness() {
     _fail "vv-harness skill count" "2" "$skill_count"
   fi
 
-  # Identity: FlatSkills plugin name = detection root dir = "skills"
-  # All identities should match vv-harness:skills/<skill>
+  if [ "$local_source" = "local" ]; then
+    _pass "vv-harness imports into local source"
+  else
+    _fail "vv-harness source id" "local" "$local_source"
+  fi
+
+  # Identity: FlatSkills imports into the local source, and --source becomes the target plugin name.
   local bad_identities
-  bad_identities=$(echo "$json" | jq -r --arg s "$source" \
-    '[.[] | select(.source == $s) | select(.identity | startswith("vv-harness:skills/") | not)] | length')
+  bad_identities=$(echo "$json" | jq -r --arg p "$source" \
+    '[.[] | select(.plugin == $p) | select(.identity | startswith("local:vv-harness/") | not)] | length')
   if [ "$bad_identities" -eq 0 ]; then
-    _pass "vv-harness identities all match vv-harness:skills/*"
+    _pass "vv-harness identities all match local:vv-harness/*"
   else
     local sample
-    sample=$(echo "$json" | jq -r --arg s "$source" '[.[] | select(.source == $s)] | .[0].identity')
-    _fail "vv-harness identity format" "vv-harness:skills/*" "$sample"
+    sample=$(echo "$json" | jq -r --arg p "$source" '[.[] | select(.plugin == $p)] | .[0].identity')
+    _fail "vv-harness identity format" "local:vv-harness/*" "$sample"
   fi
 
   _cleanup_source "$source"
@@ -523,10 +559,11 @@ test_11_pi_skills() {
     return
   fi
 
-  local plugin_count skill_count has_brave_search
-  skill_count=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s)] | length')
-  plugin_count=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s)] | [.[].plugin] | unique | length')
-  has_brave_search=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s and .name == "brave-search")] | length')
+  local plugin_count skill_count has_brave_search local_source
+  skill_count=$(echo "$json" | jq --arg p "$source" '[.[] | select(.plugin == $p)] | length')
+  plugin_count=$(echo "$json" | jq --arg p "$source" '[.[] | select(.plugin == $p)] | [.[].plugin] | unique | length')
+  has_brave_search=$(echo "$json" | jq --arg p "$source" '[.[] | select(.plugin == $p and .name == "brave-search")] | length')
+  local_source=$(echo "$json" | jq -r --arg p "$source" '[.[] | select(.plugin == $p)] | .[0].source')
 
   if [ "$plugin_count" -eq 1 ]; then
     _pass "pi-skills: FlatSkills (1 plugin)"
@@ -546,14 +583,19 @@ test_11_pi_skills() {
     _fail "pi-skills missing brave-search" "present" "not found"
   fi
 
-  # Identity: FlatSkills plugin name = cache dir name = source name = "pi-skills"
+  if [ "$local_source" = "local" ]; then
+    _pass "pi-skills imports into local source"
+  else
+    _fail "pi-skills source id" "local" "$local_source"
+  fi
+
+  # Identity: FlatSkills imports into the local source, and --source becomes the target plugin name.
   local identity
-  identity=$(echo "$json" | jq -r --arg s "$source" \
-    '[.[] | select(.source == $s and .name == "brave-search")] | .[0].identity')
-  if [ "$identity" = "pi-skills:pi-skills/brave-search" ]; then
+  identity=$(echo "$json" | jq -r --arg p "$source" '[.[] | select(.plugin == $p and .name == "brave-search")] | .[0].identity')
+  if [ "$identity" = "local:pi-skills/brave-search" ]; then
     _pass "pi-skills brave-search identity correct: $identity"
   else
-    _fail "pi-skills brave-search identity" "pi-skills:pi-skills/brave-search" "$identity"
+    _fail "pi-skills brave-search identity" "local:pi-skills/brave-search" "$identity"
   fi
 
   _cleanup_source "$source"
@@ -631,9 +673,10 @@ test_13_knowledge_work_productivity() {
     return
   fi
 
-  local plugin_count skill_count
-  skill_count=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s)] | length')
-  plugin_count=$(echo "$json" | jq --arg s "$source" '[.[] | select(.source == $s)] | [.[].plugin] | unique | length')
+  local plugin_count skill_count local_source
+  skill_count=$(echo "$json" | jq --arg p "$source" '[.[] | select(.plugin == $p)] | length')
+  plugin_count=$(echo "$json" | jq --arg p "$source" '[.[] | select(.plugin == $p)] | [.[].plugin] | unique | length')
+  local_source=$(echo "$json" | jq -r --arg p "$source" '[.[] | select(.plugin == $p)] | .[0].source')
 
   if [ "$plugin_count" -eq 1 ]; then
     _pass "kw-productivity: SinglePlugin (1 plugin)"
@@ -647,17 +690,22 @@ test_13_knowledge_work_productivity() {
     _fail "kw-productivity skill count" ">=3" "$skill_count"
   fi
 
-  # Identity: SinglePlugin plugin name from plugin.json = "productivity"
-  # All identities should match kw-prod:productivity/<skill>
+  if [ "$local_source" = "local" ]; then
+    _pass "kw-productivity imports into local source"
+  else
+    _fail "kw-productivity source id" "local" "$local_source"
+  fi
+
+  # Identity: SinglePlugin imports into the local source, and --source becomes the target plugin name.
   local bad_identities
-  bad_identities=$(echo "$json" | jq -r --arg s "$source" \
-    '[.[] | select(.source == $s) | select(.identity | startswith("kw-prod:productivity/") | not)] | length')
+  bad_identities=$(echo "$json" | jq -r --arg p "$source" \
+    '[.[] | select(.plugin == $p) | select(.identity | startswith("local:kw-prod/") | not)] | length')
   if [ "$bad_identities" -eq 0 ]; then
-    _pass "kw-prod identities all match kw-prod:productivity/*"
+    _pass "kw-prod identities all match local:kw-prod/*"
   else
     local sample
-    sample=$(echo "$json" | jq -r --arg s "$source" '[.[] | select(.source == $s)] | .[0].identity')
-    _fail "kw-prod identity format" "kw-prod:productivity/*" "$sample"
+    sample=$(echo "$json" | jq -r --arg p "$source" '[.[] | select(.plugin == $p)] | .[0].identity')
+    _fail "kw-prod identity format" "local:kw-prod/*" "$sample"
   fi
 
   _cleanup_source "$source"

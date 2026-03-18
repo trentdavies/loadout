@@ -23,7 +23,8 @@ pub(crate) fn run(command: KitCommand, flags: &Flags) -> anyhow::Result<()> {
             let mut external = 0usize;
             let mut local = 0usize;
             if !skills.is_empty() {
-                let registry = crate::registry::load_registry(&data_dir)?;
+                let registry =
+                    crate::cli::helpers::load_effective_registry(&config, &data_dir, flags.quiet)?;
                 let ext_sources = external_source_set(&config);
                 let kit = config.kit.get_mut(&name).unwrap();
                 for skill_id in &skills {
@@ -177,17 +178,8 @@ pub(crate) fn run(command: KitCommand, flags: &Flags) -> anyhow::Result<()> {
                 anyhow::bail!("kit '{}' not found", name);
             }
 
-            let mut registry = crate::registry::load_registry(&data_dir)?;
-            let renames =
-                crate::registry::reconcile_with_config(&mut registry, &config.source, &data_dir)?;
-            if !renames.is_empty() {
-                crate::registry::save_registry(&registry, &data_dir)?;
-                if !flags.quiet {
-                    for r in &renames {
-                        eprintln!("source reconciled: {}", r);
-                    }
-                }
-            }
+            let registry =
+                crate::cli::helpers::load_effective_registry(&config, &data_dir, flags.quiet)?;
             let ext_sources = external_source_set(&config);
 
             let kit = config.kit.get_mut(&name).unwrap();

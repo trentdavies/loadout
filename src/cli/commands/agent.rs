@@ -335,9 +335,7 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
                     let plugin_name = provenance
                         .map(|info| info.plugin.clone())
                         .unwrap_or_else(|| "local".to_string());
-                    let source_name = provenance
-                        .map(|info| info.source.clone())
-                        .unwrap_or_else(|| "local".to_string());
+                    let source_name = "local".to_string();
 
                     let dest_plugin = crate::config::plugins_dir().join(&plugin_name);
                     let dest_skill = dest_plugin.join("skills").join(skill_name);
