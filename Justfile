@@ -9,7 +9,7 @@ build:
     cargo build
 
 # Build release binary
-release:
+build-release:
     cargo build --release
 
 # Run the shell test harness in Docker (offline, no network)
@@ -67,22 +67,26 @@ fix:
     cargo fmt
     cargo clippy --fix --allow-dirty
 
-# Tag a release (bumps version in Cargo.toml, commits, and tags)
-tag version:
+# Release: bump version, tag, push — CI builds binaries and updates the Homebrew tap
+release version:
     #!/usr/bin/env bash
     set -euo pipefail
     current=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
     if [ "{{version}}" = "$current" ]; then
-        echo "Version is already $current"
+        echo "error: version is already $current"
         exit 1
     fi
     sed -i '' "s/^version = \"$current\"/version = \"{{version}}\"/" Cargo.toml
     cargo check --quiet
+    EQUIP_NON_INTERACTIVE=1 cargo test --quiet
     git add Cargo.toml Cargo.lock
     git commit -m "release v{{version}}"
     git tag -a "v{{version}}" -m "v{{version}}"
-    echo "Tagged v{{version}}. Push with: git push && git push --tags"
+    git push && git push --tags
+    echo ""
+    echo "v{{version}} pushed — CI will build binaries and update homebrew-tap."
+    echo "  Watch: gh run watch"
 
-# Publish to crates.io (run `just tag <version>` first)
+# Publish to crates.io (optional, after CI release completes)
 publish:
     cargo publish
