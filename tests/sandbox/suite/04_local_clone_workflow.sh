@@ -39,6 +39,38 @@ test_02_add_local_as_source() {
   fi
 }
 
+test_02b_add_local_plugin_updates_local_marketplace() {
+  log_cmd "$LOADOUT" add /tests/fixtures/plugin-source
+
+  local plugin_dir="$XDG_DATA_HOME/equip/test-plugin"
+  local manifest_path="$XDG_DATA_HOME/equip/.claude-plugin/marketplace.json"
+
+  if [ -d "$plugin_dir" ] && [ -f "$plugin_dir/.claude-plugin/plugin.json" ]; then
+    _pass "local plugin stored under repo root"
+    log_check 1 "local plugin stored at $plugin_dir"
+  else
+    _fail "local plugin storage missing" "$plugin_dir with plugin manifest" "not found"
+    log_check 0 "local plugin stored at $plugin_dir"
+    return
+  fi
+
+  if [ ! -f "$manifest_path" ]; then
+    _fail "local marketplace manifest missing" "$manifest_path exists" "not found"
+    log_check 0 "local marketplace manifest exists"
+    return
+  fi
+
+  local plugin_source
+  plugin_source=$(jq -r '.plugins[] | select(.name == "test-plugin") | .source' "$manifest_path")
+  if [ "$plugin_source" = "./test-plugin" ]; then
+    _pass "marketplace references imported local plugin"
+    log_check 1 "marketplace.json contains ./test-plugin entry"
+  else
+    _fail "marketplace plugin reference invalid" "./test-plugin" "$plugin_source"
+    log_check 0 "marketplace.json contains ./test-plugin entry"
+  fi
+}
+
 test_03_local_skills_detected() {
   local count
   count=$("$LOADOUT" list --json 2>/dev/null | jq '[.[] | select(.source == "local-skills")] | length')
