@@ -12,6 +12,10 @@ build:
 build-release:
     cargo build --release
 
+# Install locally from source
+install:
+    cargo install --path .
+
 # ── Docker sandbox ──────────────────────────────────────────────
 
 image   := "equip-sandbox"
