@@ -69,6 +69,50 @@ pub fn multi_select(label: &str, options: &[&str], defaults: &[bool], quiet: boo
         .unwrap_or_default()
 }
 
+/// Ask the user to confirm before proceeding. Returns Ok(()) if confirmed.
+/// In non-interactive or quiet mode, auto-confirms.
+pub fn confirm_proceed(quiet: bool) -> anyhow::Result<()> {
+    if quiet || !is_interactive() {
+        return Ok(());
+    }
+
+    let proceed = dialoguer::Confirm::new()
+        .with_prompt(styled_prompt("Proceed?", None))
+        .default(true)
+        .interact()
+        .unwrap_or(true);
+
+    if !proceed {
+        anyhow::bail!("aborted");
+    }
+    Ok(())
+}
+
+/// Prompt for source residence: external (updatable) or local (copied).
+/// In non-interactive/quiet mode, returns Local (preserving current default).
+pub fn prompt_residence(quiet: bool) -> crate::config::SourceResidence {
+    if quiet || !is_interactive() {
+        return crate::config::SourceResidence::Local;
+    }
+
+    let options = &[
+        "external (updatable, stored separately)",
+        "local (copied into local source)",
+    ];
+    let idx = dialoguer::Select::new()
+        .with_prompt(styled_prompt("Import mode", None))
+        .items(options)
+        .default(0)
+        .interact()
+        .unwrap_or(1);
+
+    if idx == 0 {
+        crate::config::SourceResidence::External
+    } else {
+        crate::config::SourceResidence::Local
+    }
+}
+
 /// Prompt for local source fetch mode: symlink (default) or copy.
 /// Returns "symlink" or "copy". In non-interactive/quiet mode, returns "symlink".
 pub fn prompt_fetch_mode(quiet: bool) -> String {
@@ -149,5 +193,29 @@ mod tests {
         let options = vec!["alpha".to_string(), "beta".to_string()];
         let result = select_from("Source", &options, true);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn confirm_proceed_ok_non_interactive() {
+        let result = confirm_proceed(false);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn confirm_proceed_ok_quiet() {
+        let result = confirm_proceed(true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn prompt_residence_returns_local_non_interactive() {
+        let result = prompt_residence(false);
+        assert_eq!(result, crate::config::SourceResidence::Local);
+    }
+
+    #[test]
+    fn prompt_residence_returns_local_quiet() {
+        let result = prompt_residence(true);
+        assert_eq!(result, crate::config::SourceResidence::Local);
     }
 }

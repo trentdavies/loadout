@@ -36,8 +36,27 @@ pub(crate) fn run_add(
     let source_url = crate::source::SourceUrl::parse(&url)?;
     let effective_ref = r#ref.as_deref().or_else(|| source_url.tree_ref());
     let staged = stage_source_for_parse(&source_url, effective_ref, &data_dir)?;
-    let residence = crate::source::source_kind_residence(staged.parsed.kind);
-    let preview_source_name = preview_source_name(&source_url, &staged.parsed, source.as_deref());
+
+    let residence = match &source_url {
+        crate::source::SourceUrl::Git(..) | crate::source::SourceUrl::Archive(..) => {
+            let kind_residence = crate::source::source_kind_residence(staged.parsed.kind);
+            if kind_residence == crate::config::SourceResidence::External {
+                // Marketplace → always external
+                kind_residence
+            } else if source.is_some() {
+                // --source flag implies external
+                crate::config::SourceResidence::External
+            } else {
+                crate::prompt::prompt_residence(flags.quiet)
+            }
+        }
+        crate::source::SourceUrl::Local(_) => {
+            crate::source::source_kind_residence(staged.parsed.kind)
+        }
+    };
+
+    let preview_source_name =
+        preview_source_name(&source_url, &staged.parsed, source.as_deref(), residence);
     let preview = crate::source::normalize::normalize(
         &staged.parsed.clone().with_source_name(&preview_source_name),
     )?;
@@ -45,6 +64,8 @@ pub(crate) fn run_add(
     if !flags.quiet {
         println!("{}", detected_summary(&staged.parsed, &preview.plugins));
     }
+
+    crate::prompt::confirm_proceed(flags.quiet)?;
 
     let source_name = match residence {
         crate::config::SourceResidence::External => {
@@ -368,8 +389,9 @@ fn preview_source_name(
     source_url: &crate::source::SourceUrl,
     parsed: &crate::source::ParsedSource,
     source: Option<&str>,
+    residence: crate::config::SourceResidence,
 ) -> String {
-    match crate::source::source_kind_residence(parsed.kind) {
+    match residence {
         crate::config::SourceResidence::External => source
             .map(ToOwned::to_owned)
             .unwrap_or_else(|| default_source_name(source_url, parsed)),
