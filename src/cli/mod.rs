@@ -52,7 +52,7 @@ equip — agent skill manager
 #[command(
     name = "equip",
     about = "equip — agent skill manager",
-    version,
+    version = env!("GIT_VERSION"),
     propagate_version = true,
     subcommand_required = true,
     arg_required_else_help = true,
