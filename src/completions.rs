@@ -95,10 +95,10 @@ _equip() {
         commands=(
             'init:Initialize equip configuration'
             'add:Add a skill source'
-            'list:List skills or sources'
-            'remove:Remove a skill source'
-            'update:Update sources from remote'
+            'list:List skills'
+            'remove:Remove local skills or a source'
             'status:Show current install state'
+            'source:Manage sources'
             'kit:Manage skill kits'
             'agent:Manage agents'
             'config:View or edit configuration'
@@ -130,15 +130,53 @@ _equip() {
         remove)
             _arguments $global_flags \
                 '--force[Force removal even if installed]' \
-                '1::source:_equip_sources'
-            ;;
-        update)
-            _arguments $global_flags \
-                '--ref[Switch to ref or "latest" to unpin]:ref:' \
-                '1::source:_equip_sources'
+                '*:pattern:_equip_skills'
             ;;
         status)
             _arguments $global_flags
+            ;;
+        source)
+            local -a source_commands
+            _arguments -C $global_flags \
+                '1:subcommand:->source_cmds' \
+                '*::arg:->source_args'
+            case $state in
+            source_cmds)
+                source_commands=(
+                    'add:Add a skill source'
+                    'list:List configured sources'
+                    'remove:Remove a source'
+                    'update:Update sources from remote'
+                )
+                _describe 'source command' source_commands
+                ;;
+            source_args)
+                case $words[1] in
+                add)
+                    _arguments \
+                        '--source[Override source name]:name:' \
+                        '--plugin[Override plugin name]:name:' \
+                        '--skill[Override skill name]:name:' \
+                        '--ref[Pin to git ref]:ref:' \
+                        '(--copy)--symlink[Symlink local source]' \
+                        '(--symlink)--copy[Copy local source]' \
+                        '1:url:_urls'
+                    ;;
+                list)
+                    ;;
+                remove)
+                    _arguments \
+                        '--force[Force removal even if installed]' \
+                        '1::source:_equip_sources'
+                    ;;
+                update)
+                    _arguments \
+                        '--ref[Switch to ref or "latest" to unpin]:ref:' \
+                        '1::source:_equip_sources'
+                    ;;
+                esac
+                ;;
+            esac
             ;;
         kit)
             local -a kit_commands
@@ -435,7 +473,7 @@ _equip() {
 
     # Find subcommand for kit/agent/config
     local subcmd=""
-    if [[ "$cmd" == "kit" || "$cmd" == "agent" || "$cmd" == "config" ]]; then
+    if [[ "$cmd" == "source" || "$cmd" == "kit" || "$cmd" == "agent" || "$cmd" == "config" ]]; then
         for ((i=cmd_idx+1; i < cword; i++)); do
             case "${words[i]}" in
                 -*) continue ;;
@@ -468,23 +506,49 @@ _equip() {
         if [[ "$cur" == -* ]]; then
             COMPREPLY=($(compgen -W "$global_flags --force" -- "$cur"))
         else
-            COMPREPLY=($(compgen -W "$(_equip_sources)" -- "$cur"))
+            _equip_complete_identity "$cur"
         fi
         ;;
-    update)
-        case "$prev" in
-            --ref) ;;
-            *)
+    status)
+        [[ "$cur" == -* ]] && COMPREPLY=($(compgen -W "$global_flags" -- "$cur"))
+        ;;
+    source)
+        if [[ -z "$subcmd" ]]; then
+            if [[ "$cur" == -* ]]; then
+                COMPREPLY=($(compgen -W "$global_flags" -- "$cur"))
+            else
+                COMPREPLY=($(compgen -W "add list remove update" -- "$cur"))
+            fi
+        else
+            case "$subcmd" in
+            add)
                 if [[ "$cur" == -* ]]; then
-                    COMPREPLY=($(compgen -W "$global_flags --ref" -- "$cur"))
+                    COMPREPLY=($(compgen -W "--source --plugin --skill --ref --symlink --copy" -- "$cur"))
+                fi
+                ;;
+            list)
+                ;;
+            remove)
+                if [[ "$cur" == -* ]]; then
+                    COMPREPLY=($(compgen -W "--force" -- "$cur"))
                 else
                     COMPREPLY=($(compgen -W "$(_equip_sources)" -- "$cur"))
                 fi
                 ;;
-        esac
-        ;;
-    status)
-        [[ "$cur" == -* ]] && COMPREPLY=($(compgen -W "$global_flags" -- "$cur"))
+            update)
+                case "$prev" in
+                    --ref) ;;
+                    *)
+                        if [[ "$cur" == -* ]]; then
+                            COMPREPLY=($(compgen -W "--ref" -- "$cur"))
+                        else
+                            COMPREPLY=($(compgen -W "$(_equip_sources)" -- "$cur"))
+                        fi
+                        ;;
+                esac
+                ;;
+            esac
+        fi
         ;;
     kit)
         if [[ -z "$subcmd" ]]; then
@@ -645,10 +709,10 @@ complete -c equip -l version -d 'Show version'
 # Top-level commands
 complete -c equip -f -n __equip_needs_command -a init -d 'Initialize equip configuration'
 complete -c equip -f -n __equip_needs_command -a add -d 'Add a skill source'
-complete -c equip -f -n __equip_needs_command -a list -d 'List skills or sources'
-complete -c equip -f -n __equip_needs_command -a remove -d 'Remove a skill source'
-complete -c equip -f -n __equip_needs_command -a update -d 'Update sources from remote'
+complete -c equip -f -n __equip_needs_command -a list -d 'List skills'
+complete -c equip -f -n __equip_needs_command -a remove -d 'Remove local skills or a source'
 complete -c equip -f -n __equip_needs_command -a status -d 'Show current install state'
+complete -c equip -f -n __equip_needs_command -a source -d 'Manage sources'
 complete -c equip -f -n __equip_needs_command -a kit -d 'Manage skill kits'
 complete -c equip -f -n __equip_needs_command -a agent -d 'Manage agents'
 complete -c equip -f -n __equip_needs_command -a config -d 'View or edit configuration'
@@ -667,11 +731,24 @@ complete -c equip -f -n '__equip_using_command list' -l external -d 'List source
 
 # remove
 complete -c equip -f -n '__equip_using_command remove' -l force -d 'Force removal'
-complete -c equip -f -n '__equip_using_command remove' -a '(__equip_sources)'
+complete -c equip -f -n '__equip_using_command remove' -a '(__equip_skills) (__equip_sources)'
 
-# update
-complete -c equip -f -n '__equip_using_command update' -l ref -r -d 'Switch to ref'
-complete -c equip -f -n '__equip_using_command update' -a '(__equip_sources)'
+# source
+complete -c equip -f -n '__equip_using_command source' -a add -d 'Add a skill source'
+complete -c equip -f -n '__equip_using_command source' -a list -d 'List configured sources'
+complete -c equip -f -n '__equip_using_command source' -a remove -d 'Remove a source'
+complete -c equip -f -n '__equip_using_command source' -a update -d 'Update sources from remote'
+
+complete -c equip -f -n '__equip_using_subcommand source add' -l source -r -d 'Override source name'
+complete -c equip -f -n '__equip_using_subcommand source add' -l plugin -r -d 'Override plugin name'
+complete -c equip -f -n '__equip_using_subcommand source add' -l skill -r -d 'Override skill name'
+complete -c equip -f -n '__equip_using_subcommand source add' -l ref -r -d 'Pin to git ref'
+complete -c equip -f -n '__equip_using_subcommand source add' -l symlink -d 'Symlink local source'
+complete -c equip -f -n '__equip_using_subcommand source add' -l copy -d 'Copy local source'
+complete -c equip -f -n '__equip_using_subcommand source remove' -l force -d 'Force removal'
+complete -c equip -f -n '__equip_using_subcommand source remove' -a '(__equip_sources)'
+complete -c equip -f -n '__equip_using_subcommand source update' -l ref -r -d 'Switch to ref'
+complete -c equip -f -n '__equip_using_subcommand source update' -a '(__equip_sources)'
 
 # kit subcommands
 complete -c equip -f -n '__equip_using_command kit' -a create -d 'Create a new kit'

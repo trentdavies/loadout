@@ -110,9 +110,10 @@ pub const DEFAULT_CONFIG: &str = r#"# Equip — Agent Skill Manager
 #   equip add <url>                          # add a git or local source
 #   equip add <url> --ref v1.2               # pin to a tag/branch/SHA
 #   equip add ~/dev/my-skills --symlink      # local source via symlink
-#   equip remove <name> --force              # remove a source
-#   equip update [name]                      # fetch latest from remote
-#   equip list --external                    # list all sources
+#   equip source remove <name> --force       # remove a source
+#   equip source update [name]               # fetch latest from remote
+#   equip source list                        # list all sources
+#   equip list --external                    # compatibility alias for source list
 #
 # [[source]]
 # name = "anthropic-plugins"

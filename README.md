@@ -40,8 +40,17 @@ See what you have:
 ```bash
 equip list                    # all skills
 equip list "legal/*"          # glob filter
-equip list --external         # list sources
+equip source list             # list sources
+equip list --external         # compatibility alias for source list
 equip status                  # overview
+```
+
+Remove what you own:
+
+```bash
+equip remove test-plugin/explore   # remove a local skill
+equip remove test-plugin/*         # remove matching local skills
+equip source remove acme           # remove a source explicitly
 ```
 
 ## Equip Skills
@@ -125,10 +134,10 @@ Agents have a **scope** (machine or repo) and a **sync mode** (auto or explicit)
 ## Updating Sources
 
 ```bash
-equip update              # all sources
-equip update acme         # one source
-equip update acme --ref v3.0
-equip update acme --ref latest   # unpin
+equip source update              # all sources
+equip source update acme         # one source
+equip source update acme --ref v3.0
+equip source update acme --ref latest   # unpin
 ```
 
 ## Custom Adapters
