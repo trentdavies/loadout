@@ -41,6 +41,7 @@ equip — agent skill manager
   equip init github.com/myorg/my-skills
   equip add github.com/anthropics/skills
   equip add github.com/anthropics/claude-plugins-official
+  equip source update
 
   equip @claude \"dev*\"                     equip all dev skills to claude
   equip @claude +frontend-dev              equip a kit
@@ -149,18 +150,15 @@ pub enum Command {
         force: bool,
     },
 
-    /// Update source(s) from remote
-    Update {
-        /// Source name (omit to update all)
-        name: Option<String>,
-
-        /// Switch to a specific git ref (tag or branch). Use "latest" to unpin.
-        #[arg(long, value_name = "REF")]
-        r#ref: Option<String>,
-    },
-
     /// Show current status
     Status,
+
+    /// Manage sources
+    #[command(subcommand_required = true, arg_required_else_help = true)]
+    Source {
+        #[command(subcommand)]
+        command: SourceCommand,
+    },
 
     /// Manage skill kits
     #[command(subcommand_required = true, arg_required_else_help = true)]
@@ -294,6 +292,66 @@ pub enum KitCommand {
 }
 
 #[derive(Subcommand)]
+pub enum SourceCommand {
+    /// Add a skill source
+    Add {
+        /// URL or path to the source
+        url: String,
+
+        /// Override the inferred source name
+        #[arg(long)]
+        source: Option<String>,
+
+        /// Override the inferred plugin name
+        #[arg(long)]
+        plugin: Option<String>,
+
+        /// Override the inferred skill name (single-skill sources only)
+        #[arg(long)]
+        skill: Option<String>,
+
+        /// Deprecated: renamed to --source
+        #[arg(long, hide = true)]
+        name: Option<String>,
+
+        /// Pin to a specific git ref (tag, branch, or commit SHA)
+        #[arg(long, value_name = "REF")]
+        r#ref: Option<String>,
+
+        /// Symlink local directory sources instead of copying (default for local dirs)
+        #[arg(long, conflicts_with = "copy")]
+        symlink: bool,
+
+        /// Copy local directory sources instead of symlinking
+        #[arg(long, conflicts_with = "symlink")]
+        copy: bool,
+    },
+
+    /// List configured sources
+    List,
+
+    /// Remove a skill source
+    Remove {
+        /// Source name (omit to select interactively)
+        name: Option<String>,
+
+        /// Force removal even if skills are installed
+        #[arg(long)]
+        force: bool,
+    },
+
+    /// Update source(s) from remote
+    Update {
+        /// Source name (omit to update all)
+        name: Option<String>,
+
+        /// Switch to a specific git ref (tag or branch). Use "latest" to unpin.
+        #[arg(long, value_name = "REF")]
+        r#ref: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
 pub enum AgentCommand {
     /// Add an agent
     Add {
@@ -388,8 +446,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             fzf,
         } => commands::source::run_list(patterns, external, fzf, &flags),
         Command::Remove { name, force } => commands::source::run_remove(name, force, &flags),
-        Command::Update { name, r#ref } => commands::source::run_update(name, r#ref, &flags),
         Command::Status => commands::status::run(&flags),
+        Command::Source { command } => commands::source::run(command, &flags),
         Command::Kit { command } => commands::kit::run(command, &flags),
         Command::Agent { command } => commands::agent::run(command, &flags),
         Command::Config { command } => commands::config::run(command, &flags),

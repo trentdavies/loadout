@@ -221,24 +221,79 @@ fn parse_remove() {
 
 #[test]
 fn parse_update() {
-    let cli = Cli::try_parse_from(["equip", "update", "my-source"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "source", "update", "my-source"]).unwrap();
     match cli.command {
-        equip::cli::Command::Update { name, .. } => {
-            assert_eq!(name, Some("my-source".to_string()));
-        }
-        _ => panic!("expected Update"),
+        equip::cli::Command::Source { command } => match command {
+            equip::cli::SourceCommand::Update { name, .. } => {
+                assert_eq!(name, Some("my-source".to_string()));
+            }
+            _ => panic!("expected Source::Update"),
+        },
+        _ => panic!("expected Source"),
     }
 }
 
 #[test]
 fn parse_update_all() {
-    let cli = Cli::try_parse_from(["equip", "update"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "source", "update"]).unwrap();
     match cli.command {
-        equip::cli::Command::Update { name, .. } => {
-            assert!(name.is_none());
-        }
-        _ => panic!("expected Update"),
+        equip::cli::Command::Source { command } => match command {
+            equip::cli::SourceCommand::Update { name, .. } => {
+                assert!(name.is_none());
+            }
+            _ => panic!("expected Source::Update"),
+        },
+        _ => panic!("expected Source"),
     }
+}
+
+#[test]
+fn parse_source_list() {
+    let cli = Cli::try_parse_from(["equip", "source", "list"]).unwrap();
+    match cli.command {
+        equip::cli::Command::Source { command } => match command {
+            equip::cli::SourceCommand::List => {}
+            _ => panic!("expected Source::List"),
+        },
+        _ => panic!("expected Source"),
+    }
+}
+
+#[test]
+fn parse_source_add() {
+    let cli =
+        Cli::try_parse_from(["equip", "source", "add", "/tmp/src", "--source", "my-src"]).unwrap();
+    match cli.command {
+        equip::cli::Command::Source { command } => match command {
+            equip::cli::SourceCommand::Add { url, source, .. } => {
+                assert_eq!(url, "/tmp/src");
+                assert_eq!(source, Some("my-src".to_string()));
+            }
+            _ => panic!("expected Source::Add"),
+        },
+        _ => panic!("expected Source"),
+    }
+}
+
+#[test]
+fn parse_source_remove() {
+    let cli = Cli::try_parse_from(["equip", "source", "remove", "my-source", "--force"]).unwrap();
+    match cli.command {
+        equip::cli::Command::Source { command } => match command {
+            equip::cli::SourceCommand::Remove { name, force } => {
+                assert_eq!(name, Some("my-source".to_string()));
+                assert!(force);
+            }
+            _ => panic!("expected Source::Remove"),
+        },
+        _ => panic!("expected Source"),
+    }
+}
+
+#[test]
+fn parse_top_level_update_rejected() {
+    let cli = Cli::try_parse_from(["equip", "update"]);
+    assert!(cli.is_err());
 }
 
 #[test]

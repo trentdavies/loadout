@@ -13,6 +13,26 @@ struct StagedParsedSource {
     _temp_dir: Option<tempfile::TempDir>,
 }
 
+pub(crate) fn run(command: crate::cli::SourceCommand, flags: &Flags) -> anyhow::Result<()> {
+    match command {
+        crate::cli::SourceCommand::Add {
+            url,
+            source,
+            plugin,
+            skill,
+            name,
+            r#ref,
+            symlink,
+            copy,
+        } => run_add(
+            url, source, plugin, skill, name, r#ref, symlink, copy, flags,
+        ),
+        crate::cli::SourceCommand::List => run_source_list(flags),
+        crate::cli::SourceCommand::Remove { name, force } => run_source_remove(name, force, flags),
+        crate::cli::SourceCommand::Update { name, r#ref } => run_update(name, r#ref, flags),
+    }
+}
+
 pub(crate) fn run_add(
     url: String,
     source: Option<String>,
@@ -615,73 +635,13 @@ pub(crate) fn run_list(
     fzf: bool,
     flags: &Flags,
 ) -> anyhow::Result<()> {
+    if external {
+        return run_source_list(flags);
+    }
+
     let ctx = load_context(flags)?;
     let config_for_list = ctx.config;
     let registry = ctx.registry;
-
-    if external {
-        // List external sources in table format
-        if flags.json {
-            let entries: Vec<serde_json::Value> = config_for_list
-                .source
-                .iter()
-                .map(|src| {
-                    let skill_count: usize = registry
-                        .sources
-                        .iter()
-                        .find(|rs| rs.name == src.name)
-                        .map(|rs| rs.plugins.iter().map(|p| p.skills.len()).sum())
-                        .unwrap_or(0);
-                    serde_json::json!({
-                        "name": src.name,
-                        "type": src.source_type,
-                        "residence": src.residence.as_str(),
-                        "domain": extract_domain(&src.url),
-                        "ref": src.r#ref,
-                        "skills": skill_count,
-                        "mode": src.mode,
-                    })
-                })
-                .collect();
-            println!("{}", serde_json::to_string_pretty(&entries)?);
-            return Ok(());
-        }
-
-        if config_for_list.source.is_empty() {
-            let output = crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
-            output.info("No sources configured. Use `equip add` to add one.");
-            return Ok(());
-        }
-
-        let rows: Vec<Vec<String>> = config_for_list
-            .source
-            .iter()
-            .map(|src| {
-                let skill_count: usize = registry
-                    .sources
-                    .iter()
-                    .find(|rs| rs.name == src.name)
-                    .map(|rs| rs.plugins.iter().map(|p| p.skills.len()).sum())
-                    .unwrap_or(0);
-                vec![
-                    src.name.clone(),
-                    src.source_type.clone(),
-                    src.residence.as_str().to_string(),
-                    extract_domain(&src.url),
-                    src.r#ref.clone().unwrap_or_default(),
-                    skill_count.to_string(),
-                    src.mode.clone().unwrap_or_default(),
-                ]
-            })
-            .collect();
-
-        let out = crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
-        out.table(
-            &["NAME", "TYPE", "STORAGE", "DOMAIN", "REF", "SKILLS", "MODE"],
-            &rows,
-        );
-        return Ok(());
-    }
 
     // Collect matching skills from patterns
     let skills: Vec<(
@@ -819,7 +779,82 @@ pub(crate) fn run_list(
     Ok(())
 }
 
+pub(crate) fn run_source_list(flags: &Flags) -> anyhow::Result<()> {
+    let ctx = load_context(flags)?;
+    let config = ctx.config;
+    let registry = ctx.registry;
+
+    if flags.json {
+        let entries: Vec<serde_json::Value> = config
+            .source
+            .iter()
+            .map(|src| {
+                let skill_count: usize = registry
+                    .sources
+                    .iter()
+                    .find(|rs| rs.name == src.name)
+                    .map(|rs| rs.plugins.iter().map(|p| p.skills.len()).sum())
+                    .unwrap_or(0);
+                serde_json::json!({
+                    "name": src.name,
+                    "type": src.source_type,
+                    "residence": src.residence.as_str(),
+                    "domain": extract_domain(&src.url),
+                    "ref": src.r#ref,
+                    "skills": skill_count,
+                    "mode": src.mode,
+                })
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&entries)?);
+        return Ok(());
+    }
+
+    if config.source.is_empty() {
+        let output = crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
+        output.info("No sources configured. Use `equip add` to add one.");
+        return Ok(());
+    }
+
+    let rows: Vec<Vec<String>> = config
+        .source
+        .iter()
+        .map(|src| {
+            let skill_count: usize = registry
+                .sources
+                .iter()
+                .find(|rs| rs.name == src.name)
+                .map(|rs| rs.plugins.iter().map(|p| p.skills.len()).sum())
+                .unwrap_or(0);
+            vec![
+                src.name.clone(),
+                src.source_type.clone(),
+                src.residence.as_str().to_string(),
+                extract_domain(&src.url),
+                src.r#ref.clone().unwrap_or_default(),
+                skill_count.to_string(),
+                src.mode.clone().unwrap_or_default(),
+            ]
+        })
+        .collect();
+
+    let out = crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
+    out.table(
+        &["NAME", "TYPE", "STORAGE", "DOMAIN", "REF", "SKILLS", "MODE"],
+        &rows,
+    );
+    Ok(())
+}
+
 pub(crate) fn run_remove(name: Option<String>, force: bool, flags: &Flags) -> anyhow::Result<()> {
+    run_source_remove(name, force, flags)
+}
+
+pub(crate) fn run_source_remove(
+    name: Option<String>,
+    force: bool,
+    flags: &Flags,
+) -> anyhow::Result<()> {
     let config_path_str = flags.config_path();
     let mut config = crate::config::load(config_path_str)?;
     let data_dir = crate::config::data_dir();
