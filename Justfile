@@ -42,6 +42,12 @@ sandbox-connect port="2222":
 
 # Connect to a running sandbox container (docker exec)
 sandbox-exec:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! docker ps --filter name=^/equip-sandbox$ --filter status=running | grep -q 'equip-sandbox'; then
+        echo "Sandbox is not running; starting it..."
+        just sandbox >/dev/null
+    fi
     docker exec -it equip-sandbox bash
 
 # Stop and remove sandbox container
