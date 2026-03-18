@@ -416,20 +416,6 @@ fn parse_kit_drop_skills() {
 }
 
 #[test]
-fn known_marketplaces_non_empty() {
-    assert!(!equip::marketplace::KNOWN_MARKETPLACES.is_empty());
-    for (name, url) in equip::marketplace::KNOWN_MARKETPLACES {
-        assert!(!name.is_empty(), "marketplace name should not be empty");
-        assert!(!url.is_empty(), "marketplace URL should not be empty");
-        assert!(
-            url.starts_with("https://"),
-            "marketplace URL should be https: {}",
-            url
-        );
-    }
-}
-
-#[test]
 fn multi_select_returns_empty_non_interactive() {
     let result = equip::prompt::multi_select("Pick", &["a", "b"], &[true, true], false);
     assert!(result.is_empty());

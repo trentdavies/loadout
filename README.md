@@ -21,7 +21,7 @@ cargo install equip
 equip init
 ```
 
-This detects your agents (Claude, Codex, Cursor), offers popular skill sources, and creates your skill library at `~/.local/share/equip/`. The library is a git-friendly directory you can push to a repo and share across machines.
+This detects your agents (Claude, Codex, Cursor) and creates your skill library at `~/.local/share/equip/`. The library is a git-friendly directory you can push to a repo and share across machines.
 
 ## Add Sources
 
