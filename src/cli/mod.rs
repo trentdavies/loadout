@@ -7,62 +7,56 @@ pub use helpers::{add_detected_agents, detect_agents};
 
 use clap::{Parser, Subcommand, ValueEnum};
 
-const HELP_PRIMARY: &str = "\
-\x1b[1;4mApply Skills\x1b[0m  (primary action)
+const HELP_TEMPLATE: &str = "\
+equip — agent skill manager
 
-  equip @<agent> +<kit> [--save] [--remove] [--force] [--interactive] <patterns...>
+\x1b[1;4mUsage\x1b[0m
+  equip @<agent> <patterns...>              equip skills to an agent
+  equip @<agent> +<kit>                     equip a kit to an agent
+  equip <command> [args...]                 manage sources, kits, agents
 
-  Flags:
-    @<agent>           Target agent(s)            --agent <name>
-    +<kit>             Use a kit                  --kit <name>
-    -s, --save         Save matched skills as the kit
-    -r, --remove       Unequip instead of equip
-    -f, --force        Overwrite changed skills without prompting
-    -i, --interactive  Interactively resolve conflicts
+\x1b[1;4mShorthand\x1b[0m
+  @<agent>           target agent(s)              expands to --agent <name>
+  +<kit>             apply a kit                  expands to --kit <name>
 
-  Patterns are globs matched against skill identities (source:plugin/skill):
+\x1b[1;4mEquip Flags\x1b[0m
+  -s, --save         save matched skills as the named kit
+  -r, --remove       unequip instead of equip
+  -f, --force        overwrite changed skills without prompting
+  -i, --interactive  interactively resolve conflicts
+
+\x1b[1;4mPatterns\x1b[0m
+  Globs matched against skill identities (source:plugin/skill):
     \"dev*\"              all skills starting with dev
     \"legal/*\"           all skills in the legal plugin
     \"my-src:*\"          everything from a specific source
+
+\x1b[1;4mCommands\x1b[0m
+{subcommands}
+
+\x1b[1;4mGlobal Options\x1b[0m
+{options}
+
+\x1b[1;4mExamples\x1b[0m
+  equip init github.com/myorg/my-skills
+  equip add github.com/anthropics/skills
+  equip add github.com/anthropics/claude-plugins-official
+
+  equip @claude \"dev*\"                     equip all dev skills to claude
+  equip @claude +frontend-dev              equip a kit
+  equip @claude +frontend-dev -s \"dev*\"    equip skills and save as kit
+  equip @claude -r \"legal/*\"               unequip legal skills
 ";
-
-const HELP_EXAMPLES: &str = "\
-\x1b[1;4mQuick Start\x1b[0m
-
-  equip init https://github.com/myorg/my-skills
-  equip add https://github.com/anthropics/skills.git
-  equip add https://github.com/anthropics/claude-plugins-official.git
-  equip agent detect
-
-  equip @claude +frontend-dev -s \"dev*\"
-    shorthand for:  equip --agent claude --kit frontend-dev -s \"dev*\"";
 
 #[derive(Parser)]
 #[command(
     name = "equip",
-    about = "Agent skill manager — add, update, and install skills across coding agents",
+    about = "equip — agent skill manager",
     version,
     propagate_version = true,
     subcommand_required = true,
     arg_required_else_help = true,
-    before_help = HELP_PRIMARY,
-    after_help = HELP_EXAMPLES,
-    before_long_help = HELP_PRIMARY,
-    after_long_help = HELP_EXAMPLES,
-    subcommand_help_heading = "Management Commands",
-    help_template = "\
-{about-with-newline}
-{before-help}
-{usage-heading} {usage}
-
-\x1b[1;4mManagement Commands\x1b[0m
-{subcommands}
-
-\x1b[1;4mOptions\x1b[0m
-{options}
-
-{after-help}
-",
+    help_template = HELP_TEMPLATE,
 )]
 pub struct Cli {
     #[command(subcommand)]
