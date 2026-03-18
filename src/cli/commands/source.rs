@@ -37,10 +37,18 @@ pub(crate) fn run_add(
     let effective_ref = r#ref.as_deref().or_else(|| source_url.tree_ref());
     let staged = stage_source_for_parse(&source_url, effective_ref, &data_dir)?;
     let residence = crate::source::source_kind_residence(staged.parsed.kind);
+    let preview_source_name = preview_source_name(&source_url, &staged.parsed, source.as_deref());
+    let preview = crate::source::normalize::normalize(
+        &staged.parsed.clone().with_source_name(&preview_source_name),
+    )?;
+
+    if !flags.quiet {
+        println!("{}", detected_summary(&staged.parsed, &preview.plugins));
+    }
 
     let source_name = match residence {
         crate::config::SourceResidence::External => {
-            let default_source = source_url.default_name();
+            let default_source = default_source_name(&source_url, &staged.parsed);
             let source_name = if let Some(s) = source.clone() {
                 s
             } else {
@@ -77,14 +85,6 @@ pub(crate) fn run_add(
         plugin: overrides.0.as_deref(),
         skill: overrides.1.as_deref(),
     };
-    let preview = crate::source::normalize::normalize_with(
-        &staged.parsed.clone().with_source_name(&source_name),
-        &norm_overrides,
-    )?;
-
-    if !flags.quiet {
-        println!("{}", detected_summary(&staged.parsed, &preview.plugins));
-    }
 
     let added = if flags.dry_run {
         None
@@ -348,6 +348,71 @@ fn print_add_summary(
     }
 }
 
+fn preview_source_name(
+    source_url: &crate::source::SourceUrl,
+    parsed: &crate::source::ParsedSource,
+    source: Option<&str>,
+) -> String {
+    match crate::source::source_kind_residence(parsed.kind) {
+        crate::config::SourceResidence::External => source
+            .map(ToOwned::to_owned)
+            .unwrap_or_else(|| default_source_name(source_url, parsed)),
+        crate::config::SourceResidence::Local => "local".to_string(),
+    }
+}
+
+fn default_source_name(
+    source_url: &crate::source::SourceUrl,
+    parsed: &crate::source::ParsedSource,
+) -> String {
+    match parsed.kind {
+        crate::source::SourceKind::Marketplace => {
+            let url_alias = source_url.default_name();
+            match parsed
+                .display_name
+                .as_deref()
+                .map(source_alias)
+                .filter(|name| !name.is_empty())
+            {
+                Some(display_alias) if display_alias == url_alias => display_alias,
+                Some(display_alias) if display_alias.ends_with(&format!("-{url_alias}")) => {
+                    display_alias
+                }
+                Some(display_alias) => format!("{display_alias}-{url_alias}"),
+                None => url_alias,
+            }
+        }
+        _ => source_url.default_name(),
+    }
+}
+
+fn source_alias(name: &str) -> String {
+    let mut alias = String::with_capacity(name.len());
+    let mut last_was_hyphen = false;
+
+    for ch in name.chars() {
+        let normalized = if ch.is_ascii_alphanumeric() {
+            Some(ch.to_ascii_lowercase())
+        } else {
+            Some('-')
+        };
+
+        if let Some(ch) = normalized {
+            if ch == '-' {
+                if alias.is_empty() || last_was_hyphen {
+                    continue;
+                }
+                last_was_hyphen = true;
+            } else {
+                last_was_hyphen = false;
+            }
+            alias.push(ch);
+        }
+    }
+
+    alias.trim_matches('-').to_string()
+}
+
 fn detected_summary(
     parsed: &crate::source::ParsedSource,
     plugins: &[crate::registry::RegisteredPlugin],
@@ -391,9 +456,9 @@ fn detected_summary(
 
 #[cfg(test)]
 mod tests {
-    use super::detected_summary;
+    use super::{default_source_name, detected_summary, source_alias};
     use crate::registry::{RegisteredPlugin, RegisteredSkill};
-    use crate::source::{ParsedSource, SourceKind};
+    use crate::source::{ParsedSource, SourceKind, SourceUrl};
     use std::path::PathBuf;
 
     fn plugin(name: &str, skills: &[&str]) -> RegisteredPlugin {
@@ -467,6 +532,29 @@ mod tests {
             detected_summary(&parsed(SourceKind::SingleSkillDir), &[plugin("alpha", &["one"])]);
 
         assert_eq!(summary, "Detected 1 skill.");
+    }
+
+    #[test]
+    fn marketplace_default_source_name_uses_marketplace_name() {
+        let mut parsed = parsed(SourceKind::Marketplace);
+        parsed.display_name = Some("HashiCorp Skills".to_string());
+        let url = SourceUrl::parse("https://github.com/hashicorp/agent-skills").unwrap();
+
+        assert_eq!(default_source_name(&url, &parsed), "hashicorp-skills-agent-skills");
+    }
+
+    #[test]
+    fn marketplace_default_source_name_falls_back_to_url_when_name_missing() {
+        let parsed = parsed(SourceKind::Marketplace);
+        let url = SourceUrl::parse("https://github.com/hashicorp/agent-skills").unwrap();
+
+        assert_eq!(default_source_name(&url, &parsed), "agent-skills");
+    }
+
+    #[test]
+    fn source_alias_normalizes_human_names() {
+        assert_eq!(source_alias("HashiCorp Agent Skills"), "hashicorp-agent-skills");
+        assert_eq!(source_alias(" team__skills "), "team-skills");
     }
 }
 
