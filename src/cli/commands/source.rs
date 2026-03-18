@@ -77,6 +77,14 @@ pub(crate) fn run_add(
         plugin: overrides.0.as_deref(),
         skill: overrides.1.as_deref(),
     };
+    let preview = crate::source::normalize::normalize_with(
+        &staged.parsed.clone().with_source_name(&source_name),
+        &norm_overrides,
+    )?;
+
+    if !flags.quiet {
+        println!("{}", detected_summary(&staged.parsed, &preview.plugins));
+    }
 
     let added = if flags.dry_run {
         None
@@ -337,6 +345,128 @@ fn print_add_summary(
                 );
             }
         }
+    }
+}
+
+fn detected_summary(
+    parsed: &crate::source::ParsedSource,
+    plugins: &[crate::registry::RegisteredPlugin],
+) -> String {
+    let plugin_count = plugins.len();
+    let skill_count: usize = plugins.iter().map(|plugin| plugin.skills.len()).sum();
+
+    match parsed.kind {
+        crate::source::SourceKind::Marketplace => {
+            let name = parsed.display_name.as_deref().unwrap_or(&parsed.source_name);
+            format!(
+                "Detected a marketplace named '{}', with {} plugin{} and {} total skill{}.",
+                name,
+                plugin_count,
+                if plugin_count == 1 { "" } else { "s" },
+                skill_count,
+                if skill_count == 1 { "" } else { "s" },
+            )
+        }
+        crate::source::SourceKind::SinglePlugin => format!(
+            "Detected {} plugin{} with {} skill{}.",
+            plugin_count,
+            if plugin_count == 1 { "" } else { "s" },
+            skill_count,
+            if skill_count == 1 { "" } else { "s" },
+        ),
+        crate::source::SourceKind::FlatSkills => format!(
+            "Detected {} skill{}.",
+            skill_count,
+            if skill_count == 1 { "" } else { "s" },
+        ),
+        crate::source::SourceKind::SingleSkillDir | crate::source::SourceKind::SingleFile => {
+            format!(
+                "Detected {} skill{}.",
+                skill_count,
+                if skill_count == 1 { "" } else { "s" },
+            )
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::detected_summary;
+    use crate::registry::{RegisteredPlugin, RegisteredSkill};
+    use crate::source::{ParsedSource, SourceKind};
+    use std::path::PathBuf;
+
+    fn plugin(name: &str, skills: &[&str]) -> RegisteredPlugin {
+        RegisteredPlugin {
+            name: name.to_string(),
+            version: None,
+            description: None,
+            path: PathBuf::from(name),
+            skills: skills
+                .iter()
+                .map(|skill| RegisteredSkill {
+                    name: (*skill).to_string(),
+                    description: None,
+                    author: None,
+                    version: None,
+                    path: PathBuf::from(format!("{name}/{skill}")),
+                })
+                .collect(),
+        }
+    }
+
+    fn parsed(kind: SourceKind) -> ParsedSource {
+        ParsedSource {
+            kind,
+            source_name: "src".to_string(),
+            display_name: None,
+            url: None,
+            path: PathBuf::from("/tmp/src"),
+            plugin_name: None,
+            skill_name: None,
+        }
+    }
+
+    #[test]
+    fn marketplace_summary_uses_display_name_and_counts() {
+        let mut parsed = parsed(SourceKind::Marketplace);
+        parsed.display_name = Some("Team Skills".to_string());
+
+        let summary = detected_summary(
+            &parsed,
+            &[plugin("alpha", &["one", "two"]), plugin("beta", &["three"])],
+        );
+
+        assert_eq!(
+            summary,
+            "Detected a marketplace named 'Team Skills', with 2 plugins and 3 total skills."
+        );
+    }
+
+    #[test]
+    fn plugin_summary_uses_plugin_and_skill_counts() {
+        let summary =
+            detected_summary(&parsed(SourceKind::SinglePlugin), &[plugin("alpha", &["one", "two"])]);
+
+        assert_eq!(summary, "Detected 1 plugin with 2 skills.");
+    }
+
+    #[test]
+    fn flat_skill_summary_uses_skill_count() {
+        let summary = detected_summary(
+            &parsed(SourceKind::FlatSkills),
+            &[plugin("alpha", &["one", "two", "three"])],
+        );
+
+        assert_eq!(summary, "Detected 3 skills.");
+    }
+
+    #[test]
+    fn single_skill_summary_is_singular() {
+        let summary =
+            detected_summary(&parsed(SourceKind::SingleSkillDir), &[plugin("alpha", &["one"])]);
+
+        assert_eq!(summary, "Detected 1 skill.");
     }
 }
 
