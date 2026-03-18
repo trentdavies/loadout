@@ -47,7 +47,8 @@ pub(crate) fn run(flags: &Flags) -> anyhow::Result<()> {
     if registry.sources.is_empty() {
         out.info("  (none)");
     } else {
-        let mut sources: Vec<&crate::registry::RegisteredSource> = registry.sources.iter().collect();
+        let mut sources: Vec<&crate::registry::RegisteredSource> =
+            registry.sources.iter().collect();
         sources.sort_by(|a, b| a.name.cmp(&b.name));
 
         for src in sources {
@@ -57,11 +58,16 @@ pub(crate) fn run(flags: &Flags) -> anyhow::Result<()> {
                 .find(|rs| rs.name == src.name)
                 .map(|rs| rs.plugins.iter().map(|p| p.skills.len()).sum())
                 .unwrap_or(0);
-            let config_src = config.source.iter().find(|candidate| candidate.name == src.name);
+            let config_src = config
+                .source
+                .iter()
+                .find(|candidate| candidate.name == src.name);
             let version = config_src
                 .and_then(|candidate| candidate.r#ref.as_deref())
                 .unwrap_or("latest");
-            let mode_str = config_src.and_then(|candidate| candidate.mode.as_deref()).unwrap_or("");
+            let mode_str = config_src
+                .and_then(|candidate| candidate.mode.as_deref())
+                .unwrap_or("");
             let detail = if mode_str.is_empty() {
                 format!(
                     "{} skills, @ {}, {}",

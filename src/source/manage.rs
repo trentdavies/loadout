@@ -108,7 +108,10 @@ pub fn import_into_local_source(
     data_dir: &Path,
 ) -> Result<LocalImport> {
     if source_kind_residence(parsed.kind) != SourceResidence::Local {
-        anyhow::bail!("source kind {:?} cannot be imported into the local source", parsed.kind);
+        anyhow::bail!(
+            "source kind {:?} cannot be imported into the local source",
+            parsed.kind
+        );
     }
 
     let imported = normalize::normalize_with(&parsed.clone().with_source_name("local"), overrides)?;
@@ -119,12 +122,18 @@ pub fn import_into_local_source(
         .collect();
 
     match parsed.kind {
-        super::SourceKind::SinglePlugin => install_plugin_dir(parsed, &imported.plugins[0], data_dir)?,
-        super::SourceKind::FlatSkills => install_flat_skills_plugin(&imported.plugins[0], data_dir)?,
+        super::SourceKind::SinglePlugin => {
+            install_plugin_dir(parsed, &imported.plugins[0], data_dir)?
+        }
+        super::SourceKind::FlatSkills => {
+            install_flat_skills_plugin(&imported.plugins[0], data_dir)?
+        }
         super::SourceKind::SingleSkillDir => {
             install_single_skill_dir(parsed, &imported.plugins[0], data_dir)?
         }
-        super::SourceKind::SingleFile => install_single_skill_file(parsed, &imported.plugins[0], data_dir)?,
+        super::SourceKind::SingleFile => {
+            install_single_skill_file(parsed, &imported.plugins[0], data_dir)?
+        }
         super::SourceKind::Marketplace => unreachable!(),
     }
 
@@ -164,7 +173,11 @@ pub fn persist_prepared_source(
     config.source.push(prepared.config);
 }
 
-fn install_plugin_dir(parsed: &ParsedSource, plugin: &crate::registry::RegisteredPlugin, data_dir: &Path) -> Result<()> {
+fn install_plugin_dir(
+    parsed: &ParsedSource,
+    plugin: &crate::registry::RegisteredPlugin,
+    data_dir: &Path,
+) -> Result<()> {
     let target = data_dir.join(&plugin.name);
     if target.exists() {
         anyhow::bail!("local plugin '{}' already exists", plugin.name);

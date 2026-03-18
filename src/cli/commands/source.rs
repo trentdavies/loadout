@@ -61,7 +61,11 @@ pub(crate) fn run_add(
                 );
             }
 
-            if config.source.iter().any(|existing| existing.name == source_name) {
+            if config
+                .source
+                .iter()
+                .any(|existing| existing.name == source_name)
+            {
                 anyhow::bail!(
                     "source '{}' already exists. Use --source to choose a different alias.",
                     source_name
@@ -107,7 +111,9 @@ pub(crate) fn run_add(
 
                 if !flags.quiet {
                     let action = match &source_url {
-                        crate::source::SourceUrl::Git(url, _) => format!("Cloning {}", url.dimmed()),
+                        crate::source::SourceUrl::Git(url, _) => {
+                            format!("Cloning {}", url.dimmed())
+                        }
                         crate::source::SourceUrl::Local(path) if use_symlink => {
                             format!("Linking {}", path.display().to_string().dimmed())
                         }
@@ -165,8 +171,11 @@ pub(crate) fn run_add(
                 AddedSourceSummary::External { source_name }
             }
             crate::config::SourceResidence::Local => {
-                let imported =
-                    crate::source::import_into_local_source(&staged.parsed, &norm_overrides, &data_dir)?;
+                let imported = crate::source::import_into_local_source(
+                    &staged.parsed,
+                    &norm_overrides,
+                    &data_dir,
+                )?;
 
                 if !flags.quiet && !crate::prompt::is_interactive() {
                     for plugin in &imported.plugins {
@@ -212,7 +221,10 @@ pub(crate) fn run_add(
                 let heading = if label == "local" {
                     "Imported into local source".to_string()
                 } else {
-                    format!("Imported into local source {}", format!("({label})").dimmed())
+                    format!(
+                        "Imported into local source {}",
+                        format!("({label})").dimmed()
+                    )
                 };
                 print_add_summary(&heading, &imported.plugins, None, flags.verbose);
             }
@@ -229,7 +241,9 @@ fn stage_source_for_parse(
 ) -> anyhow::Result<StagedParsedSource> {
     match source_url {
         crate::source::SourceUrl::Local(path) => Ok(StagedParsedSource {
-            parsed: crate::source::ParsedSource::parse(&crate::source::detect_path(source_url, path))?,
+            parsed: crate::source::ParsedSource::parse(&crate::source::detect_path(
+                source_url, path,
+            ))?,
             _temp_dir: None,
         }),
         crate::source::SourceUrl::Git(..) | crate::source::SourceUrl::Archive(..) => {
@@ -268,7 +282,8 @@ fn prompt_add_overrides(
     } else if let Some(source_plugin) = source_as_plugin {
         Some(source_plugin)
     } else if let Some(default_plugin) = parsed.prompt_plugin_name() {
-        let confirmed = crate::prompt::confirm_or_override("Plugin name", default_plugin, flags.quiet);
+        let confirmed =
+            crate::prompt::confirm_or_override("Plugin name", default_plugin, flags.quiet);
         if confirmed != default_plugin {
             Some(confirmed)
         } else {
@@ -281,7 +296,8 @@ fn prompt_add_overrides(
     let skill_override = if let Some(skill) = skill {
         Some(skill)
     } else if let Some(default_skill) = parsed.prompt_skill_name() {
-        let confirmed = crate::prompt::confirm_or_override("Skill name", default_skill, flags.quiet);
+        let confirmed =
+            crate::prompt::confirm_or_override("Skill name", default_skill, flags.quiet);
         if confirmed != default_skill {
             Some(confirmed)
         } else {
@@ -422,7 +438,10 @@ fn detected_summary(
 
     match parsed.kind {
         crate::source::SourceKind::Marketplace => {
-            let name = parsed.display_name.as_deref().unwrap_or(&parsed.source_name);
+            let name = parsed
+                .display_name
+                .as_deref()
+                .unwrap_or(&parsed.source_name);
             format!(
                 "Detected a marketplace named '{}', with {} plugin{} and {} total skill{}.",
                 name,
@@ -510,8 +529,10 @@ mod tests {
 
     #[test]
     fn plugin_summary_uses_plugin_and_skill_counts() {
-        let summary =
-            detected_summary(&parsed(SourceKind::SinglePlugin), &[plugin("alpha", &["one", "two"])]);
+        let summary = detected_summary(
+            &parsed(SourceKind::SinglePlugin),
+            &[plugin("alpha", &["one", "two"])],
+        );
 
         assert_eq!(summary, "Detected 1 plugin with 2 skills.");
     }
@@ -528,8 +549,10 @@ mod tests {
 
     #[test]
     fn single_skill_summary_is_singular() {
-        let summary =
-            detected_summary(&parsed(SourceKind::SingleSkillDir), &[plugin("alpha", &["one"])]);
+        let summary = detected_summary(
+            &parsed(SourceKind::SingleSkillDir),
+            &[plugin("alpha", &["one"])],
+        );
 
         assert_eq!(summary, "Detected 1 skill.");
     }
@@ -540,7 +563,10 @@ mod tests {
         parsed.display_name = Some("HashiCorp Skills".to_string());
         let url = SourceUrl::parse("https://github.com/hashicorp/agent-skills").unwrap();
 
-        assert_eq!(default_source_name(&url, &parsed), "hashicorp-skills-agent-skills");
+        assert_eq!(
+            default_source_name(&url, &parsed),
+            "hashicorp-skills-agent-skills"
+        );
     }
 
     #[test]
@@ -553,7 +579,10 @@ mod tests {
 
     #[test]
     fn source_alias_normalizes_human_names() {
-        assert_eq!(source_alias("HashiCorp Agent Skills"), "hashicorp-agent-skills");
+        assert_eq!(
+            source_alias("HashiCorp Agent Skills"),
+            "hashicorp-agent-skills"
+        );
         assert_eq!(source_alias(" team__skills "), "team-skills");
     }
 }

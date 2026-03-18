@@ -62,8 +62,8 @@ impl ParsedSource {
 
         // 2. Marketplace
         if path.join(".claude-plugin/marketplace.json").exists() {
-            let display_name = manifest::load_marketplace(&path.join(".claude-plugin/marketplace.json"))?
-                .name;
+            let display_name =
+                manifest::load_marketplace(&path.join(".claude-plugin/marketplace.json"))?.name;
             return Ok(Self {
                 kind: SourceKind::Marketplace,
                 source_name,

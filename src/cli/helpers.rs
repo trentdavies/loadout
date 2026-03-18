@@ -150,9 +150,8 @@ fn merge_local_source(
         return Ok(());
     }
 
-    let mut local_source = crate::source::normalize::normalize(
-        &parsed.with_source_name("local").with_url(""),
-    )?;
+    let mut local_source =
+        crate::source::normalize::normalize(&parsed.with_source_name("local").with_url(""))?;
     local_source.name = "local".to_string();
     local_source.url.clear();
     local_source.residence = crate::config::SourceResidence::Local;
@@ -713,8 +712,8 @@ mod tests {
         )
         .unwrap();
 
-        let registry = load_effective_registry(&crate::config::Config::default(), tmp.path(), true)
-            .unwrap();
+        let registry =
+            load_effective_registry(&crate::config::Config::default(), tmp.path(), true).unwrap();
         let local = registry
             .sources
             .iter()
@@ -738,11 +737,14 @@ mod tests {
         )
         .unwrap();
 
-        let registry = load_effective_registry(&crate::config::Config::default(), tmp.path(), true)
-            .unwrap();
+        let registry =
+            load_effective_registry(&crate::config::Config::default(), tmp.path(), true).unwrap();
         let labels = build_source_labels(&registry, tmp.path());
 
-        assert_eq!(labels.get("local").map(String::as_str), Some("Pretty Local"));
+        assert_eq!(
+            labels.get("local").map(String::as_str),
+            Some("Pretty Local")
+        );
     }
 
     #[test]
@@ -758,9 +760,10 @@ mod tests {
 
         generate_marketplace(tmp.path()).unwrap();
 
-        let manifest =
-            crate::source::manifest::load_marketplace(&tmp.path().join(".claude-plugin/marketplace.json"))
-                .unwrap();
+        let manifest = crate::source::manifest::load_marketplace(
+            &tmp.path().join(".claude-plugin/marketplace.json"),
+        )
+        .unwrap();
         assert_eq!(manifest.name, "Shared Skills");
         assert_eq!(manifest.plugins.len(), 1);
         assert_eq!(manifest.plugins[0].name, "tools");
