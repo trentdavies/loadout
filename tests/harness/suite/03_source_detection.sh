@@ -24,6 +24,30 @@ test_detect_flat_directory() {
   assert_stdout_contains "apply" "$LOADOUT" list
 }
 
+test_detect_repo_root_with_skills_subdir() {
+  "$LOADOUT" init >/dev/null 2>&1
+
+  local temp_source="/tmp/test-repo-root-skills"
+  rm -rf "$temp_source"
+  mkdir -p "$temp_source/skills/pptx/templates"
+  cat >"$temp_source/README.md" <<'EOF'
+# Example repo
+EOF
+  cat >"$temp_source/skills/pptx/SKILL.md" <<'EOF'
+---
+name: pptx
+description: PowerPoint helper
+---
+EOF
+  cat >"$temp_source/skills/pptx/templates/template.pptx" <<'EOF'
+template
+EOF
+
+  assert_exit_code 0 "$LOADOUT" add "$temp_source" --source slides
+  assert_stdout_contains "slides" "$LOADOUT" list
+  assert_stdout_contains "pptx" "$LOADOUT" list
+}
+
 test_detect_plugin_directory() {
   "$LOADOUT" init >/dev/null 2>&1
   assert_exit_code 0 "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source plugged

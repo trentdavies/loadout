@@ -90,8 +90,8 @@ impl ParsedSource {
             });
         }
 
-        // 4. Flat skills
-        if detect::has_skill_subdirs(path) {
+        // 4. Flat skills, either directly or under a top-level skills/ directory
+        if detect::has_skill_collection(path) {
             let plugin_name = path
                 .file_name()
                 .and_then(|n| n.to_str())
@@ -134,7 +134,7 @@ impl ParsedSource {
              - A SKILL.md file with YAML frontmatter\n\
              - A directory with .claude-plugin/marketplace.json (multi-plugin marketplace)\n\
              - A directory with .claude-plugin/plugin.json (single plugin)\n\
-             - A directory with subdirectories containing SKILL.md files\n\
+             - A directory with skill subdirectories, either directly or under skills/\n\
              - A directory containing SKILL.md directly",
             path.display()
         );
@@ -253,6 +253,22 @@ mod tests {
         let parsed = ParsedSource::parse(&hidden).unwrap();
         assert_eq!(parsed.kind, SourceKind::FlatSkills);
         assert_eq!(parsed.plugin_name.as_deref(), Some("curated"));
+    }
+
+    #[test]
+    fn parse_flat_skills_in_skills_subdir() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("README.md"), "# repo").unwrap();
+        make_skill_md(&tmp.path().join("skills").join("skill-a"), "skill-a");
+
+        let parsed = ParsedSource::parse(tmp.path()).unwrap();
+        assert_eq!(parsed.kind, SourceKind::FlatSkills);
+        let expected_name = tmp
+            .path()
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| n.strip_prefix('.').unwrap_or(n));
+        assert_eq!(parsed.plugin_name.as_deref(), expected_name);
     }
 
     #[test]

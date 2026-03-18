@@ -71,6 +71,77 @@ test_02b_add_local_plugin_updates_local_marketplace() {
   fi
 }
 
+test_02c_add_repo_root_with_skills_dir() {
+  local repo_root="$SANDBOX_LOCAL/repo-root-skills"
+  rm -rf "$repo_root"
+  mkdir -p \
+    "$repo_root/skills/pptx/examples" \
+    "$repo_root/skills/pptx/references" \
+    "$repo_root/skills/pptx/scripts" \
+    "$repo_root/skills/pptx/templates"
+
+  cat >"$repo_root/README.md" <<'EOF'
+# Repo Root Skills
+EOF
+  cat >"$repo_root/skills/pptx/SKILL.md" <<'EOF'
+---
+name: pptx
+description: PowerPoint helper
+---
+EOF
+  cat >"$repo_root/skills/pptx/examples/hybrid_demo.py" <<'EOF'
+print("demo")
+EOF
+  cat >"$repo_root/skills/pptx/references/slide-layouts.md" <<'EOF'
+# Layouts
+EOF
+  cat >"$repo_root/skills/pptx/scripts/pptx.py" <<'EOF'
+print("script")
+EOF
+  cat >"$repo_root/skills/pptx/templates/template.pptx" <<'EOF'
+template
+EOF
+
+  log_cmd "$LOADOUT" add "$repo_root" --source slides-root
+
+  local json
+  json=$("$LOADOUT" list --json 2>/dev/null)
+
+  local count plugin_name source_name identity
+  count=$(echo "$json" | jq '[.[] | select(.plugin == "slides-root" and .name == "pptx")] | length')
+  plugin_name=$(echo "$json" | jq -r '[.[] | select(.plugin == "slides-root" and .name == "pptx")] | .[0].plugin')
+  source_name=$(echo "$json" | jq -r '[.[] | select(.plugin == "slides-root" and .name == "pptx")] | .[0].source')
+  identity=$(echo "$json" | jq -r '[.[] | select(.plugin == "slides-root" and .name == "pptx")] | .[0].identity')
+
+  if [ "$count" -eq 1 ] && [ "$plugin_name" = "slides-root" ] && [ "$source_name" = "local" ]; then
+    _pass "repo root with skills/ imported as local flat-skills plugin"
+    log_check 1 "slides-root/pptx listed from local source"
+  else
+    _fail "repo root with skills/ listing invalid" "local: slides-root/pptx" "count=$count plugin=$plugin_name source=$source_name"
+    log_check 0 "slides-root/pptx listed from local source"
+  fi
+
+  if [ "$identity" = "local:slides-root/pptx" ]; then
+    _pass "repo root with skills/ identity is correct"
+    log_check 1 "slides-root identity preserved"
+  else
+    _fail "repo root with skills/ identity invalid" "local:slides-root/pptx" "$identity"
+    log_check 0 "slides-root identity preserved"
+  fi
+
+  local plugin_dir="$XDG_DATA_HOME/equip/slides-root"
+  if [ -f "$plugin_dir/skills/pptx/templates/template.pptx" ] \
+    && [ -f "$plugin_dir/skills/pptx/scripts/pptx.py" ] \
+    && [ ! -f "$plugin_dir/README.md" ]; then
+    _pass "repo root import keeps skill assets and excludes root README"
+    log_check 1 "slides-root copied nested assets without repo root files"
+  else
+    _fail "repo root import copied the wrong files" "skill assets present and root README absent" \
+      "template=$(test -f "$plugin_dir/skills/pptx/templates/template.pptx" && echo yes || echo no) script=$(test -f "$plugin_dir/skills/pptx/scripts/pptx.py" && echo yes || echo no) readme=$(test -f "$plugin_dir/README.md" && echo yes || echo no)"
+    log_check 0 "slides-root copied nested assets without repo root files"
+  fi
+}
+
 test_03_local_skills_detected() {
   local count
   count=$("$LOADOUT" list --json 2>/dev/null | jq '[.[] | select(.source == "local-skills")] | length')

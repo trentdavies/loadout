@@ -86,14 +86,7 @@ pub fn discover_plugins(source_path: &Path) -> Result<Vec<DiscoveredPlugin>> {
 
 /// Check if a directory contains skills — either directly or in a skills/ subdir.
 fn has_skills(path: &Path) -> bool {
-    // Check skills/ subdirectory first
-    let skills_dir = path.join("skills");
-    if skills_dir.is_dir() && detect::has_skill_subdirs(&skills_dir) {
-        return true;
-    }
-
-    // Check direct subdirs for SKILL.md
-    detect::has_skill_subdirs(path)
+    detect::has_skill_collection(path)
 }
 
 /// Discover skills within a plugin directory.

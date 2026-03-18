@@ -121,6 +121,25 @@ fn detect_flat_skills() {
 }
 
 #[test]
+fn detect_repo_root_with_skills_subdir() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    std::fs::write(tmp.path().join("README.md"), "# repo").unwrap();
+    let skill_dir = tmp.path().join("skills").join("pptx");
+    std::fs::create_dir_all(&skill_dir).unwrap();
+    std::fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: pptx\ndescription: deck skill\n---\n",
+    )
+    .unwrap();
+
+    let result = equip::source::detect::detect(tmp.path()).unwrap();
+    match result {
+        equip::source::detect::SourceStructure::FlatSkills => {}
+        other => panic!("expected FlatSkills, got {:?}", other),
+    }
+}
+
+#[test]
 fn detect_full_source() {
     let path = fixtures_dir().join("full-source");
     let result = equip::source::detect::detect(&path).unwrap();

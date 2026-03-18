@@ -11,7 +11,7 @@ pub enum SourceStructure {
     Marketplace,
     /// Directory with .claude-plugin/plugin.json — single plugin.
     SinglePlugin,
-    /// Directory with subdirs containing SKILL.md — flat plugin (inferred).
+    /// Directory with skill subdirs, either directly or under `skills/`.
     FlatSkills,
     /// Directory containing SKILL.md directly — single skill dir.
     SingleSkillDir { skill_name: String },
@@ -23,7 +23,7 @@ pub enum SourceStructure {
 /// 1. Single file with YAML frontmatter → SingleFile
 /// 2. Directory with .claude-plugin/marketplace.json → Marketplace
 /// 3. Directory with .claude-plugin/plugin.json → SinglePlugin
-/// 4. Directory with subdirs containing SKILL.md → FlatSkills
+/// 4. Directory with skill subdirs, either directly or under `skills/` → FlatSkills
 /// 5. Directory containing SKILL.md directly → SingleSkillDir
 /// 6. Error
 pub fn detect(path: &Path) -> Result<SourceStructure> {
@@ -78,6 +78,16 @@ pub fn has_skill_subdirs(path: &Path) -> bool {
     }
 
     false
+}
+
+/// Check if a directory contains skill subdirectories directly or under `skills/`.
+pub fn has_skill_collection(path: &Path) -> bool {
+    if has_skill_subdirs(path) {
+        return true;
+    }
+
+    let skills_dir = path.join("skills");
+    skills_dir.is_dir() && has_skill_subdirs(&skills_dir)
 }
 
 /// Parse the `name` field from SKILL.md YAML frontmatter.
@@ -282,6 +292,25 @@ mod tests {
     }
 
     #[test]
+    fn detect_flat_skills_in_skills_subdir() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("README.md"), "# repo").unwrap();
+
+        let sub = tmp.path().join("skills").join("my-skill");
+        fs::create_dir_all(&sub).unwrap();
+        fs::write(
+            sub.join("SKILL.md"),
+            "---\nname: my-skill\ndescription: d\n---\n",
+        )
+        .unwrap();
+
+        match detect(tmp.path()).unwrap() {
+            SourceStructure::FlatSkills => {}
+            other => panic!("expected FlatSkills, got {:?}", other),
+        }
+    }
+
+    #[test]
     fn detect_single_skill_dir() {
         let tmp = TempDir::new().unwrap();
         fs::write(
@@ -465,6 +494,15 @@ mod tests {
         fs::create_dir(&sub).unwrap();
         fs::write(sub.join("README.md"), "content").unwrap();
         assert!(!has_skill_subdirs(tmp.path()));
+    }
+
+    #[test]
+    fn has_skill_collection_true_for_skills_subdir() {
+        let tmp = TempDir::new().unwrap();
+        let sub = tmp.path().join("skills").join("skill-a");
+        fs::create_dir_all(&sub).unwrap();
+        fs::write(sub.join("SKILL.md"), "content").unwrap();
+        assert!(has_skill_collection(tmp.path()));
     }
 
     // -- frontmatter edge cases --

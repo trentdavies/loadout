@@ -379,3 +379,67 @@ pub fn refresh_source(
         &normalize::Overrides::default(),
     )?))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn import_flat_skills_from_repo_root_uses_nested_skills_only() {
+        let tmp = TempDir::new().unwrap();
+        let repo_root = tmp.path().join("repo");
+        let data_dir = tmp.path().join("data");
+
+        fs::create_dir_all(repo_root.join("skills").join("pptx").join("templates")).unwrap();
+        fs::write(repo_root.join("README.md"), "# docs").unwrap();
+        fs::write(
+            repo_root.join("skills").join("pptx").join("SKILL.md"),
+            "---\nname: pptx\ndescription: PowerPoint skill\n---\nbody",
+        )
+        .unwrap();
+        fs::write(
+            repo_root
+                .join("skills")
+                .join("pptx")
+                .join("templates")
+                .join("template.pptx"),
+            "template",
+        )
+        .unwrap();
+
+        let parsed = ParsedSource::parse(&repo_root)
+            .unwrap()
+            .with_source_name("slides");
+        assert_eq!(parsed.kind, super::super::parsed::SourceKind::FlatSkills);
+
+        let imported = import_into_local_source(
+            &parsed,
+            &normalize::Overrides {
+                plugin: Some("slides"),
+                skill: None,
+            },
+            &data_dir,
+        )
+        .unwrap();
+
+        assert_eq!(imported.plugins.len(), 1);
+        assert_eq!(imported.plugins[0].name, "slides");
+        assert_eq!(imported.plugins[0].skills.len(), 1);
+        assert!(data_dir
+            .join("slides")
+            .join("skills")
+            .join("pptx")
+            .join("SKILL.md")
+            .exists());
+        assert!(data_dir
+            .join("slides")
+            .join("skills")
+            .join("pptx")
+            .join("templates")
+            .join("template.pptx")
+            .exists());
+        assert!(!data_dir.join("slides").join("README.md").exists());
+    }
+}
