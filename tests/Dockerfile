@@ -2,7 +2,7 @@ FROM rust:bookworm
 
 # Extra tools (git already included via buildpack-deps)
 RUN apt-get update && apt-get install -y \
-    openssh-server jq tree vim less bash-completion fzf \
+    openssh-server jq tree vim less bash-completion fzf zsh \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
@@ -45,7 +45,7 @@ COPY tests/ /tests/
 
 # Make scripts executable
 RUN chmod +x /tests/harness/runner.sh \
-    && chmod +x /tests/sandbox/run /tests/sandbox/runner.sh /tests/sandbox/setup.sh \
+    && chmod +x /tests/sandbox/runner.sh /tests/sandbox/setup.sh \
     && chmod +x /tests/sandbox/suite/*.sh 2>/dev/null || true
 
 # Shell config: vi bindings, completions, equip completions
@@ -64,6 +64,15 @@ RUN printf '%s\n' \
     > /root/.bashrc \
     && equip completions bash --install
 
+# Zsh config: vi bindings, fpath before compinit, equip completions
+RUN mkdir -p /root/.zfunc \
+    && equip completions zsh > /root/.zfunc/_equip \
+    && printf '%s\n' \
+    'bindkey -v' \
+    'fpath=(/root/.zfunc $fpath)' \
+    'autoload -Uz compinit && compinit' \
+    > /root/.zshrc
+
 # Convenience symlinks for sandbox exploration
 RUN ln -s /tests/sandbox/runner.sh ~/run-tests \
     && ln -s /tests/sandbox/setup.sh ~/setup.sh
@@ -72,7 +81,7 @@ RUN ln -s /tests/sandbox/runner.sh ~/run-tests \
 EXPOSE 22
 
 # Default: interactive shell. Callers override CMD:
-#   just harness        → /tests/harness/runner.sh
-#   sandbox/run --test  → /root/run-tests
-#   sandbox-ssh         → /usr/sbin/sshd -D
+#   just harness     → /tests/harness/runner.sh
+#   just sandbox-test → /root/run-tests
+#   just sandbox-ssh  → /usr/sbin/sshd -D
 CMD ["bash"]

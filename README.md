@@ -5,7 +5,14 @@ Equip manages skills across coding agents. You maintain a central skill library,
 ## Install
 
 ```bash
-cargo install --path .
+brew tap trentdavies/tap
+brew install equip
+```
+
+Or with Cargo:
+
+```bash
+cargo install equip
 ```
 
 ## Setup
