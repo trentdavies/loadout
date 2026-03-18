@@ -88,6 +88,20 @@ pub fn confirm_proceed(quiet: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Ask the user to confirm a destructive action.
+/// In non-interactive or quiet mode, returns the provided default.
+pub fn confirm_action(label: &str, quiet: bool, default: bool) -> bool {
+    if quiet || !is_interactive() {
+        return default;
+    }
+
+    dialoguer::Confirm::new()
+        .with_prompt(styled_prompt(label, None))
+        .default(default)
+        .interact()
+        .unwrap_or(default)
+}
+
 /// Prompt for source residence: external (updatable) or local (copied).
 /// In non-interactive/quiet mode, returns Local (preserving current default).
 pub fn prompt_residence(quiet: bool) -> crate::config::SourceResidence {
@@ -205,6 +219,18 @@ mod tests {
     fn confirm_proceed_ok_quiet() {
         let result = confirm_proceed(true);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn confirm_action_returns_default_non_interactive() {
+        let result = confirm_action("Remove source?", false, false);
+        assert!(!result);
+    }
+
+    #[test]
+    fn confirm_action_returns_default_quiet() {
+        let result = confirm_action("Remove source?", true, true);
+        assert!(result);
     }
 
     #[test]

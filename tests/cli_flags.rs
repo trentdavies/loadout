@@ -166,8 +166,8 @@ fn parse_add_symlink_copy_conflict() {
 fn parse_remove_without_name() {
     let cli = Cli::try_parse_from(["equip", "remove"]).unwrap();
     match cli.command {
-        equip::cli::Command::Remove { name, force } => {
-            assert!(name.is_none());
+        equip::cli::Command::Remove { patterns, force } => {
+            assert!(patterns.is_empty());
             assert!(!force);
         }
         _ => panic!("expected Remove"),
@@ -209,11 +209,23 @@ fn parse_list_with_multiple_patterns() {
 
 #[test]
 fn parse_remove() {
-    let cli = Cli::try_parse_from(["equip", "remove", "my-source", "--force"]).unwrap();
+    let cli = Cli::try_parse_from(["equip", "remove", "my-plugin/my-skill", "--force"]).unwrap();
     match cli.command {
-        equip::cli::Command::Remove { name, force } => {
-            assert_eq!(name, Some("my-source".to_string()));
+        equip::cli::Command::Remove { patterns, force } => {
+            assert_eq!(patterns, vec!["my-plugin/my-skill".to_string()]);
             assert!(force);
+        }
+        _ => panic!("expected Remove"),
+    }
+}
+
+#[test]
+fn parse_remove_multiple_patterns() {
+    let cli = Cli::try_parse_from(["equip", "remove", "one/*", "two/*"]).unwrap();
+    match cli.command {
+        equip::cli::Command::Remove { patterns, force } => {
+            assert_eq!(patterns, vec!["one/*".to_string(), "two/*".to_string()]);
+            assert!(!force);
         }
         _ => panic!("expected Remove"),
     }

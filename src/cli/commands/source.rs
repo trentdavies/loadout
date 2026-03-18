@@ -846,8 +846,199 @@ pub(crate) fn run_source_list(flags: &Flags) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub(crate) fn run_remove(name: Option<String>, force: bool, flags: &Flags) -> anyhow::Result<()> {
-    run_source_remove(name, force, flags)
+enum RemovalAction {
+    Execute,
+    Preview,
+    Abort,
+}
+
+fn removal_action(label: &str, force: bool, flags: &Flags) -> RemovalAction {
+    if flags.dry_run {
+        return RemovalAction::Preview;
+    }
+    if force {
+        return RemovalAction::Execute;
+    }
+    if crate::prompt::confirm_action(label, flags.quiet, false) {
+        RemovalAction::Execute
+    } else if flags.quiet || !crate::prompt::is_interactive() {
+        RemovalAction::Preview
+    } else {
+        RemovalAction::Abort
+    }
+}
+
+pub(crate) fn run_remove(patterns: Vec<String>, force: bool, flags: &Flags) -> anyhow::Result<()> {
+    if patterns.is_empty() {
+        anyhow::bail!("remove requires a local skill pattern or `equip source remove <name>`");
+    }
+
+    let config = crate::config::load(flags.config_path())?;
+    let data_dir = crate::config::data_dir();
+    let registry = crate::cli::helpers::load_effective_registry(&config, &data_dir, flags.quiet)?;
+
+    let source_match = if patterns.len() == 1 {
+        config
+            .source
+            .iter()
+            .any(|source| source.name == patterns[0])
+    } else {
+        false
+    };
+
+    let resolved = crate::cli::helpers::resolve_skill_patterns(&patterns, &registry, true);
+    match resolved {
+        Ok(skills) => {
+            if source_match {
+                if flags.quiet || !crate::prompt::is_interactive() {
+                    anyhow::bail!(
+                        "remove target '{}' is ambiguous. Use a fully qualified skill identity or `equip source remove {}`.",
+                        patterns[0],
+                        patterns[0]
+                    );
+                }
+
+                let choices = vec![
+                    "Remove matching local skill(s)".to_string(),
+                    format!("Remove source '{}'", patterns[0]),
+                ];
+                let selected = crate::prompt::select_from("Remove target", &choices, flags.quiet)?;
+                if selected == choices[1] {
+                    return run_source_remove(Some(patterns[0].clone()), force, flags);
+                }
+            }
+
+            remove_local_skills(skills, force, &registry, &data_dir, flags)
+        }
+        Err(skill_error) => {
+            if source_match {
+                run_source_remove(Some(patterns[0].clone()), force, flags)
+            } else {
+                Err(skill_error)
+            }
+        }
+    }
+}
+
+fn remove_local_skills(
+    skills: Vec<(
+        &str,
+        &crate::registry::RegisteredPlugin,
+        &crate::registry::RegisteredSkill,
+    )>,
+    force: bool,
+    registry: &crate::registry::Registry,
+    data_dir: &std::path::Path,
+    flags: &Flags,
+) -> anyhow::Result<()> {
+    if skills.is_empty() {
+        anyhow::bail!("no local skills matched the given pattern(s)");
+    }
+
+    let external_matches: Vec<String> = skills
+        .iter()
+        .filter(|(source_name, _, _)| *source_name != "local")
+        .map(|(source_name, plugin, skill)| {
+            crate::output::plain_identity(source_name, &plugin.name, &skill.name)
+        })
+        .collect();
+    if !external_matches.is_empty() {
+        anyhow::bail!(
+            "remove only supports skills from the local source. Use `equip source remove <name>` for external sources.\n{}",
+            external_matches.join("\n")
+        );
+    }
+
+    let mut installed_on = std::collections::BTreeSet::new();
+    for (agent_name, installed_skills) in &registry.installed {
+        let matches_installed = skills.iter().any(|(_, plugin, skill)| {
+            installed_skills.values().any(|installed| {
+                installed.source == "local"
+                    && installed.plugin == plugin.name
+                    && installed.skill == skill.name
+            })
+        });
+        if matches_installed {
+            installed_on.insert(agent_name.clone());
+        }
+    }
+
+    if !installed_on.is_empty() && !flags.quiet {
+        eprintln!(
+            "warning: local skill(s) are installed on: {}",
+            installed_on.into_iter().collect::<Vec<_>>().join(", ")
+        );
+    }
+
+    let action = removal_action(
+        &format!(
+            "Remove {} local skill{}?",
+            skills.len(),
+            if skills.len() == 1 { "" } else { "s" }
+        ),
+        force,
+        flags,
+    );
+
+    match action {
+        RemovalAction::Abort => {
+            if !flags.quiet {
+                eprintln!("Aborted.");
+            }
+            return Ok(());
+        }
+        RemovalAction::Preview => {
+            if !flags.quiet {
+                println!(
+                    "Would remove {} local skill{}",
+                    skills.len(),
+                    if skills.len() == 1 { "" } else { "s" }
+                );
+                println!("Use --force to remove, or run interactively to confirm.");
+            }
+            return Ok(());
+        }
+        RemovalAction::Execute => {}
+    }
+
+    let mut affected_plugins = std::collections::BTreeSet::new();
+    for (_, plugin, skill) in &skills {
+        affected_plugins.insert(plugin.path.clone());
+        if skill.path.exists() {
+            std::fs::remove_dir_all(&skill.path)?;
+        }
+    }
+
+    for plugin_path in affected_plugins {
+        let skills_dir = plugin_path.join("skills");
+        let has_skills = std::fs::read_dir(&skills_dir)
+            .map(|entries| {
+                entries.flatten().any(|entry| {
+                    entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false)
+                        && entry.path().join("SKILL.md").exists()
+                })
+            })
+            .unwrap_or(false);
+        if !has_skills && plugin_path.exists() {
+            std::fs::remove_dir_all(&plugin_path)?;
+        }
+    }
+
+    crate::marketplace::generate_local_manifest(data_dir)?;
+
+    let config = crate::config::load(flags.config_path())?;
+    let updated_registry =
+        crate::cli::helpers::load_effective_registry(&config, data_dir, flags.quiet)?;
+    crate::registry::save_registry(&updated_registry, data_dir)?;
+
+    if !flags.quiet {
+        println!(
+            "Removed {} local skill{}",
+            skills.len(),
+            if skills.len() == 1 { "" } else { "s" }
+        );
+    }
+    Ok(())
 }
 
 pub(crate) fn run_source_remove(
@@ -906,8 +1097,24 @@ pub(crate) fn run_source_remove(
         );
     }
 
-    let execute = force && !flags.dry_run;
-    if execute {
+    match removal_action(&format!("Remove source '{}'?", name), force, flags) {
+        RemovalAction::Abort => {
+            if !flags.quiet {
+                eprintln!("Aborted.");
+            }
+            return Ok(());
+        }
+        RemovalAction::Preview => {
+            if !flags.quiet {
+                println!("Would remove source '{}'", name);
+                println!("Use --force to remove, or run interactively to confirm.");
+            }
+            return Ok(());
+        }
+        RemovalAction::Execute => {}
+    }
+
+    {
         // Remove cached content
         let residence = config
             .source
@@ -931,12 +1138,7 @@ pub(crate) fn run_source_remove(
     }
 
     if !flags.quiet {
-        if execute {
-            println!("Removed source '{}'", name);
-        } else {
-            println!("Would remove source '{}'", name);
-            println!("Use --force to remove");
-        }
+        println!("Removed source '{}'", name);
     }
     Ok(())
 }

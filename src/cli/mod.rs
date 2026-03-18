@@ -140,12 +140,12 @@ pub enum Command {
         fzf: bool,
     },
 
-    /// Remove a skill source
+    /// Remove local skill(s), or remove a source by exact name
     Remove {
-        /// Source name (omit to select interactively)
-        name: Option<String>,
+        /// Local skill identity/glob, or exact source name
+        patterns: Vec<String>,
 
-        /// Force removal even if skills are installed
+        /// Force removal without prompting
         #[arg(long)]
         force: bool,
     },
@@ -445,7 +445,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             external,
             fzf,
         } => commands::source::run_list(patterns, external, fzf, &flags),
-        Command::Remove { name, force } => commands::source::run_remove(name, force, &flags),
+        Command::Remove { patterns, force } => {
+            commands::source::run_remove(patterns, force, &flags)
+        }
         Command::Status => commands::status::run(&flags),
         Command::Source { command } => commands::source::run(command, &flags),
         Command::Kit { command } => commands::kit::run(command, &flags),
