@@ -13,11 +13,11 @@ pub(crate) fn run(command: ConfigCommand, flags: &Flags) -> anyhow::Result<()> {
                 println!();
                 println!("Sources: {}", config.source.len());
                 for s in &config.source {
-                    println!("  {} ({})", s.name, s.url);
+                    println!("  {} ({})", s.id, s.url);
                 }
                 println!("Agents: {}", config.agent.len());
                 for t in &config.agent {
-                    println!("  {} ({} @ {})", t.name, t.agent_type, t.path.display());
+                    println!("  {} ({} @ {})", t.id, t.agent_type, t.path.display());
                 }
                 println!("Adapters: {}", config.adapter.len());
                 for name in config.adapter.keys() {

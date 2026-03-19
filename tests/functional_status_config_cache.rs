@@ -15,7 +15,7 @@ use equip::registry::{
 
 fn make_source(name: &str, url: &str) -> SourceConfig {
     SourceConfig {
-        name: name.to_string(),
+        id: name.to_string(),
         url: url.to_string(),
         source_type: "local".to_string(),
         r#ref: None,
@@ -26,7 +26,7 @@ fn make_source(name: &str, url: &str) -> SourceConfig {
 
 fn make_agent(name: &str, agent_type: &str, path: PathBuf) -> AgentConfig {
     AgentConfig {
-        name: name.to_string(),
+        id: name.to_string(),
         agent_type: agent_type.to_string(),
         path,
         scope: "machine".to_string(),
@@ -60,7 +60,7 @@ fn make_registered_source(
     cache_path: PathBuf,
 ) -> RegisteredSource {
     RegisteredSource {
-        name: name.to_string(),
+        id: name.to_string(),
         display_name: None,
         url: String::new(),
         plugins,
@@ -207,16 +207,16 @@ fn config_show_returns_content() {
     let content = fs::read_to_string(&config_path).unwrap();
 
     assert!(
-        content.contains("name = \"my-source\""),
-        "should contain source name"
+        content.contains("id = \"my-source\""),
+        "should contain source id"
     );
     assert!(
         content.contains("url = \"/opt/skills\""),
         "should contain source url"
     );
     assert!(
-        content.contains("name = \"my-agent\""),
-        "should contain agent name"
+        content.contains("id = \"my-agent\""),
+        "should contain agent id"
     );
     assert!(
         content.contains("type = \"claude\""),
@@ -315,20 +315,20 @@ fn config_roundtrip_with_all_sections() {
 
     // Sources roundtrip
     assert_eq!(loaded.source.len(), 2);
-    assert_eq!(loaded.source[0].name, "local-skills");
+    assert_eq!(loaded.source[0].id, "local-skills");
     assert_eq!(loaded.source[0].url, "/home/skills");
     assert_eq!(loaded.source[0].source_type, "local");
-    assert_eq!(loaded.source[1].name, "remote-skills");
+    assert_eq!(loaded.source[1].id, "remote-skills");
     assert_eq!(loaded.source[1].url, "https://github.com/org/repo");
 
     // Targets roundtrip
     assert_eq!(loaded.agent.len(), 2);
-    assert_eq!(loaded.agent[0].name, "claude-dev");
+    assert_eq!(loaded.agent[0].id, "claude-dev");
     assert_eq!(loaded.agent[0].agent_type, "claude");
     assert_eq!(loaded.agent[0].path, PathBuf::from("/home/claude"));
     assert_eq!(loaded.agent[0].scope, "machine");
     assert_eq!(loaded.agent[0].sync, "auto");
-    assert_eq!(loaded.agent[1].name, "cursor-work");
+    assert_eq!(loaded.agent[1].id, "cursor-work");
     assert_eq!(loaded.agent[1].agent_type, "cursor");
     assert_eq!(loaded.agent[1].path, PathBuf::from("/home/cursor"));
 

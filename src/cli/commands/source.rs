@@ -147,12 +147,10 @@ pub(crate) fn run_add(args: AddArgs, flags: &Flags) -> anyhow::Result<()> {
             if config
                 .source
                 .iter()
-                .any(|existing| existing.name == source_name)
+                .any(|existing| existing.id == source_name)
+                || config.agent.iter().any(|a| a.id == source_name)
             {
-                anyhow::bail!(
-                    "source '{}' already exists. Use --source to choose a different alias.",
-                    source_name
-                );
+                anyhow::bail!("id '{}' is already in use", source_name);
             }
 
             source_name
@@ -288,7 +286,7 @@ pub(crate) fn run_add(args: AddArgs, flags: &Flags) -> anyhow::Result<()> {
         match added {
             Some(AddedSourceSummary::External { source_name }) => {
                 let reg = crate::registry::load_registry(&data_dir)?;
-                if let Some(src) = reg.sources.iter().find(|s| s.name == source_name) {
+                if let Some(src) = reg.sources.iter().find(|s| s.id == source_name) {
                     print_add_summary(
                         &format!("Added source {}", source_name.bold()),
                         &src.plugins,
@@ -804,7 +802,7 @@ pub(crate) fn run_list(
         let entries: Vec<serde_json::Value> = skills.iter()
             .map(|(source_name, plugin, skill)| {
                 let source_ref = ctx.config.source.iter()
-                    .find(|cs| cs.name == *source_name)
+                    .find(|cs| cs.id == *source_name)
                     .and_then(|cs| cs.r#ref.clone());
                 let status = skill_list_status(source_name, plugin, skill, &ctx);
                 let mut entry = serde_json::json!({
@@ -859,11 +857,11 @@ pub(crate) fn run_source_list(flags: &Flags) -> anyhow::Result<()> {
                 let skill_count: usize = registry
                     .sources
                     .iter()
-                    .find(|rs| rs.name == src.name)
+                    .find(|rs| rs.id == src.id)
                     .map(|rs| rs.plugins.iter().map(|p| p.skills.len()).sum())
                     .unwrap_or(0);
                 serde_json::json!({
-                    "name": src.name,
+                    "name": src.id,
                     "type": src.source_type,
                     "residence": src.residence.as_str(),
                     "domain": extract_domain(&src.url),
@@ -890,11 +888,11 @@ pub(crate) fn run_source_list(flags: &Flags) -> anyhow::Result<()> {
             let skill_count: usize = registry
                 .sources
                 .iter()
-                .find(|rs| rs.name == src.name)
+                .find(|rs| rs.id == src.id)
                 .map(|rs| rs.plugins.iter().map(|p| p.skills.len()).sum())
                 .unwrap_or(0);
             vec![
-                src.name.clone(),
+                src.id.clone(),
                 src.source_type.clone(),
                 src.residence.as_str().to_string(),
                 extract_domain(&src.url),
@@ -952,10 +950,7 @@ pub(crate) fn run_remove(patterns: Vec<String>, force: bool, flags: &Flags) -> a
     let registry = crate::cli::helpers::load_effective_registry(&config, &data_dir, flags.quiet)?;
 
     let source_match = if patterns.len() == 1 {
-        config
-            .source
-            .iter()
-            .any(|source| source.name == patterns[0])
+        config.source.iter().any(|source| source.id == patterns[0])
     } else {
         false
     };
@@ -1131,7 +1126,7 @@ pub(crate) fn run_source_remove(
     let name = match name {
         Some(n) => n,
         None => {
-            let source_names: Vec<String> = config.source.iter().map(|s| s.name.clone()).collect();
+            let source_names: Vec<String> = config.source.iter().map(|s| s.id.clone()).collect();
             if source_names.is_empty() {
                 anyhow::bail!("no sources configured");
             }
@@ -1139,14 +1134,14 @@ pub(crate) fn run_source_remove(
         }
     };
 
-    if !config.source.iter().any(|s| s.name == name) {
+    if !config.source.iter().any(|s| s.id == name) {
         anyhow::bail!("source '{}' not found", name);
     }
 
     // Check if any skills from this source are installed on agents
     let registry = crate::registry::load_registry(&data_dir)?;
     let mut installed_on: Vec<String> = Vec::new();
-    if let Some(reg_src) = registry.sources.iter().find(|s| s.name == name) {
+    if let Some(reg_src) = registry.sources.iter().find(|s| s.id == name) {
         let skill_names: Vec<&str> = reg_src
             .plugins
             .iter()
@@ -1158,7 +1153,7 @@ pub(crate) fn run_source_remove(
                 if let Ok(installed) = adapter.installed_skills(&agent_path) {
                     for sk in &skill_names {
                         if installed.contains(&sk.to_string()) {
-                            installed_on.push(ac.name.clone());
+                            installed_on.push(ac.id.clone());
                             break;
                         }
                     }
@@ -1197,7 +1192,7 @@ pub(crate) fn run_source_remove(
         let residence = config
             .source
             .iter()
-            .find(|s| s.name == name)
+            .find(|s| s.id == name)
             .map(|s| s.residence)
             .unwrap_or(crate::source::default_source_residence());
         let cache_path = crate::source::source_storage_path(&name, residence);
@@ -1207,11 +1202,11 @@ pub(crate) fn run_source_remove(
 
         // Remove from registry
         let mut registry = crate::registry::load_registry(&data_dir)?;
-        registry.sources.retain(|s| s.name != name);
+        registry.sources.retain(|s| s.id != name);
         crate::registry::save_registry(&registry, &data_dir)?;
 
         // Remove from config
-        config.source.retain(|s| s.name != name);
+        config.source.retain(|s| s.id != name);
         crate::config::save(&config, config_path_str)?;
     }
 
@@ -1249,7 +1244,7 @@ pub(crate) fn run_update(
         let src = config
             .source
             .iter()
-            .find(|s| s.name == *n)
+            .find(|s| s.id == *n)
             .ok_or_else(|| anyhow::anyhow!("source '{}' not found", n))?;
         vec![src.clone()]
     } else {
@@ -1269,7 +1264,7 @@ pub(crate) fn run_update(
 
     for src in &sources_to_update {
         if !flags.quiet {
-            println!("Updating '{}'...", src.name);
+            println!("Updating '{}'...", src.id);
         }
 
         if flags.dry_run {
@@ -1304,13 +1299,13 @@ pub(crate) fn run_update(
                 if !flags.quiet {
                     eprintln!(
                         "warning: source '{}' is pinned to {}, skipping",
-                        src.name, pinned_ref
+                        src.id, pinned_ref
                     );
                 }
                 continue;
             }
             Err(e) => {
-                errors.push(format!("{}: {}", src.name, e));
+                errors.push(format!("{}: {}", src.id, e));
                 continue;
             }
         }
@@ -1321,8 +1316,7 @@ pub(crate) fn run_update(
         if ref_changed {
             if let Some(ref new_ref) = update_ref {
                 if let Some(ref source_name) = name {
-                    if let Some(cfg_src) = config.source.iter_mut().find(|s| s.name == *source_name)
-                    {
+                    if let Some(cfg_src) = config.source.iter_mut().find(|s| s.id == *source_name) {
                         cfg_src.r#ref = if new_ref == "latest" {
                             None
                         } else {
@@ -1379,7 +1373,7 @@ pub(crate) fn run_reconcile(source_name: Option<String>, flags: &Flags) -> anyho
             let source = config
                 .source
                 .iter()
-                .find(|source| source.name == *name)
+                .find(|source| source.id == *name)
                 .ok_or_else(|| anyhow::anyhow!("source '{}' not found", name))?;
             vec![source.clone()]
         } else {
@@ -1390,13 +1384,13 @@ pub(crate) fn run_reconcile(source_name: Option<String>, flags: &Flags) -> anyho
             let old_source = registry
                 .sources
                 .iter()
-                .find(|registered| registered.name == source.name)
+                .find(|registered| registered.id == source.id)
                 .cloned();
             let cache_path = crate::source::source_storage_path_for_config(source);
             if !cache_path.exists() {
                 warnings.push(format!(
                     "source '{}' cache path is missing: {}",
-                    source.name,
+                    source.id,
                     cache_path.display()
                 ));
                 continue;
@@ -1412,11 +1406,11 @@ pub(crate) fn run_reconcile(source_name: Option<String>, flags: &Flags) -> anyho
                     );
                     registry
                         .sources
-                        .retain(|registered| registered.name != updated_source.name);
+                        .retain(|registered| registered.id != updated_source.id);
                     registry.sources.push(updated_source);
                     refreshed_sources += 1;
                 }
-                Err(err) => warnings.push(format!("{}: {}", source.name, err)),
+                Err(err) => warnings.push(format!("{}: {}", source.id, err)),
             }
         }
     }
@@ -1429,7 +1423,7 @@ pub(crate) fn run_reconcile(source_name: Option<String>, flags: &Flags) -> anyho
         let old_local = registry
             .sources
             .iter()
-            .find(|registered| registered.name == "local")
+            .find(|registered| registered.id == "local")
             .cloned();
 
         match reconcile_local_source(&data_dir) {
@@ -1442,14 +1436,14 @@ pub(crate) fn run_reconcile(source_name: Option<String>, flags: &Flags) -> anyho
                 );
                 registry
                     .sources
-                    .retain(|registered| registered.name != local_source.name);
+                    .retain(|registered| registered.id != local_source.id);
                 registry.sources.push(local_source);
                 refreshed_sources += 1;
             }
             Ok(None) => {
                 registry
                     .sources
-                    .retain(|registered| registered.name != "local");
+                    .retain(|registered| registered.id != "local");
             }
             Err(err) => warnings.push(format!("local: {}", err)),
         }
@@ -1485,7 +1479,7 @@ fn reconcile_registered_source(
 ) -> anyhow::Result<crate::registry::RegisteredSource> {
     let source_url = crate::source::SourceUrl::parse(&source.url)?;
     let prepared = crate::source::prepare_source(
-        &source.name,
+        &source.id,
         &source_url,
         cache_path,
         source.r#ref.clone(),
@@ -1509,7 +1503,7 @@ fn reconcile_local_source(
 
     let mut local =
         crate::source::normalize::normalize(&parsed.with_source_name("local").with_url(""))?;
-    local.name = "local".to_string();
+    local.id = "local".to_string();
     local.url.clear();
     local.residence = crate::config::SourceResidence::Local;
     Ok(Some(local))
@@ -1548,7 +1542,7 @@ fn reconcile_installed_origins(
     let mut updated = 0usize;
     for installed in registry.installed.values_mut() {
         for entry in installed.values_mut() {
-            if entry.source != new_source.name {
+            if entry.source != new_source.id {
                 continue;
             }
             let key = (entry.plugin.clone(), entry.skill.clone());

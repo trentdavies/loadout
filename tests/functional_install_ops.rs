@@ -36,7 +36,7 @@ fn setup_test_env() -> (TempDir, TempDir, Registry, Config) {
 
     let mut registry = Registry::default();
     registry.sources.push(RegisteredSource {
-        name: "test-source".to_string(),
+        id: "test-source".to_string(),
         display_name: None,
         url: String::new(),
         plugins: vec![RegisteredPlugin {
@@ -52,7 +52,7 @@ fn setup_test_env() -> (TempDir, TempDir, Registry, Config) {
 
     let mut config = Config::default();
     config.source.push(SourceConfig {
-        name: "test-source".to_string(),
+        id: "test-source".to_string(),
         url: source_dir.path().to_string_lossy().to_string(),
         source_type: "local".to_string(),
         r#ref: None,
@@ -60,7 +60,7 @@ fn setup_test_env() -> (TempDir, TempDir, Registry, Config) {
         residence: equip::config::SourceResidence::External,
     });
     config.agent.push(AgentConfig {
-        name: "claude".to_string(),
+        id: "claude".to_string(),
         agent_type: "claude".to_string(),
         path: target_dir.path().to_path_buf(),
         scope: "machine".to_string(),
@@ -141,7 +141,7 @@ fn install_to_specific_agent() {
 
     let second_agent_dir = TempDir::new().unwrap();
     config.agent.push(AgentConfig {
-        name: "codex".to_string(),
+        id: "codex".to_string(),
         agent_type: "codex".to_string(),
         path: second_agent_dir.path().to_path_buf(),
         scope: "machine".to_string(),

@@ -17,7 +17,7 @@ fn make_kit(skills: &[&str]) -> KitConfig {
 
 fn make_agent(name: &str, path: PathBuf) -> AgentConfig {
     AgentConfig {
-        name: name.to_string(),
+        id: name.to_string(),
         agent_type: "claude".to_string(),
         path,
         scope: "machine".to_string(),
@@ -148,7 +148,7 @@ fn swap_bundle() {
     // Build registry with all skills
     let mut registry = Registry::default();
     registry.sources.push(RegisteredSource {
-        name: "src".to_string(),
+        id: "src".to_string(),
         display_name: None,
         url: String::new(),
         plugins: vec![RegisteredPlugin {

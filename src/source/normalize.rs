@@ -112,7 +112,7 @@ pub fn normalize_with(parsed: &ParsedSource, overrides: &Overrides) -> Result<Re
     };
 
     Ok(RegisteredSource {
-        name: parsed.source_name.clone(),
+        id: parsed.source_name.clone(),
         display_name: parsed.display_name.clone(),
         url: parsed.url.clone().unwrap_or_default(),
         plugins,
@@ -332,7 +332,7 @@ mod tests {
             .unwrap()
             .with_source_name("my-src");
         let result = normalize(&parsed).unwrap();
-        assert_eq!(result.name, "my-src");
+        assert_eq!(result.id, "my-src");
         assert_eq!(result.plugins.len(), 1);
         assert_eq!(result.plugins[0].skills.len(), 1);
     }

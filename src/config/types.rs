@@ -43,7 +43,8 @@ pub struct Config {
 /// A skill source (local path, git repo, URL).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourceConfig {
-    pub name: String,
+    #[serde(alias = "name")]
+    pub id: String,
     pub url: String,
 
     #[serde(rename = "type", default = "default_source_type")]
@@ -69,7 +70,8 @@ fn default_source_type() -> String {
 /// An agent installation directory where skills get applied.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
-    pub name: String,
+    #[serde(alias = "name")]
+    pub id: String,
     #[serde(rename = "type")]
     pub agent_type: String,
     pub path: PathBuf,
@@ -136,7 +138,7 @@ type = "local"
 "#;
         let config: Config = toml::from_str(toml).unwrap();
         assert_eq!(config.source.len(), 1);
-        assert_eq!(config.source[0].name, "my-src");
+        assert_eq!(config.source[0].id, "my-src");
         assert_eq!(config.source[0].source_type, "local");
     }
 
@@ -191,7 +193,7 @@ skills = ["plugin/skill-a"]
     fn config_serialize_roundtrip() {
         let mut config = Config::default();
         config.source.push(SourceConfig {
-            name: "s".to_string(),
+            id: "s".to_string(),
             url: "/tmp".to_string(),
             source_type: "local".to_string(),
             r#ref: None,
@@ -200,7 +202,7 @@ skills = ["plugin/skill-a"]
         });
         let serialized = toml::to_string_pretty(&config).unwrap();
         let deserialized: Config = toml::from_str(&serialized).unwrap();
-        assert_eq!(deserialized.source[0].name, "s");
+        assert_eq!(deserialized.source[0].id, "s");
     }
 
     #[test]

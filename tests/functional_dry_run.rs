@@ -42,7 +42,7 @@ fn setup_env() -> (TempDir, TempDir, TempDir, PathBuf, PathBuf) {
     // Build config
     let mut config = equip::config::Config::default();
     config.source.push(equip::config::SourceConfig {
-        name: "test-src".to_string(),
+        id: "test-src".to_string(),
         url: source_dir.path().display().to_string(),
         source_type: "local".to_string(),
         r#ref: None,
@@ -50,7 +50,7 @@ fn setup_env() -> (TempDir, TempDir, TempDir, PathBuf, PathBuf) {
         residence: equip::config::SourceResidence::External,
     });
     config.agent.push(equip::config::AgentConfig {
-        name: "test-agent".to_string(),
+        id: "test-agent".to_string(),
         agent_type: "claude".to_string(),
         path: target_dir.path().to_path_buf(),
         scope: "machine".to_string(),

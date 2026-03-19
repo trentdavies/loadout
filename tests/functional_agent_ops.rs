@@ -8,7 +8,7 @@ use equip::config::{load_from, save_to, AgentConfig, Config};
 
 fn make_agent(name: &str, agent_type: &str, path: PathBuf) -> AgentConfig {
     AgentConfig {
-        name: name.to_string(),
+        id: name.to_string(),
         agent_type: agent_type.to_string(),
         path,
         scope: "machine".to_string(),
@@ -30,7 +30,7 @@ fn add_agent_with_type_and_path() {
 
     let reloaded = load_from(&config_path).unwrap();
     assert_eq!(reloaded.agent.len(), 1);
-    assert_eq!(reloaded.agent[0].name, "my-claude");
+    assert_eq!(reloaded.agent[0].id, "my-claude");
     assert_eq!(reloaded.agent[0].agent_type, "claude");
     assert_eq!(reloaded.agent[0].path, agent_path);
 }
@@ -42,7 +42,7 @@ fn agent_defaults_scope_and_sync() {
 
     let mut config = Config::default();
     config.agent.push(AgentConfig {
-        name: "defaults-test".to_string(),
+        id: "defaults-test".to_string(),
         agent_type: "cursor".to_string(),
         path: tmp.path().join("cursor-agent"),
         scope: "machine".to_string(),
@@ -69,7 +69,7 @@ fn remove_agent() {
     let mut config = load_from(&config_path).unwrap();
     assert_eq!(config.agent.len(), 1);
 
-    config.agent.retain(|t| t.name != "to-remove");
+    config.agent.retain(|t| t.id != "to-remove");
     save_to(&config, &config_path).unwrap();
 
     let reloaded = load_from(&config_path).unwrap();
@@ -89,7 +89,7 @@ fn add_duplicate_agent_name_detected() {
         .agent
         .push(make_agent(name, "codex", tmp.path().join("b")));
 
-    let count = config.agent.iter().filter(|t| t.name == name).count();
+    let count = config.agent.iter().filter(|t| t.id == name).count();
     assert!(count > 1, "duplicate agent name should be detectable");
 }
 
@@ -113,7 +113,7 @@ fn list_agents() {
     let reloaded = load_from(&config_path).unwrap();
     assert_eq!(reloaded.agent.len(), 3);
 
-    let names: Vec<&str> = reloaded.agent.iter().map(|t| t.name.as_str()).collect();
+    let names: Vec<&str> = reloaded.agent.iter().map(|t| t.id.as_str()).collect();
     assert!(names.contains(&"alpha"));
     assert!(names.contains(&"beta"));
     assert!(names.contains(&"gamma"));

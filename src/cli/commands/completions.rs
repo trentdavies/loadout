@@ -33,16 +33,16 @@ pub(crate) fn run_complete(kind: String, flags: &Flags) -> anyhow::Result<()> {
     match kind.as_str() {
         "sources" => {
             for s in &config.source {
-                println!("{}", s.name);
+                println!("{}", s.id);
             }
-            if registry.sources.iter().any(|source| source.name == "local") {
+            if registry.sources.iter().any(|source| source.id == "local") {
                 println!("local");
             }
         }
         "plugins" => {
             for src in &registry.sources {
                 for p in &src.plugins {
-                    println!("{}:{}", src.name, p.name);
+                    println!("{}:{}", src.id, p.name);
                 }
             }
         }
@@ -50,14 +50,14 @@ pub(crate) fn run_complete(kind: String, flags: &Flags) -> anyhow::Result<()> {
             for src in &registry.sources {
                 for p in &src.plugins {
                     for s in &p.skills {
-                        println!("{}:{}/{}", src.name, p.name, s.name);
+                        println!("{}:{}/{}", src.id, p.name, s.name);
                     }
                 }
             }
         }
         "agents" => {
             for t in &config.agent {
-                println!("{}", t.name);
+                println!("{}", t.id);
             }
         }
         "kits" => {

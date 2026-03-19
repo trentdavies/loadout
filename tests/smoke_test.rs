@@ -72,7 +72,7 @@ fn full_lifecycle_smoke_test() {
     // Update config with source
     let mut config = equip::config::load_from(&config_path).unwrap();
     config.source.push(equip::config::SourceConfig {
-        name: "smoke-src".to_string(),
+        id: "smoke-src".to_string(),
         url: source_dir.path().display().to_string(),
         source_type: "local".to_string(),
         r#ref: None,
@@ -82,7 +82,7 @@ fn full_lifecycle_smoke_test() {
 
     // ── Step 3: Agent add ───────────────────────────────────────────────
     config.agent.push(equip::config::AgentConfig {
-        name: "smoke-agent".to_string(),
+        id: "smoke-agent".to_string(),
         agent_type: "claude".to_string(),
         path: target_dir.path().to_path_buf(),
         scope: "machine".to_string(),

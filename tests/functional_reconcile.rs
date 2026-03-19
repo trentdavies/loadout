@@ -101,7 +101,7 @@ fn setup_env() -> TestEnv {
 
     let mut config = Config::default();
     config.source.push(SourceConfig {
-        name: "test-source".to_string(),
+        id: "test-source".to_string(),
         url: cache_path.to_string_lossy().to_string(),
         source_type: "local".to_string(),
         r#ref: None,
@@ -144,7 +144,7 @@ fn reconcile_updates_installed_origin_after_skill_path_move() {
     let source = registry
         .sources
         .iter()
-        .find(|source| source.name == "test-source")
+        .find(|source| source.id == "test-source")
         .unwrap();
     let skill = source.plugins[0]
         .skills

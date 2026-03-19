@@ -2,7 +2,8 @@ pub mod types;
 
 pub use types::*;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -77,7 +78,46 @@ pub fn load_from(path: &Path) -> Result<Config> {
         .with_context(|| format!("failed to read config: {}", path.display()))?;
     let config: Config = toml::from_str(&content)
         .with_context(|| format!("failed to parse config: {}", path.display()))?;
+    validate(&config, path)?;
     Ok(config)
+}
+
+/// Validate config: enforce kebab-case IDs and global uniqueness across sources and agents.
+fn validate(config: &Config, path: &Path) -> Result<()> {
+    let mut seen: HashSet<String> = HashSet::new();
+    seen.insert("local".to_string()); // reserved
+
+    for source in &config.source {
+        if !crate::source::detect::is_kebab_case(&source.id) {
+            bail!(
+                "source id '{}' is not valid kebab-case (lowercase letters, digits, hyphens)",
+                source.id
+            );
+        }
+        if !seen.insert(source.id.clone()) {
+            bail!(
+                "duplicate id '{}': source and agent IDs must be globally unique (repair in {})",
+                source.id,
+                path.display()
+            );
+        }
+    }
+    for agent in &config.agent {
+        if !crate::source::detect::is_kebab_case(&agent.id) {
+            bail!(
+                "agent id '{}' is not valid kebab-case (lowercase letters, digits, hyphens)",
+                agent.id
+            );
+        }
+        if !seen.insert(agent.id.clone()) {
+            bail!(
+                "duplicate id '{}': source and agent IDs must be globally unique (repair in {})",
+                agent.id,
+                path.display()
+            );
+        }
+    }
+    Ok(())
 }
 
 /// Save config to the resolved path, creating directories as needed.
@@ -116,17 +156,17 @@ pub const DEFAULT_CONFIG: &str = r#"# Equip — Agent Skill Manager
 #   equip list --external                    # compatibility alias for source list
 #
 # [[source]]
-# name = "anthropic-plugins"
+# id = "anthropic-plugins"
 # url = "https://github.com/anthropics/knowledge-work-plugins.git"
 # type = "git"
 #
 # [[source]]
-# name = "my-skills"
+# id = "my-skills"
 # url = "~/dev/my-skills"
 # type = "local"
 #
 # [[source]]
-# name = "team-tools"
+# id = "team-tools"
 # url = "git@github.com:myorg/agent-skills.git"
 # type = "git"
 
@@ -142,21 +182,21 @@ pub const DEFAULT_CONFIG: &str = r#"# Equip — Agent Skill Manager
 #   equip agent detect                       # auto-detect installed agents
 #
 # [[agent]]
-# name = "claude"
+# id = "claude"
 # type = "claude"
 # path = "~/.claude"
 # scope = "machine"
 # sync = "auto"
 #
 # [[agent]]
-# name = "codex"
+# id = "codex"
 # type = "codex"
 # path = "~/.codex"
 # scope = "machine"
 # sync = "auto"
 #
 # [[agent]]
-# name = "project-claude"
+# id = "project-claude"
 # type = "claude"
 # path = "./my-project/.claude"
 # scope = "repo"
@@ -236,7 +276,7 @@ mod tests {
 
         let mut config = Config::default();
         config.source.push(SourceConfig {
-            name: "test-src".to_string(),
+            id: "test-src".to_string(),
             url: "/tmp/skills".to_string(),
             source_type: "local".to_string(),
             r#ref: None,
@@ -244,7 +284,7 @@ mod tests {
             residence: SourceResidence::External,
         });
         config.agent.push(AgentConfig {
-            name: "test-tgt".to_string(),
+            id: "test-tgt".to_string(),
             agent_type: "claude".to_string(),
             path: PathBuf::from("/tmp/claude"),
             scope: "machine".to_string(),
@@ -254,9 +294,9 @@ mod tests {
         save_to(&config, &path).unwrap();
         let loaded = load_from(&path).unwrap();
         assert_eq!(loaded.source.len(), 1);
-        assert_eq!(loaded.source[0].name, "test-src");
+        assert_eq!(loaded.source[0].id, "test-src");
         assert_eq!(loaded.agent.len(), 1);
-        assert_eq!(loaded.agent[0].name, "test-tgt");
+        assert_eq!(loaded.agent[0].id, "test-tgt");
     }
 
     #[test]
@@ -277,5 +317,155 @@ mod tests {
 
         let loaded = load(Some(path.to_str().unwrap())).unwrap();
         assert!(loaded.source.is_empty());
+    }
+
+    #[test]
+    fn backward_compat_name_alias_loads_into_id() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("compat.toml");
+        fs::write(
+            &path,
+            r#"
+[[source]]
+name = "old-style"
+url = "/tmp/skills"
+type = "local"
+
+[[agent]]
+name = "old-agent"
+type = "claude"
+path = "/tmp/.claude"
+"#,
+        )
+        .unwrap();
+        let config = load_from(&path).unwrap();
+        assert_eq!(config.source[0].id, "old-style");
+        assert_eq!(config.agent[0].id, "old-agent");
+    }
+
+    #[test]
+    fn validate_duplicate_source_ids_rejected() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("dup.toml");
+        fs::write(
+            &path,
+            r#"
+[[source]]
+id = "dup"
+url = "/tmp/a"
+type = "local"
+
+[[source]]
+id = "dup"
+url = "/tmp/b"
+type = "local"
+"#,
+        )
+        .unwrap();
+        let err = load_from(&path).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("duplicate id 'dup'"));
+        assert!(msg.contains("repair in"));
+    }
+
+    #[test]
+    fn validate_source_id_collides_with_agent_id() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("collision.toml");
+        fs::write(
+            &path,
+            r#"
+[[source]]
+id = "shared-name"
+url = "/tmp/skills"
+type = "local"
+
+[[agent]]
+id = "shared-name"
+type = "claude"
+path = "/tmp/.claude"
+"#,
+        )
+        .unwrap();
+        let err = load_from(&path).unwrap_err();
+        assert!(err.to_string().contains("duplicate id 'shared-name'"));
+    }
+
+    #[test]
+    fn validate_local_reserved_as_source_id() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("reserved.toml");
+        fs::write(
+            &path,
+            r#"
+[[source]]
+id = "local"
+url = "/tmp/skills"
+type = "local"
+"#,
+        )
+        .unwrap();
+        let err = load_from(&path).unwrap_err();
+        assert!(err.to_string().contains("duplicate id 'local'"));
+    }
+
+    #[test]
+    fn validate_non_kebab_case_source_id_rejected() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("bad-case.toml");
+        fs::write(
+            &path,
+            r#"
+[[source]]
+id = "My_Source"
+url = "/tmp/skills"
+type = "local"
+"#,
+        )
+        .unwrap();
+        let err = load_from(&path).unwrap_err();
+        assert!(err.to_string().contains("not valid kebab-case"));
+    }
+
+    #[test]
+    fn validate_non_kebab_case_agent_id_rejected() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("bad-agent.toml");
+        fs::write(
+            &path,
+            r#"
+[[agent]]
+id = "MyAgent"
+type = "claude"
+path = "/tmp/.claude"
+"#,
+        )
+        .unwrap();
+        let err = load_from(&path).unwrap_err();
+        assert!(err.to_string().contains("not valid kebab-case"));
+    }
+
+    #[test]
+    fn validate_valid_config_passes() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("valid.toml");
+        fs::write(
+            &path,
+            r#"
+[[source]]
+id = "my-source"
+url = "/tmp/skills"
+type = "local"
+
+[[agent]]
+id = "my-agent"
+type = "claude"
+path = "/tmp/.claude"
+"#,
+        )
+        .unwrap();
+        let config = load_from(&path).unwrap();
+        assert_eq!(config.source[0].id, "my-source");
+        assert_eq!(config.agent[0].id, "my-agent");
     }
 }

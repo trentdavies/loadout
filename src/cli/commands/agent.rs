@@ -32,7 +32,7 @@ fn installed_skill_views(
     let installed_names = adapter
         .installed_skills(&agent_cfg.path)
         .unwrap_or_default();
-    let installed_index = registry.installed.get(&agent_cfg.name);
+    let installed_index = registry.installed.get(&agent_cfg.id);
 
     installed_names
         .into_iter()
@@ -156,9 +156,11 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
 
             let agent_name = name.unwrap_or_else(|| format!("{}-{}", agent, scope));
 
-            // Check for duplicate name
-            if config.agent.iter().any(|t| t.name == agent_name) {
-                anyhow::bail!("agent '{}' already exists", agent_name);
+            // Check for duplicate ID (globally unique across agents and sources)
+            if config.agent.iter().any(|t| t.id == agent_name)
+                || config.source.iter().any(|s| s.id == agent_name)
+            {
+                anyhow::bail!("id '{}' is already in use", agent_name);
             }
 
             // Resolve path: default based on agent + scope
@@ -179,7 +181,7 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
 
             if !flags.dry_run {
                 config.agent.push(crate::config::AgentConfig {
-                    name: agent_name.clone(),
+                    id: agent_name.clone(),
                     agent_type: agent.clone(),
                     path: agent_path,
                     scope,
@@ -198,13 +200,13 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
             Ok(())
         }
         AgentCommand::Remove { name, force } => {
-            if !config.agent.iter().any(|t| t.name == name) {
+            if !config.agent.iter().any(|t| t.id == name) {
                 anyhow::bail!("agent '{}' not found", name);
             }
 
             let execute = force && !flags.dry_run;
             if execute {
-                config.agent.retain(|t| t.name != name);
+                config.agent.retain(|t| t.id != name);
                 crate::config::save(&config, config_path_str)?;
             }
 
@@ -237,7 +239,7 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
                         };
 
                         let mut entry = serde_json::Map::new();
-                        entry.insert("name".to_string(), serde_json::json!(t.name));
+                        entry.insert("name".to_string(), serde_json::json!(t.id));
                         entry.insert("agent".to_string(), serde_json::json!(t.agent_type));
                         entry.insert("path".to_string(), serde_json::json!(t.path));
                         entry.insert("scope".to_string(), serde_json::json!(t.scope));
@@ -289,7 +291,7 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
 
                 println!(
                     "{} {} {}",
-                    ac.name.bold(),
+                    ac.id.bold(),
                     format!("({})", ac.agent_type).cyan(),
                     format!("— {}", ac.path.display()).dimmed(),
                 );
@@ -332,7 +334,7 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
             let agent_cfg = config
                 .agent
                 .iter()
-                .find(|t| t.name == name)
+                .find(|t| t.id == name)
                 .ok_or_else(|| anyhow::anyhow!("agent '{}' not found", name))?;
             let data_dir = crate::config::data_dir();
             let registry = load_effective_registry(&config, &data_dir, flags.quiet)?;
@@ -340,7 +342,7 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
 
             if flags.json {
                 let json = serde_json::json!({
-                    "name": agent_cfg.name,
+                    "name": agent_cfg.id,
                     "type": agent_cfg.agent_type,
                     "path": agent_cfg.path,
                     "scope": agent_cfg.scope,
@@ -358,7 +360,7 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
             }
 
             let out = crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
-            out.status("Name", &agent_cfg.name);
+            out.status("Name", &agent_cfg.id);
             out.status("Type", &agent_cfg.agent_type);
             out.status("Path", &agent_cfg.path.display().to_string());
             out.status("Scope", &agent_cfg.scope);
@@ -428,17 +430,17 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
                         ));
                         continue;
                     }
-                    let agent_name = path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or(agent)
-                        .trim_start_matches('.')
-                        .to_string();
+                    let agent_id = crate::cli::helpers::generate_agent_id(agent, path, &home);
+                    if config.agent.iter().any(|t| t.id == agent_id)
+                        || config.source.iter().any(|s| s.id == agent_id)
+                    {
+                        continue;
+                    }
                     eprint!(
                         "Add {} at {} as agent '{}'? [y/N] ",
                         agent,
                         path.display(),
-                        agent_name
+                        agent_id
                     );
                     let mut input = String::new();
                     std::io::stdin().read_line(&mut input).unwrap_or(0);
@@ -450,13 +452,13 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
                         };
                         let sync = if scope == "repo" { "explicit" } else { "auto" };
                         config.agent.push(crate::config::AgentConfig {
-                            name: agent_name.clone(),
+                            id: agent_id.clone(),
                             agent_type: agent.to_string(),
                             path: path.clone(),
                             scope: scope.to_string(),
                             sync: sync.to_string(),
                         });
-                        out.success(&format!("Added agent '{}'", agent_name));
+                        out.success(&format!("Added agent '{}'", agent_id));
                         added += 1;
                     }
                 }

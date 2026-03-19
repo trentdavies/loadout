@@ -67,7 +67,7 @@ fn setup_env() -> TestEnv {
 
     let registry = Registry {
         sources: vec![RegisteredSource {
-            name: "test-source".to_string(),
+            id: "test-source".to_string(),
             display_name: None,
             url: String::new(),
             plugins: vec![RegisteredPlugin {
@@ -88,7 +88,7 @@ fn setup_env() -> TestEnv {
     // Create config inside data_dir
     let mut config = Config::default();
     config.source.push(SourceConfig {
-        name: "test-source".to_string(),
+        id: "test-source".to_string(),
         url: source_dir.path().to_string_lossy().to_string(),
         source_type: "local".to_string(),
         r#ref: None,
@@ -96,7 +96,7 @@ fn setup_env() -> TestEnv {
         residence: equip::config::SourceResidence::External,
     });
     config.agent.push(AgentConfig {
-        name: "claude".to_string(),
+        id: "claude".to_string(),
         agent_type: "claude".to_string(),
         path: agent_dir.path().to_path_buf(),
         scope: "machine".to_string(),

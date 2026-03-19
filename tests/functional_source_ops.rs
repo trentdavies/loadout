@@ -87,7 +87,7 @@ fn add_source(
 
     let mut config = equip::config::load_from(config_path).unwrap();
     config.source.push(equip::config::SourceConfig {
-        name: source_name.to_string(),
+        id: source_name.to_string(),
         url: source_dir.display().to_string(),
         source_type: "local".to_string(),
         r#ref: None,
@@ -139,7 +139,7 @@ fn add_local_source_and_verify_registry() {
 
     let loaded = equip::registry::load_registry(&data_dir).unwrap();
     assert_eq!(loaded.sources.len(), 1);
-    assert_eq!(loaded.sources[0].name, default_name);
+    assert_eq!(loaded.sources[0].id, default_name);
     assert!(!loaded.sources[0].plugins.is_empty());
 
     let skill_names: Vec<&str> = loaded.sources[0]
@@ -182,7 +182,7 @@ fn add_source_with_custom_name() {
     let loaded = equip::registry::load_registry(&data_dir).unwrap();
     assert_eq!(loaded.sources.len(), 1);
     assert_eq!(
-        loaded.sources[0].name, custom_name,
+        loaded.sources[0].id, custom_name,
         "registry should use the custom name, not the default"
     );
 }
@@ -209,12 +209,12 @@ fn remove_source_cleans_registry() {
 
     // Remove the source from registry
     let mut registry = equip::registry::load_registry(&data_dir).unwrap();
-    registry.sources.retain(|s| s.name != "removable-src");
+    registry.sources.retain(|s| s.id != "removable-src");
     equip::registry::save_registry(&registry, &data_dir).unwrap();
 
     // Also remove from config
     let mut config = equip::config::load_from(&config_path).unwrap();
-    config.source.retain(|s| s.name != "removable-src");
+    config.source.retain(|s| s.id != "removable-src");
     equip::config::save_to(&config, &config_path).unwrap();
 
     // Verify both are empty
@@ -254,7 +254,7 @@ fn remove_source_with_installed_skills_detected() {
     // Set up an agent and install the skill
     let mut config = equip::config::load_from(&config_path).unwrap();
     config.agent.push(equip::config::AgentConfig {
-        name: "test-agent".to_string(),
+        id: "test-agent".to_string(),
         agent_type: "claude".to_string(),
         path: target_dir.path().to_path_buf(),
         scope: "machine".to_string(),
@@ -319,15 +319,11 @@ fn list_sources_returns_all() {
     );
 
     // Verify all names are present
-    let config_names: Vec<&str> = loaded_config
-        .source
-        .iter()
-        .map(|s| s.name.as_str())
-        .collect();
+    let config_names: Vec<&str> = loaded_config.source.iter().map(|s| s.id.as_str()).collect();
     let registry_names: Vec<&str> = loaded_registry
         .sources
         .iter()
-        .map(|s| s.name.as_str())
+        .map(|s| s.id.as_str())
         .collect();
     for name in &names {
         assert!(
@@ -367,9 +363,9 @@ fn show_source_detail() {
     let config_entry = config
         .source
         .iter()
-        .find(|s| s.name == "detail-src")
+        .find(|s| s.id == "detail-src")
         .expect("source should exist in config");
-    assert_eq!(config_entry.name, "detail-src");
+    assert_eq!(config_entry.id, "detail-src");
     assert_eq!(config_entry.source_type, "local");
     assert_eq!(config_entry.url, source_dir.path().display().to_string());
 
@@ -378,9 +374,9 @@ fn show_source_detail() {
     let reg_entry = registry
         .sources
         .iter()
-        .find(|s| s.name == "detail-src")
+        .find(|s| s.id == "detail-src")
         .expect("source should exist in registry");
-    assert_eq!(reg_entry.name, "detail-src");
+    assert_eq!(reg_entry.id, "detail-src");
     assert_eq!(reg_entry.plugins.len(), 1, "should have 1 plugin");
 
     let plugin = &reg_entry.plugins[0];
@@ -442,7 +438,7 @@ fn update_source_re_detects() {
 
     // Replace the source in the registry
     let mut registry = equip::registry::load_registry(&data_dir).unwrap();
-    registry.sources.retain(|s| s.name != "evolving-src");
+    registry.sources.retain(|s| s.id != "evolving-src");
     registry.sources.push(updated);
     equip::registry::save_registry(&registry, &data_dir).unwrap();
 

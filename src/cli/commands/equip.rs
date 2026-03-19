@@ -109,7 +109,7 @@ fn run_equip(args: EquipArgs, flags: &Flags) -> anyhow::Result<()> {
         }
         eprintln!("Agents:");
         for ac in &agents {
-            eprintln!("  {}", ac.name.bold());
+            eprintln!("  {}", ac.id.bold());
         }
 
         // Prompt to create missing kit before proceeding
@@ -181,7 +181,7 @@ fn run_equip(args: EquipArgs, flags: &Flags) -> anyhow::Result<()> {
                 eprintln!(
                     "error: {} skill(s) have changed at agent '{}':",
                     conflicts.len(),
-                    ac.name
+                    ac.id
                 );
                 for name in &conflicts {
                     eprintln!("  - {}", name);
@@ -204,7 +204,7 @@ fn run_equip(args: EquipArgs, flags: &Flags) -> anyhow::Result<()> {
                     println!(
                         "  (dry run) {} → {} [{}]",
                         crate::output::format_identity(src_name, &plugin.name, &s.name),
-                        ac.name,
+                        ac.id,
                         label
                     );
                 }
@@ -330,7 +330,7 @@ fn run_unequip(
             if installed.contains(name) {
                 let identity = registry
                     .installed
-                    .get(&ac.name)
+                    .get(&ac.id)
                     .and_then(|m| m.get(name))
                     .map(|info| {
                         crate::output::format_identity(&info.source, &info.plugin, &info.skill)
@@ -339,13 +339,13 @@ fn run_unequip(
 
                 if execute {
                     adapter.uninstall_skill(name, &ac.path)?;
-                    if let Some(agent_map) = registry.installed.get_mut(&ac.name) {
+                    if let Some(agent_map) = registry.installed.get_mut(&ac.id) {
                         agent_map.remove(name);
                     }
-                    out.success(&format!("Removed {} from {}", identity, ac.name.bold()));
+                    out.success(&format!("Removed {} from {}", identity, ac.id.bold()));
                     total_removed += 1;
                 } else {
-                    out.info(&format!("  {} from {}", identity, ac.name.bold()));
+                    out.info(&format!("  {} from {}", identity, ac.id.bold()));
                     total_removed += 1;
                 }
             } else {

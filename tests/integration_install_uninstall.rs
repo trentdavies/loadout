@@ -38,7 +38,7 @@ fn create_mock_skills(
 
 fn make_adapter() -> equip::agent::Adapter {
     let agent = equip::config::AgentConfig {
-        name: "test".to_string(),
+        id: "test".to_string(),
         agent_type: "claude".to_string(),
         path: PathBuf::from("/tmp"),
         scope: "machine".to_string(),
@@ -226,7 +226,7 @@ fn custom_adapter_installs_to_custom_path() {
     );
 
     let target = equip::config::AgentConfig {
-        name: "custom".to_string(),
+        id: "custom".to_string(),
         agent_type: "my-agent".to_string(),
         path: target_dir.path().to_path_buf(),
         scope: "machine".to_string(),
@@ -263,7 +263,7 @@ fn full_install_uninstall_lifecycle() {
     // Build a registry with these skills
     let mut registry = equip::registry::Registry::default();
     registry.sources.push(equip::registry::RegisteredSource {
-        name: "test-src".to_string(),
+        id: "test-src".to_string(),
         display_name: None,
         url: String::new(),
         plugins: vec![equip::registry::RegisteredPlugin {

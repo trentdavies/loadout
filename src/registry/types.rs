@@ -5,7 +5,8 @@ use std::path::PathBuf;
 /// A registered source in the registry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegisteredSource {
-    pub name: String,
+    #[serde(alias = "name")]
+    pub id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
     #[serde(default, skip_serializing_if = "String::is_empty")]

@@ -27,7 +27,7 @@ fn plugin(name: &str, skills: Vec<RegisteredSkill>) -> RegisteredPlugin {
 /// Build a source with the given name and a set of plugins.
 fn source(name: &str, plugins: Vec<RegisteredPlugin>) -> RegisteredSource {
     RegisteredSource {
-        name: name.to_string(),
+        id: name.to_string(),
         display_name: None,
         url: String::new(),
         plugins,
@@ -65,7 +65,7 @@ fn list_plugins_filtered_by_source() {
     let filtered: Vec<&RegisteredPlugin> = registry
         .sources
         .iter()
-        .filter(|s| s.name == "src-a")
+        .filter(|s| s.id == "src-a")
         .flat_map(|s| &s.plugins)
         .collect();
 

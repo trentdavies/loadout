@@ -58,7 +58,7 @@ pub(crate) fn skill_list_status(
         let has_install = ctx
             .registry
             .installed
-            .get(&ac.name)
+            .get(&ac.id)
             .and_then(|agent_skills| {
                 agent_skills.values().find(|installed| {
                     installed.source == source_name
@@ -142,7 +142,7 @@ pub(crate) fn external_source_set(
         .source
         .iter()
         .filter(|s| s.residence == crate::config::SourceResidence::External)
-        .map(|s| s.name.clone())
+        .map(|s| s.id.clone())
         .collect()
 }
 
@@ -208,7 +208,7 @@ fn merge_local_source(
     registry: &mut crate::registry::Registry,
     data_dir: &std::path::Path,
 ) -> anyhow::Result<()> {
-    registry.sources.retain(|source| source.name != "local");
+    registry.sources.retain(|source| source.id != "local");
 
     let parsed = match crate::source::ParsedSource::parse(data_dir) {
         Ok(parsed) => parsed,
@@ -220,7 +220,7 @@ fn merge_local_source(
 
     let mut local_source =
         crate::source::normalize::normalize(&parsed.with_source_name("local").with_url(""))?;
-    local_source.name = "local".to_string();
+    local_source.id = "local".to_string();
     local_source.url.clear();
     local_source.residence = crate::config::SourceResidence::Local;
     registry.sources.push(local_source);
@@ -246,7 +246,7 @@ fn merge_agent_sources(
             continue;
         }
 
-        let installed_index = registry.installed.get(&ac.name);
+        let installed_index = registry.installed.get(&ac.id);
 
         let mut untracked_skills = Vec::new();
         for name in &installed_names {
@@ -277,16 +277,16 @@ fn merge_agent_sources(
             continue;
         }
 
-        let source_name = ac.name.clone();
+        let source_name = ac.id.clone();
         virtual_names.insert(source_name.clone());
 
         // Remove any existing virtual source with the same name (from a prior merge)
         registry
             .sources
-            .retain(|s| s.name != source_name || !s.url.is_empty());
+            .retain(|s| s.id != source_name || !s.url.is_empty());
 
         registry.sources.push(crate::registry::RegisteredSource {
-            name: source_name.clone(),
+            id: source_name.clone(),
             display_name: None,
             url: String::new(),
             plugins: vec![crate::registry::RegisteredPlugin {
@@ -311,11 +311,11 @@ fn build_source_labels(
     let mut labels = std::collections::BTreeMap::new();
     for source in &registry.sources {
         labels.insert(
-            source.name.clone(),
+            source.id.clone(),
             source
                 .display_name
                 .clone()
-                .unwrap_or_else(|| source.name.clone()),
+                .unwrap_or_else(|| source.id.clone()),
         );
     }
 
@@ -511,6 +511,45 @@ pub fn detect_agents() -> Vec<(String, std::path::PathBuf)> {
     candidates
 }
 
+/// Generate a unique agent ID for a detected agent directory.
+///
+/// Home-level (`~/.claude`): just the agent type, e.g. `claude`.
+/// Repo-level (`./my-repo/.claude`): `{agent}-{abbrev}-{hash5}` where
+/// `abbrev` is the parent dir name (lowercase alphanumeric, truncated to 6 chars)
+/// and `hash5` is the first 5 chars of a hex-encoded hash of the canonical path.
+pub fn generate_agent_id(agent: &str, path: &std::path::Path, home: &std::path::Path) -> String {
+    if path.starts_with(home) && path.parent() == Some(home) {
+        // Home-level: just the agent type
+        return agent.to_string();
+    }
+
+    // Repo-level: {agent}-{abbrev}-{hash5}
+    let parent_name = path
+        .parent()
+        .and_then(|p| p.file_name())
+        .and_then(|n| n.to_str())
+        .unwrap_or("repo");
+
+    let abbrev: String = parent_name
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .map(|c| c.to_ascii_lowercase())
+        .take(6)
+        .collect();
+
+    let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let hash5 = {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        canonical.hash(&mut hasher);
+        let h = hasher.finish();
+        format!("{:x}", h)[..5].to_string()
+    };
+
+    let id = format!("{}-{}-{}", agent, abbrev, hash5);
+    id
+}
+
 /// Add all detected agents to config (auto-add, no per-agent prompt).
 /// Returns count of agents added.
 pub fn add_detected_agents(config: &mut crate::config::Config, quiet: bool) -> usize {
@@ -525,12 +564,15 @@ pub fn add_detected_agents(config: &mut crate::config::Config, quiet: bool) -> u
         if config.agent.iter().any(|t| t.path == *path) {
             continue;
         }
-        let agent_name = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or(agent)
-            .trim_start_matches('.')
-            .to_string();
+        let agent_id = generate_agent_id(agent, path, &home);
+
+        // Skip if this ID already exists in config
+        if config.agent.iter().any(|t| t.id == agent_id)
+            || config.source.iter().any(|s| s.id == agent_id)
+        {
+            continue;
+        }
+
         let scope = if path.starts_with(&home) {
             "machine"
         } else {
@@ -538,7 +580,7 @@ pub fn add_detected_agents(config: &mut crate::config::Config, quiet: bool) -> u
         };
         let sync = if scope == "repo" { "explicit" } else { "auto" };
         config.agent.push(crate::config::AgentConfig {
-            name: agent_name.clone(),
+            id: agent_id.clone(),
             agent_type: agent.to_string(),
             path: path.clone(),
             scope: scope.to_string(),
@@ -557,7 +599,7 @@ pub fn add_detected_agents(config: &mut crate::config::Config, quiet: bool) -> u
             println!(
                 "  {} {}  {}  {}",
                 "✓".green(),
-                agent_name.bold(),
+                agent_id.bold(),
                 display_path.dimmed(),
                 skills_desc.dimmed(),
             );
@@ -585,7 +627,7 @@ pub(crate) fn resolve_agents<'a>(
             let ac = config
                 .agent
                 .iter()
-                .find(|ac| ac.name == *name)
+                .find(|ac| ac.id == *name)
                 .ok_or_else(|| anyhow::anyhow!("agent '{}' not found", name))?;
             agents.push(ac);
         }
@@ -629,7 +671,7 @@ pub(crate) fn record_provenance_as(
         .strip_prefix(data_dir)
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| s.path.display().to_string());
-    let agent_map = reg.installed.entry(ac.name.clone()).or_default();
+    let agent_map = reg.installed.entry(ac.id.clone()).or_default();
     agent_map.insert(
         installed_name.to_string(),
         crate::registry::InstalledSkill {
@@ -661,7 +703,7 @@ pub(crate) fn apply_skill_to_agent(
     let (src_name, plugin, skill) = resolved_skill;
     let provenance_matches = reg
         .installed
-        .get(&ac.name)
+        .get(&ac.id)
         .and_then(|agent_map| agent_map.get(&skill.name))
         .map(|installed| {
             installed.source == src_name
@@ -713,7 +755,7 @@ pub(crate) fn apply_skill_to_agent(
         crate::agent::SkillStatus::Changed => anyhow::bail!(
             "skill '{}' has changed at agent '{}'; use --force or -i to continue",
             skill.name,
-            ac.name
+            ac.id
         ),
     }
 }
@@ -897,7 +939,7 @@ mod tests {
         let local = registry
             .sources
             .iter()
-            .find(|source| source.name == "local")
+            .find(|source| source.id == "local")
             .unwrap();
 
         assert_eq!(local.residence, crate::config::SourceResidence::Local);
@@ -975,7 +1017,7 @@ mod tests {
         .unwrap();
 
         let agent = crate::config::AgentConfig {
-            name: "claude".to_string(),
+            id: "claude".to_string(),
             agent_type: "claude".to_string(),
             path: agent_dir.path().to_path_buf(),
             scope: "machine".to_string(),
@@ -1064,7 +1106,7 @@ mod tests {
 
         let config = crate::config::Config {
             agent: vec![crate::config::AgentConfig {
-                name: "test-agent".to_string(),
+                id: "test-agent".to_string(),
                 agent_type: "claude".to_string(),
                 path: agent_dir.path().to_path_buf(),
                 scope: "machine".to_string(),
@@ -1078,7 +1120,7 @@ mod tests {
 
         assert!(virtual_names.contains("test-agent"));
         assert_eq!(registry.sources.len(), 1);
-        assert_eq!(registry.sources[0].name, "test-agent");
+        assert_eq!(registry.sources[0].id, "test-agent");
         assert_eq!(registry.sources[0].plugins.len(), 1);
         assert_eq!(registry.sources[0].plugins[0].skills.len(), 2);
 
@@ -1118,7 +1160,7 @@ mod tests {
 
         let config = crate::config::Config {
             agent: vec![crate::config::AgentConfig {
-                name: "my-agent".to_string(),
+                id: "my-agent".to_string(),
                 agent_type: "claude".to_string(),
                 path: agent_dir.path().to_path_buf(),
                 scope: "machine".to_string(),
@@ -1168,7 +1210,7 @@ mod tests {
 
         let config = crate::config::Config {
             agent: vec![crate::config::AgentConfig {
-                name: "full-agent".to_string(),
+                id: "full-agent".to_string(),
                 agent_type: "claude".to_string(),
                 path: agent_dir.path().to_path_buf(),
                 scope: "machine".to_string(),

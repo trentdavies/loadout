@@ -34,7 +34,7 @@ fn config_save_and_reload() {
     let (_tmp, config_path, _) = setup_env();
     let mut config = equip::config::Config::default();
     config.source.push(equip::config::SourceConfig {
-        name: "test".to_string(),
+        id: "test".to_string(),
         url: "/tmp/test".to_string(),
         source_type: "local".to_string(),
         r#ref: None,
@@ -42,7 +42,7 @@ fn config_save_and_reload() {
         residence: equip::config::SourceResidence::External,
     });
     config.agent.push(equip::config::AgentConfig {
-        name: "my-claude".to_string(),
+        id: "my-claude".to_string(),
         agent_type: "claude".to_string(),
         path: PathBuf::from("/tmp/targets/claude"),
         scope: "machine".to_string(),
@@ -52,7 +52,7 @@ fn config_save_and_reload() {
 
     let reloaded = equip::config::load_from(&config_path).unwrap();
     assert_eq!(reloaded.source.len(), 1);
-    assert_eq!(reloaded.source[0].name, "test");
+    assert_eq!(reloaded.source[0].id, "test");
     assert_eq!(reloaded.agent.len(), 1);
     assert_eq!(reloaded.agent[0].agent_type, "claude");
 }
@@ -183,7 +183,7 @@ fn normalize_flat_skills() {
         .unwrap()
         .with_source_name("flat");
     let registered = equip::source::normalize::normalize(&parsed).unwrap();
-    assert_eq!(registered.name, "flat");
+    assert_eq!(registered.id, "flat");
     assert!(!registered.plugins.is_empty());
     let total_skills: usize = registered.plugins.iter().map(|p| p.skills.len()).sum();
     assert!(total_skills > 0, "should discover at least one skill");
@@ -196,7 +196,7 @@ fn normalize_plugin_source() {
         .unwrap()
         .with_source_name("psrc");
     let registered = equip::source::normalize::normalize(&parsed).unwrap();
-    assert_eq!(registered.name, "psrc");
+    assert_eq!(registered.id, "psrc");
     assert!(registered.plugins.iter().any(|p| p.name == "test-plugin"));
     let plugin = registered
         .plugins
@@ -216,7 +216,7 @@ fn registry_save_load_roundtrip() {
     let (_tmp, _, data_dir) = setup_env();
     let mut registry = equip::registry::Registry::default();
     registry.sources.push(equip::registry::RegisteredSource {
-        name: "test-src".to_string(),
+        id: "test-src".to_string(),
         display_name: None,
         url: String::new(),
         plugins: vec![equip::registry::RegisteredPlugin {
@@ -246,7 +246,7 @@ fn registry_save_load_roundtrip() {
 fn registry_find_skill_short_form() {
     let mut registry = equip::registry::Registry::default();
     registry.sources.push(equip::registry::RegisteredSource {
-        name: "src".to_string(),
+        id: "src".to_string(),
         display_name: None,
         url: String::new(),
         plugins: vec![equip::registry::RegisteredPlugin {
@@ -276,7 +276,7 @@ fn registry_find_skill_short_form() {
 fn registry_find_skill_full_form() {
     let mut registry = equip::registry::Registry::default();
     registry.sources.push(equip::registry::RegisteredSource {
-        name: "mysrc".to_string(),
+        id: "mysrc".to_string(),
         display_name: None,
         url: String::new(),
         plugins: vec![equip::registry::RegisteredPlugin {
@@ -313,7 +313,7 @@ fn adapter_resolve_builtin_agents() {
     let adapters = std::collections::BTreeMap::new();
     for agent in &["claude", "codex", "cursor", "gemini", "vscode"] {
         let target = equip::config::AgentConfig {
-            name: "t".to_string(),
+            id: "t".to_string(),
             agent_type: agent.to_string(),
             path: PathBuf::from("/tmp"),
             scope: "machine".to_string(),
@@ -331,7 +331,7 @@ fn adapter_resolve_builtin_agents() {
 fn adapter_resolve_unknown_agent_fails() {
     let adapters = std::collections::BTreeMap::new();
     let target = equip::config::AgentConfig {
-        name: "t".to_string(),
+        id: "t".to_string(),
         agent_type: "unknown-agent".to_string(),
         path: PathBuf::from("/tmp"),
         scope: "machine".to_string(),
@@ -355,7 +355,7 @@ fn adapter_install_uninstall_skill() {
 
     let adapters = std::collections::BTreeMap::new();
     let target = equip::config::AgentConfig {
-        name: "t".to_string(),
+        id: "t".to_string(),
         agent_type: "claude".to_string(),
         path: target_path.to_path_buf(),
         scope: "machine".to_string(),
@@ -398,7 +398,7 @@ fn adapter_custom_toml() {
     );
 
     let target = equip::config::AgentConfig {
-        name: "t".to_string(),
+        id: "t".to_string(),
         agent_type: "my-agent".to_string(),
         path: PathBuf::from("/tmp"),
         scope: "machine".to_string(),

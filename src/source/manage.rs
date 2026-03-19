@@ -56,7 +56,7 @@ pub fn source_storage_path(source_name: &str, residence: SourceResidence) -> Pat
 }
 
 pub fn source_storage_path_for_config(source: &SourceConfig) -> PathBuf {
-    source_storage_path(&source.name, source.residence)
+    source_storage_path(&source.id, source.residence)
 }
 
 pub fn detect_path(source_url: &SourceUrl, cache_path: &Path) -> PathBuf {
@@ -75,7 +75,7 @@ pub fn build_source_config(
     residence: SourceResidence,
 ) -> SourceConfig {
     SourceConfig {
-        name: source_name.to_string(),
+        id: source_name.to_string(),
         url: source_url.url_string(),
         source_type: source_url.source_type().to_string(),
         r#ref: git_ref,
@@ -164,12 +164,12 @@ pub fn persist_prepared_source(
 ) {
     registry
         .sources
-        .retain(|source| source.name != prepared.registered.name);
+        .retain(|source| source.id != prepared.registered.id);
     registry.sources.push(prepared.registered);
 
     config
         .source
-        .retain(|source| source.name != prepared.config.name);
+        .retain(|source| source.id != prepared.config.id);
     config.source.push(prepared.config);
 }
 
@@ -370,7 +370,7 @@ pub fn refresh_source(
     };
 
     Ok(RefreshSource::Updated(Box::new(prepare_source(
-        &source.name,
+        &source.id,
         &source_url,
         cache_path,
         git_ref,

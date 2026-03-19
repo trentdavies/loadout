@@ -105,7 +105,7 @@ pub(crate) fn run(args: CollectArgs, flags: &Flags) -> anyhow::Result<()> {
     let agent_cfg = config
         .agent
         .iter()
-        .find(|candidate| candidate.name == agent)
+        .find(|candidate| candidate.id == agent)
         .ok_or_else(|| anyhow::anyhow!("agent '{}' not found", agent))?;
     let adapter = crate::agent::resolve_adapter(agent_cfg, &config.adapter)?;
     let installed_on_agent = adapter.installed_skills(&agent_cfg.path)?;
@@ -233,7 +233,7 @@ pub(crate) fn run(args: CollectArgs, flags: &Flags) -> anyhow::Result<()> {
             out.success(&format!("Collected {} → {}", identity, info.origin));
             stale_agents.extend(installed_elsewhere(
                 &registry,
-                &agent_cfg.name,
+                &agent_cfg.id,
                 &info.source,
                 &info.plugin,
                 &info.skill,
@@ -262,10 +262,7 @@ pub(crate) fn run(args: CollectArgs, flags: &Flags) -> anyhow::Result<()> {
                     let identity = crate::output::format_identity("local", "local", name);
                     out.success(&format!("Adopted {}", identity));
 
-                    let agent_map = registry
-                        .installed
-                        .entry(agent_cfg.name.clone())
-                        .or_default();
+                    let agent_map = registry.installed.entry(agent_cfg.id.clone()).or_default();
                     agent_map.insert(
                         name.clone(),
                         crate::registry::InstalledSkill {
@@ -277,7 +274,7 @@ pub(crate) fn run(args: CollectArgs, flags: &Flags) -> anyhow::Result<()> {
                     );
                     stale_agents.extend(installed_elsewhere(
                         &registry,
-                        &agent_cfg.name,
+                        &agent_cfg.id,
                         "local",
                         "local",
                         name,
@@ -320,7 +317,7 @@ pub(crate) fn run(args: CollectArgs, flags: &Flags) -> anyhow::Result<()> {
             ));
             stale_agents.extend(installed_elsewhere(
                 &registry,
-                &agent_cfg.name,
+                &agent_cfg.id,
                 &source_name,
                 &plugin_name,
                 &skill.name,

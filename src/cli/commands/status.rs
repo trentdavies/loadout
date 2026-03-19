@@ -49,19 +49,19 @@ pub(crate) fn run(flags: &Flags) -> anyhow::Result<()> {
     } else {
         let mut sources: Vec<&crate::registry::RegisteredSource> =
             registry.sources.iter().collect();
-        sources.sort_by(|a, b| a.name.cmp(&b.name));
+        sources.sort_by(|a, b| a.id.cmp(&b.id));
 
         for src in sources {
             let skill_count: usize = registry
                 .sources
                 .iter()
-                .find(|rs| rs.name == src.name)
+                .find(|rs| rs.id == src.id)
                 .map(|rs| rs.plugins.iter().map(|p| p.skills.len()).sum())
                 .unwrap_or(0);
             let config_src = config
                 .source
                 .iter()
-                .find(|candidate| candidate.name == src.name);
+                .find(|candidate| candidate.id == src.id);
             let version = config_src
                 .and_then(|candidate| candidate.r#ref.as_deref())
                 .unwrap_or("latest");
@@ -85,9 +85,9 @@ pub(crate) fn run(flags: &Flags) -> anyhow::Result<()> {
                 )
             };
             let label = source_labels
-                .get(&src.name)
+                .get(&src.id)
                 .map(String::as_str)
-                .unwrap_or(src.name.as_str());
+                .unwrap_or(src.id.as_str());
             println!("  {} {}", label.bold(), detail.dimmed(),);
         }
     }
@@ -106,7 +106,7 @@ pub(crate) fn run(flags: &Flags) -> anyhow::Result<()> {
                 .unwrap_or(0);
             println!(
                 "  {} {} {}",
-                ac.name.bold(),
+                ac.id.bold(),
                 format!("({})", ac.agent_type).cyan(),
                 format!(
                     "{} installed, scope: {}, sync: {}",

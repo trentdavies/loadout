@@ -55,19 +55,13 @@ pub fn reconcile_with_config(
             continue;
         }
 
-        if let Some(cs) = config_sources.iter().find(|cs| cs.name == reg_src.name) {
+        if let Some(cs) = config_sources.iter().find(|cs| cs.id == reg_src.id) {
             if cs.residence != reg_src.residence {
                 let old_residence = reg_src.residence;
-                relocate_registered_source(
-                    installed,
-                    reg_src,
-                    &reg_src.name.clone(),
-                    cs,
-                    data_dir,
-                )?;
+                relocate_registered_source(installed, reg_src, &reg_src.id.clone(), cs, data_dir)?;
                 renames.push(format!(
                     "{} storage {} → {}",
-                    reg_src.name,
+                    reg_src.id,
                     old_residence.as_str(),
                     cs.residence.as_str()
                 ));
@@ -79,10 +73,10 @@ pub fn reconcile_with_config(
         let config_match = config_sources.iter().find(|cs| cs.url == reg_src.url);
 
         if let Some(cs) = config_match {
-            if cs.name != reg_src.name {
-                let old_name = reg_src.name.clone();
+            if cs.id != reg_src.id {
+                let old_name = reg_src.id.clone();
                 relocate_registered_source(installed, reg_src, &old_name, cs, data_dir)?;
-                renames.push(format!("{} → {}", old_name, cs.name));
+                renames.push(format!("{} → {}", old_name, cs.id));
             }
         }
     }
@@ -101,11 +95,8 @@ fn relocate_registered_source(
     data_dir: &Path,
 ) -> Result<()> {
     let old_cache = crate::source::source_storage_path_in(data_dir, old_name, reg_src.residence);
-    let new_cache = crate::source::source_storage_path_in(
-        data_dir,
-        &config_source.name,
-        config_source.residence,
-    );
+    let new_cache =
+        crate::source::source_storage_path_in(data_dir, &config_source.id, config_source.residence);
 
     if old_cache != new_cache && old_cache.exists() && !new_cache.exists() {
         if let Some(parent) = new_cache.parent() {
@@ -134,7 +125,7 @@ fn relocate_registered_source(
     for agent_skills in installed_index.values_mut() {
         for installed in agent_skills.values_mut() {
             if installed.source == old_name {
-                installed.source = config_source.name.clone();
+                installed.source = config_source.id.clone();
             }
             if installed.origin == old_origin {
                 installed.origin = new_origin.clone();
@@ -145,7 +136,7 @@ fn relocate_registered_source(
         }
     }
 
-    reg_src.name = config_source.name.clone();
+    reg_src.id = config_source.id.clone();
     reg_src.residence = config_source.residence;
     Ok(())
 }
@@ -172,7 +163,7 @@ impl Registry {
         for src in &self.sources {
             for plugin in &src.plugins {
                 if plugin.name == name {
-                    return Some((&src.name, plugin));
+                    return Some((&src.id, plugin));
                 }
             }
         }
@@ -192,7 +183,7 @@ impl Registry {
 
         for src in &self.sources {
             if let Some(ref filter) = source_filter {
-                if src.name != *filter {
+                if src.id != *filter {
                     continue;
                 }
             }
@@ -202,7 +193,7 @@ impl Registry {
                 }
                 for skill in &plugin.skills {
                     if skill.name == skill_name {
-                        matches.push((&*src.name, plugin, skill));
+                        matches.push((&*src.id, plugin, skill));
                     }
                 }
             }
@@ -239,7 +230,7 @@ impl Registry {
         for src in &self.sources {
             for plugin in &src.plugins {
                 for skill in &plugin.skills {
-                    result.push((src.name.as_str(), plugin, skill));
+                    result.push((src.id.as_str(), plugin, skill));
                 }
             }
         }
@@ -261,17 +252,17 @@ impl Registry {
             for plugin in &src.plugins {
                 for skill in &plugin.skills {
                     let matched = if freeform {
-                        let flat = format!("{}-{}-{}", src.name, plugin.name, skill.name);
+                        let flat = format!("{}-{}-{}", src.id, plugin.name, skill.name);
                         glob_match::glob_match(&expanded, &flat)
-                            || glob_match::glob_match(&expanded, &src.name)
+                            || glob_match::glob_match(&expanded, &src.id)
                             || glob_match::glob_match(&expanded, &plugin.name)
                             || glob_match::glob_match(&expanded, &skill.name)
                     } else {
-                        let identity = format!("{}:{}/{}", src.name, plugin.name, skill.name);
+                        let identity = format!("{}:{}/{}", src.id, plugin.name, skill.name);
                         glob_match::glob_match(&expanded, &identity)
                     };
                     if matched {
-                        result.push((src.name.as_str(), plugin, skill));
+                        result.push((src.id.as_str(), plugin, skill));
                     }
                 }
             }
@@ -388,7 +379,7 @@ mod tests {
         };
         for src_name in &["a", "b"] {
             registry.sources.push(RegisteredSource {
-                name: src_name.to_string(),
+                id: src_name.to_string(),
                 display_name: None,
                 url: String::new(),
                 plugins: vec![RegisteredPlugin {
@@ -410,7 +401,7 @@ mod tests {
     fn all_skills_iterates_everything() {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
-            name: "s".to_string(),
+            id: "s".to_string(),
             display_name: None,
             url: String::new(),
             plugins: vec![RegisteredPlugin {
@@ -445,7 +436,7 @@ mod tests {
     fn find_plugin_found() {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
-            name: "src".to_string(),
+            id: "src".to_string(),
             display_name: None,
             url: String::new(),
             plugins: vec![RegisteredPlugin {
@@ -481,7 +472,7 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
-            name: "s".to_string(),
+            id: "s".to_string(),
             display_name: None,
             url: String::new(),
             plugins: vec![RegisteredPlugin {
@@ -586,7 +577,7 @@ mod tests {
     fn test_registry() -> Registry {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
-            name: "alpha".to_string(),
+            id: "alpha".to_string(),
             display_name: None,
             url: String::new(),
             plugins: vec![RegisteredPlugin {
@@ -615,7 +606,7 @@ mod tests {
             residence: crate::config::SourceResidence::External,
         });
         registry.sources.push(RegisteredSource {
-            name: "beta".to_string(),
+            id: "beta".to_string(),
             display_name: None,
             url: String::new(),
             plugins: vec![RegisteredPlugin {
@@ -741,7 +732,7 @@ mod tests {
         // Pattern spanning multiple identity components should match
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
-            name: "claude-plugins".to_string(),
+            id: "claude-plugins".to_string(),
             display_name: None,
             url: String::new(),
             plugins: vec![RegisteredPlugin {
@@ -773,7 +764,7 @@ mod tests {
     fn find_skill_success() {
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
-            name: "s".to_string(),
+            id: "s".to_string(),
             display_name: None,
             url: String::new(),
             plugins: vec![RegisteredPlugin {
@@ -806,7 +797,7 @@ mod tests {
 
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
-            name: "old-name".to_string(),
+            id: "old-name".to_string(),
             display_name: None,
             url: "https://github.com/example/skills.git".to_string(),
             plugins: vec![RegisteredPlugin {
@@ -827,7 +818,7 @@ mod tests {
         });
 
         let config_sources = vec![crate::config::SourceConfig {
-            name: "new-name".to_string(),
+            id: "new-name".to_string(),
             url: "https://github.com/example/skills.git".to_string(),
             source_type: "git".to_string(),
             r#ref: None,
@@ -837,7 +828,7 @@ mod tests {
 
         let renames = reconcile_with_config(&mut registry, &config_sources, tmp.path()).unwrap();
         assert_eq!(renames.len(), 1);
-        assert_eq!(registry.sources[0].name, "new-name");
+        assert_eq!(registry.sources[0].id, "new-name");
 
         // Cache dir should be renamed
         assert!(!ext_dir.exists());
@@ -861,7 +852,7 @@ mod tests {
 
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
-            name: "old-src".to_string(),
+            id: "old-src".to_string(),
             display_name: None,
             url: "https://example.com/repo.git".to_string(),
             plugins: vec![],
@@ -883,7 +874,7 @@ mod tests {
         });
 
         let config_sources = vec![crate::config::SourceConfig {
-            name: "new-src".to_string(),
+            id: "new-src".to_string(),
             url: "https://example.com/repo.git".to_string(),
             source_type: "git".to_string(),
             r#ref: None,
@@ -904,7 +895,7 @@ mod tests {
 
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
-            name: "same-src".to_string(),
+            id: "same-src".to_string(),
             display_name: None,
             url: "https://example.com/repo.git".to_string(),
             plugins: vec![RegisteredPlugin {
@@ -938,7 +929,7 @@ mod tests {
         });
 
         let config_sources = vec![crate::config::SourceConfig {
-            name: "same-src".to_string(),
+            id: "same-src".to_string(),
             url: "https://example.com/repo.git".to_string(),
             source_type: "git".to_string(),
             r#ref: None,
@@ -968,7 +959,7 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
-            name: "same".to_string(),
+            id: "same".to_string(),
             display_name: None,
             url: "https://example.com/repo.git".to_string(),
             plugins: vec![],
@@ -977,7 +968,7 @@ mod tests {
         });
 
         let config_sources = vec![crate::config::SourceConfig {
-            name: "same".to_string(),
+            id: "same".to_string(),
             url: "https://example.com/repo.git".to_string(),
             source_type: "git".to_string(),
             r#ref: None,
@@ -987,7 +978,7 @@ mod tests {
 
         let renames = reconcile_with_config(&mut registry, &config_sources, tmp.path()).unwrap();
         assert!(renames.is_empty());
-        assert_eq!(registry.sources[0].name, "same");
+        assert_eq!(registry.sources[0].id, "same");
     }
 
     #[test]
@@ -995,7 +986,7 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         let mut registry = Registry::default();
         registry.sources.push(RegisteredSource {
-            name: "legacy".to_string(),
+            id: "legacy".to_string(),
             display_name: None,
             url: String::new(),
             plugins: vec![],
@@ -1004,7 +995,7 @@ mod tests {
         });
 
         let config_sources = vec![crate::config::SourceConfig {
-            name: "renamed".to_string(),
+            id: "renamed".to_string(),
             url: "https://example.com/repo.git".to_string(),
             source_type: "git".to_string(),
             r#ref: None,
@@ -1014,6 +1005,6 @@ mod tests {
 
         let renames = reconcile_with_config(&mut registry, &config_sources, tmp.path()).unwrap();
         assert!(renames.is_empty());
-        assert_eq!(registry.sources[0].name, "legacy");
+        assert_eq!(registry.sources[0].id, "legacy");
     }
 }
