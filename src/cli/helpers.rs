@@ -17,6 +17,72 @@ pub(crate) struct CommandContext {
     pub registry: crate::registry::Registry,
     pub data_dir: std::path::PathBuf,
     pub source_labels: std::collections::BTreeMap<String, String>,
+    /// Source names that are virtual (generated from agent-installed untracked skills).
+    pub virtual_sources: std::collections::HashSet<String>,
+}
+
+/// Status of a skill in `equip list`, modeled after git status indicators.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SkillListStatus {
+    /// Exists on agent but not in any source.
+    Untracked,
+    /// Tracked, installed on an agent, but the agent copy differs from source.
+    Modified,
+    /// Tracked and up to date (or not installed on any agent).
+    Clean,
+}
+
+impl SkillListStatus {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Untracked => "untracked",
+            Self::Modified => "modified",
+            Self::Clean => "clean",
+        }
+    }
+}
+
+/// Compute the list status for a skill.
+pub(crate) fn skill_list_status(
+    source_name: &str,
+    plugin: &crate::registry::RegisteredPlugin,
+    skill: &crate::registry::RegisteredSkill,
+    ctx: &CommandContext,
+) -> SkillListStatus {
+    if ctx.virtual_sources.contains(source_name) {
+        return SkillListStatus::Untracked;
+    }
+
+    // Check if any agent has this skill installed
+    for ac in &ctx.config.agent {
+        let has_install = ctx
+            .registry
+            .installed
+            .get(&ac.name)
+            .and_then(|agent_skills| {
+                agent_skills.values().find(|installed| {
+                    installed.source == source_name
+                        && installed.plugin == plugin.name
+                        && installed.skill == skill.name
+                })
+            })
+            .is_some();
+
+        if !has_install {
+            continue;
+        }
+
+        let adapter = match crate::agent::resolve_adapter(ac, &ctx.config.adapter) {
+            Ok(a) => a,
+            Err(_) => continue,
+        };
+
+        if let Ok(crate::agent::SkillStatus::Changed) = adapter.compare_skill(skill, &ac.path) {
+            return SkillListStatus::Modified;
+        }
+    }
+
+    SkillListStatus::Clean
 }
 
 pub(crate) struct ApplySelection {
@@ -105,7 +171,8 @@ pub(crate) fn resolve_skills_for_bundle(
 pub(crate) fn load_context(flags: &crate::cli::flags::Flags) -> anyhow::Result<CommandContext> {
     let config = crate::config::load(flags.config_path())?;
     let data_dir = crate::config::data_dir();
-    let registry = load_effective_registry(&config, &data_dir, flags.quiet)?;
+    let mut registry = load_effective_registry(&config, &data_dir, flags.quiet)?;
+    let virtual_sources = merge_agent_sources(&mut registry, &config);
     let source_labels = build_source_labels(&registry, &data_dir);
 
     Ok(CommandContext {
@@ -113,6 +180,7 @@ pub(crate) fn load_context(flags: &crate::cli::flags::Flags) -> anyhow::Result<C
         registry,
         data_dir,
         source_labels,
+        virtual_sources,
     })
 }
 
@@ -157,6 +225,85 @@ fn merge_local_source(
     local_source.residence = crate::config::SourceResidence::Local;
     registry.sources.push(local_source);
     Ok(())
+}
+
+/// Scan each configured agent for untracked skills and inject a virtual
+/// `RegisteredSource` per agent so they appear in `equip list`.
+/// Returns the set of source names that are virtual (agent-derived).
+fn merge_agent_sources(
+    registry: &mut crate::registry::Registry,
+    config: &crate::config::Config,
+) -> std::collections::HashSet<String> {
+    let mut virtual_names = std::collections::HashSet::new();
+
+    for ac in &config.agent {
+        let adapter = match crate::agent::resolve_adapter(ac, &config.adapter) {
+            Ok(a) => a,
+            Err(_) => continue,
+        };
+        let installed_names = adapter.installed_skills(&ac.path).unwrap_or_default();
+        if installed_names.is_empty() {
+            continue;
+        }
+
+        let installed_index = registry.installed.get(&ac.name);
+
+        let mut untracked_skills = Vec::new();
+        for name in &installed_names {
+            let tracked = installed_index
+                .and_then(|skills| skills.get(name))
+                .is_some();
+            if tracked {
+                continue;
+            }
+            // Read description from SKILL.md if available
+            let skill_dir = adapter.skill_dest(&ac.path, name);
+            let skill_md = skill_dir.join("SKILL.md");
+            let description = if skill_md.exists() {
+                crate::source::detect::parse_skill_description(&skill_md)
+            } else {
+                None
+            };
+            untracked_skills.push(crate::registry::RegisteredSkill {
+                name: name.clone(),
+                description,
+                author: None,
+                version: None,
+                path: skill_dir,
+            });
+        }
+
+        if untracked_skills.is_empty() {
+            continue;
+        }
+
+        let source_name = ac.name.clone();
+        virtual_names.insert(source_name.clone());
+
+        // Remove any existing virtual source with the same name (from a prior merge)
+        registry
+            .sources
+            .retain(|s| s.name != source_name || !s.url.is_empty());
+
+        registry
+            .sources
+            .push(crate::registry::RegisteredSource {
+                name: source_name.clone(),
+                display_name: None,
+                url: String::new(),
+                plugins: vec![crate::registry::RegisteredPlugin {
+                    name: source_name.clone(),
+                    version: None,
+                    description: None,
+                    skills: untracked_skills,
+                    path: ac.path.clone(),
+                }],
+                cache_path: ac.path.clone(),
+                residence: crate::config::SourceResidence::External,
+            });
+    }
+
+    virtual_names
 }
 
 fn build_source_labels(
@@ -897,5 +1044,159 @@ mod tests {
         assert_eq!(installed.plugin, "plugin-b");
         assert_eq!(installed.skill, "shared");
         assert_eq!(installed.origin, "external/source-b/plugin-b/skills/shared");
+    }
+
+    #[test]
+    fn merge_agent_sources_creates_virtual_source_for_untracked_skills() {
+        let agent_dir = TempDir::new().unwrap();
+        // Install two skills directly on the agent (no provenance)
+        let skills_dir = agent_dir.path().join("skills");
+        fs::create_dir_all(skills_dir.join("my-skill")).unwrap();
+        fs::write(
+            skills_dir.join("my-skill/SKILL.md"),
+            "---\nname: my-skill\ndescription: A cool skill\n---\nbody",
+        )
+        .unwrap();
+        fs::create_dir_all(skills_dir.join("other-skill")).unwrap();
+        fs::write(
+            skills_dir.join("other-skill/SKILL.md"),
+            "---\nname: other-skill\ndescription: Another\n---\nbody",
+        )
+        .unwrap();
+
+        let config = crate::config::Config {
+            agent: vec![crate::config::AgentConfig {
+                name: "test-agent".to_string(),
+                agent_type: "claude".to_string(),
+                path: agent_dir.path().to_path_buf(),
+                scope: "machine".to_string(),
+                sync: "auto".to_string(),
+            }],
+            ..Default::default()
+        };
+
+        let mut registry = crate::registry::Registry::default();
+        let virtual_names = merge_agent_sources(&mut registry, &config);
+
+        assert!(virtual_names.contains("test-agent"));
+        assert_eq!(registry.sources.len(), 1);
+        assert_eq!(registry.sources[0].name, "test-agent");
+        assert_eq!(registry.sources[0].plugins.len(), 1);
+        assert_eq!(registry.sources[0].plugins[0].skills.len(), 2);
+
+        let skill_names: Vec<&str> = registry.sources[0].plugins[0]
+            .skills
+            .iter()
+            .map(|s| s.name.as_str())
+            .collect();
+        assert!(skill_names.contains(&"my-skill"));
+        assert!(skill_names.contains(&"other-skill"));
+
+        // Check description was parsed
+        let my_skill = registry.sources[0].plugins[0]
+            .skills
+            .iter()
+            .find(|s| s.name == "my-skill")
+            .unwrap();
+        assert_eq!(my_skill.description.as_deref(), Some("A cool skill"));
+    }
+
+    #[test]
+    fn merge_agent_sources_excludes_tracked_skills() {
+        let agent_dir = TempDir::new().unwrap();
+        let skills_dir = agent_dir.path().join("skills");
+        fs::create_dir_all(skills_dir.join("tracked-skill")).unwrap();
+        fs::write(
+            skills_dir.join("tracked-skill/SKILL.md"),
+            "---\nname: tracked-skill\ndescription: tracked\n---\nbody",
+        )
+        .unwrap();
+        fs::create_dir_all(skills_dir.join("untracked-skill")).unwrap();
+        fs::write(
+            skills_dir.join("untracked-skill/SKILL.md"),
+            "---\nname: untracked-skill\ndescription: not tracked\n---\nbody",
+        )
+        .unwrap();
+
+        let config = crate::config::Config {
+            agent: vec![crate::config::AgentConfig {
+                name: "my-agent".to_string(),
+                agent_type: "claude".to_string(),
+                path: agent_dir.path().to_path_buf(),
+                scope: "machine".to_string(),
+                sync: "auto".to_string(),
+            }],
+            ..Default::default()
+        };
+
+        let mut registry = crate::registry::Registry::default();
+        // Mark tracked-skill as having provenance
+        let mut agent_installed = BTreeMap::new();
+        agent_installed.insert(
+            "tracked-skill".to_string(),
+            crate::registry::InstalledSkill {
+                source: "some-source".to_string(),
+                plugin: "some-plugin".to_string(),
+                skill: "tracked-skill".to_string(),
+                origin: "external/some-source/some-plugin/skills/tracked-skill".to_string(),
+            },
+        );
+        registry
+            .installed
+            .insert("my-agent".to_string(), agent_installed);
+
+        let virtual_names = merge_agent_sources(&mut registry, &config);
+
+        assert!(virtual_names.contains("my-agent"));
+        assert_eq!(registry.sources.len(), 1);
+        // Only the untracked skill should be in the virtual source
+        assert_eq!(registry.sources[0].plugins[0].skills.len(), 1);
+        assert_eq!(
+            registry.sources[0].plugins[0].skills[0].name,
+            "untracked-skill"
+        );
+    }
+
+    #[test]
+    fn merge_agent_sources_skips_agents_with_no_untracked() {
+        let agent_dir = TempDir::new().unwrap();
+        let skills_dir = agent_dir.path().join("skills");
+        fs::create_dir_all(skills_dir.join("tracked-only")).unwrap();
+        fs::write(
+            skills_dir.join("tracked-only/SKILL.md"),
+            "---\nname: tracked-only\ndescription: all tracked\n---\nbody",
+        )
+        .unwrap();
+
+        let config = crate::config::Config {
+            agent: vec![crate::config::AgentConfig {
+                name: "full-agent".to_string(),
+                agent_type: "claude".to_string(),
+                path: agent_dir.path().to_path_buf(),
+                scope: "machine".to_string(),
+                sync: "auto".to_string(),
+            }],
+            ..Default::default()
+        };
+
+        let mut registry = crate::registry::Registry::default();
+        let mut agent_installed = BTreeMap::new();
+        agent_installed.insert(
+            "tracked-only".to_string(),
+            crate::registry::InstalledSkill {
+                source: "src".to_string(),
+                plugin: "plug".to_string(),
+                skill: "tracked-only".to_string(),
+                origin: "external/src/plug/skills/tracked-only".to_string(),
+            },
+        );
+        registry
+            .installed
+            .insert("full-agent".to_string(), agent_installed);
+
+        let virtual_names = merge_agent_sources(&mut registry, &config);
+
+        assert!(virtual_names.is_empty());
+        assert!(registry.sources.is_empty());
     }
 }

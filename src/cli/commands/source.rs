@@ -1,7 +1,9 @@
 use colored::Colorize;
 
 use crate::cli::flags::Flags;
-use crate::cli::helpers::{extract_domain, load_context, resolve_skill_patterns};
+use crate::cli::helpers::{
+    extract_domain, load_context, resolve_skill_patterns, skill_list_status, SkillListStatus,
+};
 
 enum AddedSourceSummary {
     External { source_name: String },
@@ -689,8 +691,6 @@ pub(crate) fn run_list(
     }
 
     let ctx = load_context(flags)?;
-    let config_for_list = ctx.config;
-    let registry = ctx.registry;
 
     // Collect matching skills from patterns
     let skills: Vec<(
@@ -698,9 +698,9 @@ pub(crate) fn run_list(
         &crate::registry::RegisteredPlugin,
         &crate::registry::RegisteredSkill,
     )> = if patterns.is_empty() {
-        registry.all_skills()
+        ctx.registry.all_skills()
     } else {
-        resolve_skill_patterns(&patterns, &registry, true)?
+        resolve_skill_patterns(&patterns, &ctx.registry, true)?
     };
 
     // Interactive fzf mode
@@ -764,6 +764,8 @@ pub(crate) fn run_list(
         let (source_name, plugin, skill) = skills[0];
         let plugin_name = &plugin.name;
 
+        let status = skill_list_status(source_name, plugin, skill, &ctx);
+
         if flags.json {
             let json = serde_json::json!({
                 "identity": crate::output::plain_identity(source_name, plugin_name, &skill.name),
@@ -772,6 +774,7 @@ pub(crate) fn run_list(
                 "source": source_name,
                 "description": skill.description,
                 "path": skill.path,
+                "status": status.label(),
             });
             println!("{}", serde_json::to_string_pretty(&json)?);
             return Ok(());
@@ -786,20 +789,30 @@ pub(crate) fn run_list(
             "Description",
             skill.description.as_deref().unwrap_or("(none)"),
         );
+        if status != SkillListStatus::Clean {
+            let status_display = match status {
+                SkillListStatus::Untracked => format!("{}", "untracked".yellow()),
+                SkillListStatus::Modified => format!("{}", "modified".red()),
+                SkillListStatus::Clean => "clean".to_string(),
+            };
+            out.status("Status", &status_display);
+        }
         if flags.verbose {
             out.status("Path", &skill.path.display().to_string());
         }
     } else if flags.json {
         let entries: Vec<serde_json::Value> = skills.iter()
             .map(|(source_name, plugin, skill)| {
-                let source_ref = config_for_list.source.iter()
+                let source_ref = ctx.config.source.iter()
                     .find(|cs| cs.name == *source_name)
                     .and_then(|cs| cs.r#ref.clone());
+                let status = skill_list_status(source_name, plugin, skill, &ctx);
                 let mut entry = serde_json::json!({
                     "identity": crate::output::plain_identity(source_name, &plugin.name, &skill.name),
                     "name": skill.name,
                     "plugin": plugin.name,
                     "source": source_name,
+                    "status": status.label(),
                 });
                 if let Some(ref r) = source_ref {
                     entry["ref"] = serde_json::Value::String(r.clone());
@@ -818,10 +831,15 @@ pub(crate) fn run_list(
             }
         } else {
             for (source_name, plugin, skill) in &skills {
-                println!(
-                    "{}",
-                    crate::output::format_identity(source_name, &plugin.name, &skill.name)
-                );
+                let status = skill_list_status(source_name, plugin, skill, &ctx);
+                let identity =
+                    crate::output::format_identity(source_name, &plugin.name, &skill.name);
+                let prefix = match status {
+                    SkillListStatus::Untracked => format!("{}", "?".yellow()),
+                    SkillListStatus::Modified => format!("{}", "m".red()),
+                    SkillListStatus::Clean => " ".to_string(),
+                };
+                println!("{} {}", prefix, identity);
             }
         }
     }
