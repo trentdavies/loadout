@@ -285,22 +285,20 @@ fn merge_agent_sources(
             .sources
             .retain(|s| s.name != source_name || !s.url.is_empty());
 
-        registry
-            .sources
-            .push(crate::registry::RegisteredSource {
+        registry.sources.push(crate::registry::RegisteredSource {
+            name: source_name.clone(),
+            display_name: None,
+            url: String::new(),
+            plugins: vec![crate::registry::RegisteredPlugin {
                 name: source_name.clone(),
-                display_name: None,
-                url: String::new(),
-                plugins: vec![crate::registry::RegisteredPlugin {
-                    name: source_name.clone(),
-                    version: None,
-                    description: None,
-                    skills: untracked_skills,
-                    path: ac.path.clone(),
-                }],
-                cache_path: ac.path.clone(),
-                residence: crate::config::SourceResidence::External,
-            });
+                version: None,
+                description: None,
+                skills: untracked_skills,
+                path: ac.path.clone(),
+            }],
+            cache_path: ac.path.clone(),
+            residence: crate::config::SourceResidence::External,
+        });
     }
 
     virtual_names

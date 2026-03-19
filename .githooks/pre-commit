@@ -5,7 +5,7 @@ repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
 echo "pre-commit: cargo fmt"
-cargo fmt
+cargo fmt --check
 
 echo "pre-commit: cargo clippy"
 cargo clippy -- -D warnings
