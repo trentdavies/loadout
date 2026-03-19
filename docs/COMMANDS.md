@@ -34,8 +34,7 @@ Before clap parses args, `src/cli/args.rs` rewrites the raw arg vector.
 
 ### `+name` — Kit shorthand
 - Expands to `--kit name`
-- Active in: top-level equip (`_equip`)
-- In `collect` and `agent collect`: **not expanded** (passed through as a positional)
+- Active in: top-level equip (`_equip`), `collect`, `agent collect`
 
 ### Top-level catch-all (equip)
 When the first positional arg (after global flags) starts with `@` or `+`, the preprocessor injects the hidden `_equip` subcommand:
@@ -233,19 +232,21 @@ equip collect [PATTERNS...] [flags]
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--agent` | `AGENT` | **required** | Agent to collect from |
+| `--kit` | `KIT` | None | Collect only skills resolved by the named kit |
 | `--adopt` | bool | `false` | Adopt untracked skills into `plugins/` |
 | `--force` | bool | `false` | Auto-adopt all untracked skills without prompting |
 | `--interactive` | bool | `false` | Interactive skill selection |
 
 **Behavior:**
 - Reads skills from the agent's installed directory and syncs tracked skills back to their registered origin.
+- `--kit`: resolves kit skills to tracked identities, then collects only those installed on the selected agent.
 - `--adopt`: copies untracked skills into the local `plugins/` directory.
 - Without patterns: shows tracked vs untracked skills, then prompts in interactive mode.
 - `equip agent collect` remains as a compatibility alias for this workflow.
 
 **Shorthand:**
 - `@name` expands to `--agent name` in this command.
-- `+name` is not expanded in this command.
+- `+name` expands to `--kit name` in this command.
 
 ---
 

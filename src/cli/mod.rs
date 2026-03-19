@@ -162,6 +162,10 @@ pub enum Command {
         /// Skill patterns (glob supported, e.g. "dev*", "legal/*")
         patterns: Vec<String>,
 
+        /// Kit name
+        #[arg(short, long)]
+        kit: Option<String>,
+
         /// Adopt untracked skills into the local source
         #[arg(long)]
         adopt: bool,
@@ -427,6 +431,10 @@ pub enum AgentCommand {
         /// Skill patterns (glob supported, e.g. "dev*", "legal/*")
         patterns: Vec<String>,
 
+        /// Kit name
+        #[arg(short, long)]
+        kit: Option<String>,
+
         /// Adopt untracked skills into the local source
         #[arg(long)]
         adopt: bool,
@@ -477,10 +485,11 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Collect {
             agent,
             patterns,
+            kit,
             adopt,
             force,
             interactive,
-        } => commands::collect::run(agent, patterns, adopt, force, interactive, &flags),
+        } => commands::collect::run(agent, patterns, kit, adopt, force, interactive, &flags),
         Command::Source { command } => commands::source::run(command, &flags),
         Command::Kit { command } => commands::kit::run(command, &flags),
         Command::Agent { command } => commands::agent::run(command, &flags),

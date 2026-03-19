@@ -525,3 +525,16 @@ fn top_level_collect_parses() {
         _ => panic!("expected Collect"),
     }
 }
+
+#[test]
+fn top_level_collect_plus_kit_parses() {
+    let processed = pp(&["equip", "collect", "@claude", "+developer"]);
+    let cli = Cli::try_parse_from(&processed).unwrap();
+    match cli.command {
+        equip::cli::Command::Collect { agent, kit, .. } => {
+            assert_eq!(agent, "claude".to_string());
+            assert_eq!(kit, Some("developer".to_string()));
+        }
+        _ => panic!("expected Collect"),
+    }
+}

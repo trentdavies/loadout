@@ -4,6 +4,7 @@ use crate::cli::helpers::{copy_dir_all, generate_marketplace};
 pub(crate) fn run(
     agent: String,
     patterns: Vec<String>,
+    kit: Option<String>,
     adopt: bool,
     force: bool,
     interactive: bool,
@@ -34,13 +35,22 @@ pub(crate) fn run(
     let installed_on_agent = adapter.installed_skills(&agent_cfg.path)?;
     let agent_installs = registry.installed.get(&agent).cloned().unwrap_or_default();
 
-    let matched: Vec<String> = if patterns.is_empty() {
+    let mut selection_patterns = patterns;
+    if let Some(ref kit_name) = kit {
+        let kit_cfg = config
+            .kit
+            .get(kit_name)
+            .ok_or_else(|| anyhow::anyhow!("kit '{}' not found", kit_name))?;
+        selection_patterns.extend(kit_cfg.skills.iter().cloned());
+    }
+
+    let matched: Vec<String> = if selection_patterns.is_empty() {
         installed_on_agent.clone()
     } else {
         installed_on_agent
             .iter()
             .filter(|skill_name| {
-                patterns.iter().any(|pattern| {
+                selection_patterns.iter().any(|pattern| {
                     let expanded = crate::registry::expand_pattern(pattern);
                     if glob_match::glob_match(&expanded, skill_name) {
                         return true;
@@ -68,7 +78,7 @@ pub(crate) fn run(
     }
 
     if matched.is_empty() {
-        if patterns.is_empty() {
+        if selection_patterns.is_empty() {
             out.info("No skills found on agent.");
         } else {
             out.info("No skills matched the given patterns.");
@@ -91,7 +101,8 @@ pub(crate) fn run(
         }
     }
 
-    let use_interactive = interactive || (patterns.is_empty() && crate::prompt::is_interactive());
+    let use_interactive =
+        interactive || (selection_patterns.is_empty() && crate::prompt::is_interactive());
 
     let (collect_tracked, adopt_untracked) = if force {
         (
@@ -143,7 +154,7 @@ pub(crate) fn run(
         }
 
         (selected_tracked, selected_untracked)
-    } else if !patterns.is_empty() {
+    } else if !selection_patterns.is_empty() {
         let selected_untracked = if !untracked.is_empty()
             && (adopt
                 || crate::prompt::confirm_action(

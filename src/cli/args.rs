@@ -92,6 +92,9 @@ pub fn preprocess(raw: Vec<String>) -> Vec<String> {
                 if let Some(name) = arg.strip_prefix('@') {
                     trailing_flags.push("--agent".to_string());
                     trailing_flags.push(strip_quotes(name));
+                } else if let Some(name) = arg.strip_prefix('+') {
+                    trailing_flags.push("--kit".to_string());
+                    trailing_flags.push(strip_quotes(name));
                 } else {
                     result.push(arg.clone());
                 }
@@ -267,7 +270,7 @@ mod tests {
         let result = pp(&["equip", "agent", "collect", "@claude", "+dev"]);
         assert_eq!(
             result,
-            ["equip", "agent", "collect", "+dev", "--agent", "claude"]
+            ["equip", "agent", "collect", "--agent", "claude", "--kit", "dev"]
         );
     }
 
@@ -275,6 +278,22 @@ mod tests {
     fn top_level_collect_expands_at() {
         let result = pp(&["equip", "collect", "@claude", "dev*"]);
         assert_eq!(result, ["equip", "collect", "dev*", "--agent", "claude"]);
+    }
+
+    #[test]
+    fn top_level_collect_expands_plus() {
+        let result = pp(&["equip", "collect", "@claude", "+developer"]);
+        assert_eq!(
+            result,
+            [
+                "equip",
+                "collect",
+                "--agent",
+                "claude",
+                "--kit",
+                "developer"
+            ]
+        );
     }
 
     #[test]

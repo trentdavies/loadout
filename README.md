@@ -97,6 +97,7 @@ When someone tweaks a skill directly at the agent, collect brings changes back t
 ```bash
 equip collect --agent claude                # show tracked vs untracked
 equip collect @claude code-review           # collect one skill
+equip collect @claude +developer            # collect a maintained kit
 equip collect --agent claude --adopt        # adopt untracked skills
 equip agent collect --agent claude          # compatibility alias
 ```

@@ -296,9 +296,18 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
         AgentCommand::Collect {
             agent,
             patterns,
+            kit,
             adopt,
             force,
             interactive,
-        } => crate::cli::commands::collect::run(agent, patterns, adopt, force, interactive, flags),
+        } => crate::cli::commands::collect::run(
+            agent,
+            patterns,
+            kit,
+            adopt,
+            force,
+            interactive,
+            flags,
+        ),
     }
 }
