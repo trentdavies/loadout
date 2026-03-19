@@ -70,9 +70,7 @@ pub(crate) fn run_add(
                 crate::prompt::prompt_residence(flags.quiet)
             }
         }
-        crate::source::SourceUrl::Local(_) => {
-            crate::source::source_kind_residence(staged.parsed.kind)
-        }
+        crate::source::SourceUrl::Local(_) => crate::config::SourceResidence::External,
     };
 
     let preview_source_name =

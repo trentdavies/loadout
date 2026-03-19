@@ -14,6 +14,39 @@ test_source_add_local_full_source() {
   assert_stdout_contains "test-plugin" "$LOADOUT" list
 }
 
+test_source_add_local_plugin_path_creates_external_source() {
+  "$LOADOUT" init >/dev/null 2>&1
+  assert_exit_code 0 "$LOADOUT" source add "$FIXTURES_DIR/plugin-source" --source plugin-src
+  assert_stdout_contains "plugin-src" "$LOADOUT" source list
+  assert_stdout_contains "plugin-src:test-plugin/explore" "$LOADOUT" list
+
+  local cache_path="$XDG_DATA_HOME/equip/external/plugin-src"
+  if [ -L "$cache_path" ]; then
+    _pass "local plugin path added as symlinked external source"
+  else
+    _fail "local plugin path was not symlinked into external sources" "symlink at $cache_path" "missing or not symlink"
+  fi
+
+  if [ -d "$XDG_DATA_HOME/equip/test-plugin" ]; then
+    _fail "local plugin path was incorrectly imported into local source" "no local plugin dir" "found $XDG_DATA_HOME/equip/test-plugin"
+  else
+    _pass "local plugin path not imported into local source"
+  fi
+}
+
+test_source_add_local_flat_skills_honors_plugin_override() {
+  "$LOADOUT" init >/dev/null 2>&1
+  assert_exit_code 0 "$LOADOUT" source add "$FIXTURES_DIR/flat-skills" --source flat-src --plugin curated
+  assert_stdout_contains "flat-src:curated/explore" "$LOADOUT" list
+  assert_stdout_contains "flat-src:curated/apply" "$LOADOUT" list
+}
+
+test_source_add_local_single_skill_honors_skill_override() {
+  "$LOADOUT" init >/dev/null 2>&1
+  assert_exit_code 0 "$LOADOUT" source add "$FIXTURES_DIR/single-skill/SKILL.md" --source single-src --plugin custom-plugin --skill renamed-skill
+  assert_stdout_contains "single-src:custom-plugin/renamed-skill" "$LOADOUT" list
+}
+
 test_source_add_git() {
   skip_if_no_network && return
   "$LOADOUT" init >/dev/null 2>&1
@@ -96,7 +129,8 @@ test_source_remove_with_installed_skills_warns() {
 
 test_top_level_remove_local_skill() {
   "$LOADOUT" init >/dev/null 2>&1
-  "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source test-plugin >/dev/null 2>&1
+  cp -R "$FIXTURES_DIR/plugin-source" "$XDG_DATA_HOME/equip/test-plugin"
+  "$LOADOUT" reconcile --source local >/dev/null 2>&1
 
   assert_exit_code 0 "$LOADOUT" remove test-plugin/explore --force
 
