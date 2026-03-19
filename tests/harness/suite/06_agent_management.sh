@@ -155,3 +155,111 @@ test_agent_detect_no_duplicates() {
   fi
   rm -rf /tmp/test-detect-home
 }
+
+# ---------------------------------------------------------------------------
+# @agent shorthand for show/remove
+# ---------------------------------------------------------------------------
+
+test_agent_show_at_shorthand() {
+  setup_source_and_agents
+  # @test-claude should be stripped to test-claude by the preprocessor
+  assert_exit_code 0 "$LOADOUT" agent show @test-claude
+  assert_stdout_contains "test-claude" "$LOADOUT" agent show @test-claude
+}
+
+test_agent_remove_at_shorthand() {
+  "$LOADOUT" init >/dev/null 2>&1
+  "$LOADOUT" agent add claude "$TARGET_CLAUDE" --name test-claude >/dev/null 2>&1
+  assert_exit_code 0 "$LOADOUT" agent remove @test-claude --force
+  local output
+  output=$("$LOADOUT" agent list 2>/dev/null)
+  if echo "$output" | grep -qF "test-claude"; then
+    _fail "agent still listed after @-shorthand remove" "test-claude absent" "still present"
+  else
+    _pass "agent removed via @-shorthand"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# agent collect
+# ---------------------------------------------------------------------------
+
+test_agent_collect_lists_skills() {
+  setup_source_and_agents
+  "$LOADOUT" @test-claude test-plugin/explore -f >/dev/null 2>&1
+  local output
+  output=$("$LOADOUT" agent collect --agent test-claude 2>&1)
+  local exit_code=$?
+  if [ "$exit_code" -eq 0 ] && echo "$output" | grep -qiF "explore"; then
+    _pass "collect lists installed skill"
+  else
+    _fail "collect did not list explore" "explore in output" "$output (exit $exit_code)"
+  fi
+}
+
+test_agent_collect_pattern_filters() {
+  setup_source_and_agents
+  "$LOADOUT" @test-claude test-plugin/explore -f >/dev/null 2>&1
+  "$LOADOUT" @test-claude test-plugin/apply -f >/dev/null 2>&1
+  "$LOADOUT" @test-claude test-plugin/verify -f >/dev/null 2>&1
+  # Pattern should match only explore
+  local output
+  output=$("$LOADOUT" agent collect --agent test-claude "expl*" -f 2>&1)
+  if echo "$output" | grep -qiF "explore"; then
+    _pass "collect pattern matched explore"
+  else
+    _fail "collect pattern did not match explore" "explore in output" "$output"
+  fi
+  # Should not mention verify (doesn't match expl*)
+  if echo "$output" | grep -qiF "verify"; then
+    _fail "collect pattern incorrectly matched verify" "verify absent" "$output"
+  else
+    _pass "collect pattern excluded verify"
+  fi
+}
+
+test_agent_collect_pattern_no_match() {
+  setup_source_and_agents
+  "$LOADOUT" @test-claude test-plugin/explore -f >/dev/null 2>&1
+  local output
+  output=$("$LOADOUT" agent collect --agent test-claude "zzz*" 2>&1)
+  if echo "$output" | grep -qiE "no skills matched"; then
+    _pass "collect no-match shows message"
+  else
+    _fail "collect no-match missing message" "no skills matched" "$output"
+  fi
+}
+
+test_agent_collect_force_adopts_untracked() {
+  setup_source_and_agents
+  # Manually create an untracked skill on the agent (not via equip)
+  local skill_dir="$TARGET_CLAUDE/skills/hand-placed"
+  mkdir -p "$skill_dir"
+  printf '%s\n' '---' 'name: hand-placed' 'description: test' '---' 'Body' > "$skill_dir/SKILL.md"
+  local output
+  output=$("$LOADOUT" agent collect --agent test-claude -f 2>&1)
+  if echo "$output" | grep -qiF "adopted"; then
+    _pass "force collect adopted untracked skill"
+  else
+    _fail "force collect did not adopt" "Adopted in output" "$output"
+  fi
+}
+
+test_agent_collect_force_collects_tracked() {
+  setup_source_and_agents
+  "$LOADOUT" @test-claude test-plugin/explore -f >/dev/null 2>&1
+  # Modify the skill on the agent side
+  echo "# Agent edit" >> "$TARGET_CLAUDE/skills/explore/SKILL.md"
+  local output
+  output=$("$LOADOUT" agent collect --agent test-claude -f 2>&1)
+  if echo "$output" | grep -qiF "collected"; then
+    _pass "force collect collected tracked skill back to source"
+  else
+    _fail "force collect did not collect tracked skill" "Collected in output" "$output"
+  fi
+}
+
+test_agent_collect_nonexistent_agent() {
+  "$LOADOUT" init >/dev/null 2>&1
+  assert_exit_code 1 "$LOADOUT" agent collect --agent nope
+}

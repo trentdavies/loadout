@@ -169,3 +169,52 @@ test_06_status_reflects_state() {
     log_check 1 "status returned output"
   fi
 }
+
+test_07_collect_tracked_skill() {
+  # Skills are already equipped from earlier tests — collect should show tracked provenance
+  local output
+  output=$("$LOADOUT" agent collect --agent sandbox-claude -f 2>&1)
+  local exit_code=$?
+
+  if [ "$exit_code" -eq 0 ]; then
+    _pass "collect tracked skill succeeds"
+    log_check 1 "agent collect --force exits cleanly"
+  else
+    _fail "collect tracked skill failed" "exit 0" "exit $exit_code"
+    log_check 0 "agent collect --force exits cleanly"
+  fi
+
+  if echo "$output" | grep -qiE "collected|tracked"; then
+    _pass "collect output shows tracked provenance"
+    log_check 1 "collect mentions tracked/collected"
+  else
+    _fail "collect output missing provenance" "tracked or collected" "$output"
+    log_check 0 "collect provenance output"
+  fi
+}
+
+test_08_collect_glob_pattern() {
+  # Equip document-skills if not already present
+  "$LOADOUT" @sandbox-claude document-skills/* -f >/dev/null 2>&1
+
+  local output
+  output=$("$LOADOUT" agent collect --agent sandbox-claude "doc*" -f 2>&1)
+  local exit_code=$?
+
+  if [ "$exit_code" -eq 0 ]; then
+    _pass "collect with glob pattern succeeds"
+    log_check 1 "agent collect doc* exits cleanly"
+  else
+    _fail "collect with glob pattern failed" "exit 0" "exit $exit_code"
+    log_check 0 "agent collect doc* exits cleanly"
+  fi
+
+  # Should match docx and other document-skills
+  if echo "$output" | grep -qiF "docx"; then
+    _pass "collect glob matched docx"
+    log_check 1 "collect doc* includes docx"
+  else
+    _fail "collect glob did not match docx" "docx in output" "$output"
+    log_check 0 "collect doc* docx match"
+  fi
+}

@@ -295,9 +295,10 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
         }
         AgentCommand::Collect {
             agent,
-            skill,
+            patterns,
             adopt,
             force,
+            interactive,
         } => {
             let data_dir = crate::config::data_dir();
             let mut registry = crate::registry::load_registry(&data_dir)?;
@@ -320,129 +321,187 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
                 .ok_or_else(|| anyhow::anyhow!("agent '{}' not found", agent))?;
             let adapter = crate::agent::resolve_adapter(ac, &config.adapter)?;
             let installed_on_agent = adapter.installed_skills(&ac.path)?;
+            let agent_installs = registry.installed.get(&agent).cloned().unwrap_or_default();
 
-            if let Some(ref skill_name) = skill {
-                let agent_skill_dir = ac.path.join("skills").join(skill_name);
-                if !agent_skill_dir.exists() {
-                    anyhow::bail!("skill '{}' not found on agent '{}'", skill_name, agent);
-                }
-
-                if adopt {
-                    let provenance = registry
-                        .installed
-                        .get(&agent)
-                        .and_then(|m| m.get(skill_name));
-                    let plugin_name = provenance
-                        .map(|info| info.plugin.clone())
-                        .unwrap_or_else(|| "local".to_string());
-                    let source_name = "local".to_string();
-
-                    let dest_plugin = crate::config::plugins_dir().join(&plugin_name);
-                    let dest_skill = dest_plugin.join("skills").join(skill_name);
-                    std::fs::create_dir_all(&dest_skill)?;
-                    copy_dir_all(&agent_skill_dir, &dest_skill)?;
-
-                    let plugin_json_dir = dest_plugin.join(".claude-plugin");
-                    let plugin_json = plugin_json_dir.join("plugin.json");
-                    if !plugin_json.exists() {
-                        std::fs::create_dir_all(&plugin_json_dir)?;
-                        let json = serde_json::json!({"name": plugin_name});
-                        std::fs::write(&plugin_json, serde_json::to_string_pretty(&json)?)?;
-                    }
-
-                    generate_marketplace(&data_dir)?;
-                    let identity =
-                        crate::output::format_identity(&source_name, &plugin_name, skill_name);
-                    out.success(&format!("Adopted {}", identity));
-                } else {
-                    let provenance = registry
-                        .installed
-                        .get(&agent)
-                        .and_then(|m| m.get(skill_name));
-
-                    if let Some(info) = provenance {
-                        let dest = data_dir.join(&info.origin);
-                        std::fs::create_dir_all(&dest)?;
-                        copy_dir_all(&agent_skill_dir, &dest)?;
-                        let identity =
-                            crate::output::format_identity(&info.source, &info.plugin, &info.skill);
-                        out.success(&format!("Collected {} → {}", identity, info.origin));
-                    } else {
-                        out.warn(&format!(
-                            "'{}' has no provenance. Use --adopt to claim it.",
-                            skill_name
-                        ));
-                    }
-                }
+            // Filter installed skills by patterns (glob match via expand_pattern)
+            let matched: Vec<String> = if patterns.is_empty() {
+                installed_on_agent.clone()
             } else {
-                let agent_installs = registry.installed.get(&agent).cloned().unwrap_or_default();
+                installed_on_agent
+                    .iter()
+                    .filter(|skill_name| {
+                        patterns.iter().any(|pat| {
+                            let expanded = crate::registry::expand_pattern(pat);
+                            // Match against bare name and against full identity if tracked
+                            if glob_match::glob_match(&expanded, skill_name) {
+                                return true;
+                            }
+                            if let Some(info) = agent_installs.get(*skill_name) {
+                                let identity = format!(
+                                    "{}:{}/{}",
+                                    info.source, info.plugin, info.skill
+                                );
+                                glob_match::glob_match(&expanded, &identity)
+                            } else {
+                                false
+                            }
+                        })
+                    })
+                    .cloned()
+                    .collect()
+            };
 
-                let mut tracked = Vec::new();
-                let mut untracked = Vec::new();
-
-                for skill_name in &installed_on_agent {
-                    if let Some(info) = agent_installs.get(skill_name) {
-                        tracked.push((skill_name.clone(), info.clone()));
-                    } else {
-                        untracked.push(skill_name.clone());
-                    }
+            // Classify into tracked / untracked
+            let mut tracked: Vec<(String, crate::registry::InstalledSkill)> = Vec::new();
+            let mut untracked: Vec<String> = Vec::new();
+            for skill_name in &matched {
+                if let Some(info) = agent_installs.get(skill_name) {
+                    tracked.push((skill_name.clone(), info.clone()));
+                } else {
+                    untracked.push(skill_name.clone());
                 }
+            }
 
-                if !tracked.is_empty() {
-                    out.info("Tracked:");
-                    for (_name, info) in &tracked {
-                        let identity =
-                            crate::output::format_identity(&info.source, &info.plugin, &info.skill);
-                        out.info(&format!("  {} ← {}", identity, info.origin));
-                    }
-                }
-
-                if !untracked.is_empty() {
-                    out.info("Untracked:");
-                    for name in &untracked {
-                        out.info(&format!("  {}", name));
-                    }
-
-                    let should_adopt = if force {
-                        true
-                    } else if !untracked.is_empty() {
-                        eprint!(
-                            "Adopt {} untracked skill(s) into local/? [y/N] ",
-                            untracked.len()
-                        );
-                        let mut input = String::new();
-                        std::io::stdin().read_line(&mut input).unwrap_or(0);
-                        input.trim().eq_ignore_ascii_case("y")
-                    } else {
-                        false
-                    };
-
-                    if should_adopt {
-                        let local_plugin = crate::config::plugins_dir().join("local");
-                        for name in &untracked {
-                            let agent_skill_dir = ac.path.join("skills").join(name);
-                            let dest = local_plugin.join("skills").join(name);
-                            std::fs::create_dir_all(&dest)?;
-                            copy_dir_all(&agent_skill_dir, &dest)?;
-                            let identity = crate::output::format_identity("local", "local", name);
-                            out.success(&format!("Adopted {}", identity));
-                        }
-
-                        let plugin_json_dir = local_plugin.join(".claude-plugin");
-                        let plugin_json = plugin_json_dir.join("plugin.json");
-                        if !plugin_json.exists() {
-                            std::fs::create_dir_all(&plugin_json_dir)?;
-                            let json = serde_json::json!({"name": "local"});
-                            std::fs::write(&plugin_json, serde_json::to_string_pretty(&json)?)?;
-                        }
-
-                        generate_marketplace(&data_dir)?;
-                    }
-                }
-
-                if tracked.is_empty() && untracked.is_empty() {
+            if matched.is_empty() {
+                if patterns.is_empty() {
                     out.info("No skills found on agent.");
+                } else {
+                    out.info("No skills matched the given patterns.");
                 }
+                crate::registry::save_registry(&registry, &data_dir)?;
+                return Ok(());
+            }
+
+            // Display skill status
+            if !tracked.is_empty() {
+                out.info("Tracked:");
+                for (_name, info) in &tracked {
+                    let identity =
+                        crate::output::format_identity(&info.source, &info.plugin, &info.skill);
+                    out.info(&format!("  {} ← {}", identity, info.origin));
+                }
+            }
+            if !untracked.is_empty() {
+                out.info("Untracked:");
+                for name in &untracked {
+                    out.info(&format!("  {}", name));
+                }
+            }
+
+            // Determine which skills to act on
+            let use_interactive =
+                interactive || (patterns.is_empty() && crate::prompt::is_interactive());
+
+            let (collect_tracked, adopt_untracked) = if force {
+                // --force: collect all tracked, auto-adopt all untracked
+                (
+                    tracked.iter().map(|(n, _)| n.clone()).collect::<Vec<_>>(),
+                    untracked.clone(),
+                )
+            } else if use_interactive {
+                // Interactive: let user pick from all matched skills
+                let all_labels: Vec<String> = tracked
+                    .iter()
+                    .map(|(n, info)| {
+                        format!(
+                            "{} ({}:{}/{})",
+                            n, info.source, info.plugin, info.skill
+                        )
+                    })
+                    .chain(untracked.iter().map(|n| format!("{} (untracked)", n)))
+                    .collect();
+                let label_refs: Vec<&str> = all_labels.iter().map(|s| s.as_str()).collect();
+                let defaults: Vec<bool> = vec![true; all_labels.len()];
+
+                let selected =
+                    crate::prompt::multi_select("Select skills to collect", &label_refs, &defaults, flags.quiet);
+
+                let mut sel_tracked = Vec::new();
+                let mut sel_untracked = Vec::new();
+                for idx in selected {
+                    if idx < tracked.len() {
+                        sel_tracked.push(tracked[idx].0.clone());
+                    } else {
+                        sel_untracked.push(untracked[idx - tracked.len()].clone());
+                    }
+                }
+
+                // For selected untracked skills, confirm adoption
+                if !sel_untracked.is_empty()
+                    && !crate::prompt::confirm_action(
+                        &format!(
+                            "Adopt {} untracked skill(s) into local/?",
+                            sel_untracked.len()
+                        ),
+                        flags.quiet,
+                        true,
+                    )
+                {
+                    sel_untracked.clear();
+                }
+
+                (sel_tracked, sel_untracked)
+            } else if !patterns.is_empty() {
+                // Non-interactive with patterns: collect all tracked, prompt for untracked
+                let sel_untracked = if !untracked.is_empty()
+                    && (adopt
+                        || crate::prompt::confirm_action(
+                            &format!(
+                                "Adopt {} untracked skill(s) into local/?",
+                                untracked.len()
+                            ),
+                            flags.quiet,
+                            false,
+                        ))
+                {
+                    untracked.clone()
+                } else {
+                    Vec::new()
+                };
+                (
+                    tracked.iter().map(|(n, _)| n.clone()).collect(),
+                    sel_untracked,
+                )
+            } else {
+                // No patterns, non-interactive: display only
+                crate::registry::save_registry(&registry, &data_dir)?;
+                return Ok(());
+            };
+
+            // Collect tracked skills back to source
+            for skill_name in &collect_tracked {
+                if let Some(info) = agent_installs.get(skill_name) {
+                    let agent_skill_dir = ac.path.join("skills").join(skill_name);
+                    let dest = data_dir.join(&info.origin);
+                    std::fs::create_dir_all(&dest)?;
+                    copy_dir_all(&agent_skill_dir, &dest)?;
+                    let identity =
+                        crate::output::format_identity(&info.source, &info.plugin, &info.skill);
+                    out.success(&format!("Collected {} → {}", identity, info.origin));
+                }
+            }
+
+            // Adopt untracked skills into local plugin
+            if !adopt_untracked.is_empty() {
+                let local_plugin = crate::config::plugins_dir().join("local");
+                for name in &adopt_untracked {
+                    let agent_skill_dir = ac.path.join("skills").join(name);
+                    let dest = local_plugin.join("skills").join(name);
+                    std::fs::create_dir_all(&dest)?;
+                    copy_dir_all(&agent_skill_dir, &dest)?;
+                    let identity = crate::output::format_identity("local", "local", name);
+                    out.success(&format!("Adopted {}", identity));
+                }
+
+                let plugin_json_dir = local_plugin.join(".claude-plugin");
+                let plugin_json = plugin_json_dir.join("plugin.json");
+                if !plugin_json.exists() {
+                    std::fs::create_dir_all(&plugin_json_dir)?;
+                    let json = serde_json::json!({"name": "local"});
+                    std::fs::write(&plugin_json, serde_json::to_string_pretty(&json)?)?;
+                }
+
+                generate_marketplace(&data_dir)?;
             }
 
             crate::registry::save_registry(&registry, &data_dir)?;
