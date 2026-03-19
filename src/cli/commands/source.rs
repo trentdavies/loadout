@@ -70,8 +70,28 @@ pub(crate) fn run_add(
                 crate::prompt::prompt_residence(flags.quiet)
             }
         }
-        crate::source::SourceUrl::Local(_) => crate::config::SourceResidence::External,
+        crate::source::SourceUrl::Local(_) => {
+            let kind_residence = crate::source::source_kind_residence(staged.parsed.kind);
+            if source.is_some() || kind_residence == crate::config::SourceResidence::External {
+                crate::config::SourceResidence::External
+            } else {
+                crate::prompt::prompt_residence(flags.quiet)
+            }
+        }
     };
+
+    if matches!(&source_url, crate::source::SourceUrl::Local(path) if path.is_file()) && symlink {
+        anyhow::bail!("--symlink only works for local directory sources");
+    }
+
+    if matches!(source_url, crate::source::SourceUrl::Local(_))
+        && residence == crate::config::SourceResidence::Local
+        && (symlink || copy)
+    {
+        anyhow::bail!(
+            "--symlink and --copy only apply to external local sources. Use --source <name> to register the path as an external source."
+        );
+    }
 
     let preview_source_name =
         preview_source_name(&source_url, &staged.parsed, source.as_deref(), residence);

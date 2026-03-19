@@ -113,32 +113,33 @@ EOF
   source_name=$(echo "$json" | jq -r '[.[] | select(.plugin == "slides-root" and .name == "pptx")] | .[0].source')
   identity=$(echo "$json" | jq -r '[.[] | select(.plugin == "slides-root" and .name == "pptx")] | .[0].identity')
 
-  if [ "$count" -eq 1 ] && [ "$plugin_name" = "slides-root" ] && [ "$source_name" = "local" ]; then
-    _pass "repo root with skills/ imported as local flat-skills plugin"
-    log_check 1 "slides-root/pptx listed from local source"
+  if [ "$count" -eq 1 ] && [ "$plugin_name" = "slides-root" ] && [ "$source_name" = "slides-root" ]; then
+    _pass "repo root with skills/ added as an external source"
+    log_check 1 "slides-root/pptx listed from named external source"
   else
-    _fail "repo root with skills/ listing invalid" "local: slides-root/pptx" "count=$count plugin=$plugin_name source=$source_name"
-    log_check 0 "slides-root/pptx listed from local source"
+    _fail "repo root with skills/ listing invalid" "slides-root: slides-root/pptx" "count=$count plugin=$plugin_name source=$source_name"
+    log_check 0 "slides-root/pptx listed from named external source"
   fi
 
-  if [ "$identity" = "local:slides-root/pptx" ]; then
+  if [ "$identity" = "slides-root:slides-root/pptx" ]; then
     _pass "repo root with skills/ identity is correct"
-    log_check 1 "slides-root identity preserved"
+    log_check 1 "slides-root external identity preserved"
   else
-    _fail "repo root with skills/ identity invalid" "local:slides-root/pptx" "$identity"
-    log_check 0 "slides-root identity preserved"
+    _fail "repo root with skills/ identity invalid" "slides-root:slides-root/pptx" "$identity"
+    log_check 0 "slides-root external identity preserved"
   fi
 
-  local plugin_dir="$XDG_DATA_HOME/equip/slides-root"
-  if [ -f "$plugin_dir/skills/pptx/templates/template.pptx" ] \
+  local plugin_dir="$XDG_DATA_HOME/equip/external/slides-root"
+  if [ -L "$plugin_dir" ] \
+    && [ -f "$plugin_dir/skills/pptx/templates/template.pptx" ] \
     && [ -f "$plugin_dir/skills/pptx/scripts/pptx.py" ] \
-    && [ ! -f "$plugin_dir/README.md" ]; then
-    _pass "repo root import keeps skill assets and excludes root README"
-    log_check 1 "slides-root copied nested assets without repo root files"
+    && [ -f "$plugin_dir/README.md" ]; then
+    _pass "repo root source is symlinked externally with full repo contents"
+    log_check 1 "slides-root stored as symlinked external source"
   else
-    _fail "repo root import copied the wrong files" "skill assets present and root README absent" \
-      "template=$(test -f "$plugin_dir/skills/pptx/templates/template.pptx" && echo yes || echo no) script=$(test -f "$plugin_dir/skills/pptx/scripts/pptx.py" && echo yes || echo no) readme=$(test -f "$plugin_dir/README.md" && echo yes || echo no)"
-    log_check 0 "slides-root copied nested assets without repo root files"
+    _fail "repo root external source stored incorrectly" "symlink with skill assets and repo README" \
+      "symlink=$(test -L "$plugin_dir" && echo yes || echo no) template=$(test -f "$plugin_dir/skills/pptx/templates/template.pptx" && echo yes || echo no) script=$(test -f "$plugin_dir/skills/pptx/scripts/pptx.py" && echo yes || echo no) readme=$(test -f "$plugin_dir/README.md" && echo yes || echo no)"
+    log_check 0 "slides-root stored as symlinked external source"
   fi
 }
 

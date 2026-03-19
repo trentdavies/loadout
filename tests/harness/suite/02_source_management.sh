@@ -14,6 +14,19 @@ test_source_add_local_full_source() {
   assert_stdout_contains "test-plugin" "$LOADOUT" list
 }
 
+test_source_add_local_plugin_path_imports_into_local_without_source() {
+  "$LOADOUT" init >/dev/null 2>&1
+  assert_exit_code 0 "$LOADOUT" source add "$FIXTURES_DIR/plugin-source"
+  assert_stdout_contains "local:test-plugin/explore" "$LOADOUT" list
+  assert_dir_exists "$XDG_DATA_HOME/equip/test-plugin"
+
+  if [ -e "$XDG_DATA_HOME/equip/external/plugin-source" ]; then
+    _fail "plugin path was incorrectly registered as an external source" "no external/plugin-source entry" "found $XDG_DATA_HOME/equip/external/plugin-source"
+  else
+    _pass "plugin path imported into local source without external alias"
+  fi
+}
+
 test_source_add_local_plugin_path_creates_external_source() {
   "$LOADOUT" init >/dev/null 2>&1
   assert_exit_code 0 "$LOADOUT" source add "$FIXTURES_DIR/plugin-source" --source plugin-src
@@ -31,6 +44,30 @@ test_source_add_local_plugin_path_creates_external_source() {
     _fail "local plugin path was incorrectly imported into local source" "no local plugin dir" "found $XDG_DATA_HOME/equip/test-plugin"
   else
     _pass "local plugin path not imported into local source"
+  fi
+}
+
+test_source_add_local_import_rejects_symlink_flag() {
+  "$LOADOUT" init >/dev/null 2>&1
+  local output
+  output=$("$LOADOUT" source add "$FIXTURES_DIR/plugin-source" --symlink 2>&1)
+  local exit_code=$?
+  if [ "$exit_code" -ne 0 ] && echo "$output" | grep -qF "only apply to external local sources"; then
+    _pass "symlink flag rejected for local import"
+  else
+    _fail "symlink flag unexpectedly accepted for local import" "non-zero exit with local-source guidance" "$output"
+  fi
+}
+
+test_source_add_local_single_file_rejects_symlink_flag() {
+  "$LOADOUT" init >/dev/null 2>&1
+  local output
+  output=$("$LOADOUT" source add "$FIXTURES_DIR/single-skill/SKILL.md" --source single-src --symlink 2>&1)
+  local exit_code=$?
+  if [ "$exit_code" -ne 0 ] && echo "$output" | grep -qF "only works for local directory sources"; then
+    _pass "symlink flag rejected for single-file local source"
+  else
+    _fail "symlink flag unexpectedly accepted for single-file local source" "non-zero exit with directory guidance" "$output"
   fi
 }
 

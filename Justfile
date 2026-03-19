@@ -50,6 +50,9 @@ sandbox sh="bash": sandbox-build
 
 # Run sandbox test suite (network-dependent, real git repos)
 sandbox-test: sandbox-build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    docker rm -f {{container}} 2>/dev/null || true
     docker run --rm --name {{container}} {{image}} /root/run-tests
 
 # Run sandbox tests and keep container alive for exploration.  pass 'zsh' for zsh.
@@ -105,6 +108,7 @@ sandbox-ssh port="2222" sh="bash": sandbox-build
 sandbox-test-ssh: sandbox-build
     #!/usr/bin/env bash
     set -euo pipefail
+    docker rm -f {{container}} 2>/dev/null || true
     MOUNT_ARGS=(-v "$HOME/.ssh:/tmp/host-ssh:ro")
     [ -f "$HOME/.gitconfig" ] && MOUNT_ARGS+=(-v "$HOME/.gitconfig:/root/.gitconfig:ro")
     SSH_INIT='
