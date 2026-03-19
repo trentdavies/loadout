@@ -47,6 +47,7 @@ fn config_save_and_reload() {
         path: PathBuf::from("/tmp/targets/claude"),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
+        equipped: Vec::new(),
     });
     equip::config::save_to(&config, &config_path).unwrap();
 
@@ -318,6 +319,7 @@ fn adapter_resolve_builtin_agents() {
             path: PathBuf::from("/tmp"),
             scope: "machine".to_string(),
             sync: "auto".to_string(),
+            equipped: Vec::new(),
         };
         assert!(
             equip::agent::resolve_adapter(&target, &adapters).is_ok(),
@@ -336,6 +338,7 @@ fn adapter_resolve_unknown_agent_fails() {
         path: PathBuf::from("/tmp"),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
+        equipped: Vec::new(),
     };
     assert!(equip::agent::resolve_adapter(&target, &adapters).is_err());
 }
@@ -360,6 +363,7 @@ fn adapter_install_uninstall_skill() {
         path: target_path.to_path_buf(),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
+        equipped: Vec::new(),
     };
     let adapter = equip::agent::resolve_adapter(&target, &adapters).unwrap();
 
@@ -403,6 +407,7 @@ fn adapter_custom_toml() {
         path: PathBuf::from("/tmp"),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
+        equipped: Vec::new(),
     };
     assert!(equip::agent::resolve_adapter(&target, &adapters).is_ok());
 }

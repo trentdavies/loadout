@@ -186,6 +186,7 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
                     path: agent_path,
                     scope,
                     sync: actual_sync,
+                    equipped: Vec::new(),
                 });
                 crate::config::save(&config, config_path_str)?;
             }
@@ -457,6 +458,7 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
                             path: path.clone(),
                             scope: scope.to_string(),
                             sync: sync.to_string(),
+                            equipped: Vec::new(),
                         });
                         out.success(&format!("Added agent '{}'", agent_id));
                         added += 1;

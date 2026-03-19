@@ -65,6 +65,7 @@ fn setup_test_env() -> (TempDir, TempDir, Registry, Config) {
         path: target_dir.path().to_path_buf(),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
+        equipped: Vec::new(),
     });
 
     (source_dir, target_dir, registry, config)
@@ -146,6 +147,7 @@ fn install_to_specific_agent() {
         path: second_agent_dir.path().to_path_buf(),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
+        equipped: Vec::new(),
     });
 
     // Install only to the second agent

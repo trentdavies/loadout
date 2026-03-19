@@ -97,7 +97,7 @@ pub(crate) fn run(args: CollectArgs, flags: &Flags) -> anyhow::Result<()> {
     } = args;
 
     let ctx = load_context(flags)?;
-    let config = ctx.config;
+    let mut config = ctx.config;
     let data_dir = ctx.data_dir;
     let mut registry = ctx.registry;
     let out = crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
@@ -333,6 +333,8 @@ pub(crate) fn run(args: CollectArgs, flags: &Flags) -> anyhow::Result<()> {
     }
 
     crate::registry::save_registry(&registry, &data_dir)?;
+    crate::cli::helpers::sync_equipped_from_installed(&mut config, &registry);
+    crate::config::save(&config, flags.config_path())?;
     Ok(())
 }
 

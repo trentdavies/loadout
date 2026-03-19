@@ -265,6 +265,14 @@ fn run_equip(args: EquipArgs, flags: &Flags) -> anyhow::Result<()> {
         anyhow::bail!("--save requires --kit (or +name) to specify the kit name");
     }
 
+    // Sync equipped list and save config after all kit operations
+    if !flags.dry_run {
+        // Reload config to pick up any kit changes from persist_kit_selection
+        let mut final_config = crate::config::load(flags.config_path())?;
+        crate::cli::helpers::sync_equipped_from_installed(&mut final_config, &reg);
+        crate::config::save(&final_config, flags.config_path())?;
+    }
+
     if !flags.quiet && !flags.dry_run {
         print_apply_summary(
             new_count,
@@ -286,7 +294,7 @@ fn run_unequip(
     flags: &Flags,
 ) -> anyhow::Result<()> {
     let ctx = load_context(flags)?;
-    let config = ctx.config;
+    let mut config = ctx.config;
 
     let selection = parse_apply_selection(patterns, agent, kit)?;
     let agent = selection.agent;
@@ -359,13 +367,17 @@ fn run_unequip(
         out.warn("Preview only. Use --force to execute.");
     }
 
+    let agent_count = agents.len();
+    drop(agents); // release borrow on config
+
     if execute {
         crate::registry::save_registry(&registry, &data_dir)?;
+        crate::cli::helpers::sync_equipped_from_installed(&mut config, &registry);
+        crate::config::save(&config, flags.config_path())?;
         if !flags.quiet {
             out.info(&format!(
                 "Removed {} skill(s) from {} agent(s)",
-                total_removed,
-                agents.len()
+                total_removed, agent_count
             ));
         }
     } else if total_removed == 0 && !flags.quiet {

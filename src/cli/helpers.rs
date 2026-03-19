@@ -155,6 +155,119 @@ pub(crate) fn source_breakdown(external: usize, local: usize) -> String {
     }
 }
 
+/// Format an equipped entry: `source:plugin/skill` or `source:plugin/skill@installed-name`.
+pub(crate) fn format_equipped_entry(
+    source: &str,
+    plugin: &str,
+    skill: &str,
+    installed_name: Option<&str>,
+) -> String {
+    let identity = crate::output::plain_identity(source, plugin, skill);
+    match installed_name {
+        Some(name) if name != skill => format!("{}@{}", identity, name),
+        _ => identity,
+    }
+}
+
+/// Parse an equipped entry back into (source, plugin, skill, optional_installed_name).
+pub(crate) fn parse_equipped_entry(
+    entry: &str,
+) -> Option<(String, String, String, Option<String>)> {
+    let (identity, installed_name) = if let Some((id, name)) = entry.rsplit_once('@') {
+        (id, Some(name.to_string()))
+    } else {
+        (entry, None)
+    };
+
+    let (source, rest) = identity.split_once(':')?;
+    let (plugin, skill) = rest.split_once('/')?;
+    Some((
+        source.to_string(),
+        plugin.to_string(),
+        skill.to_string(),
+        installed_name,
+    ))
+}
+
+/// Rebuild `config.agent[].equipped` from `registry.installed`.
+/// Call after any operation that modifies `registry.installed`.
+pub(crate) fn sync_equipped_from_installed(
+    config: &mut crate::config::Config,
+    registry: &crate::registry::Registry,
+) {
+    for ac in &mut config.agent {
+        let mut entries = Vec::new();
+        if let Some(agent_skills) = registry.installed.get(&ac.id) {
+            let mut skill_names: Vec<&String> = agent_skills.keys().collect();
+            skill_names.sort();
+            for installed_name in skill_names {
+                let info = &agent_skills[installed_name];
+                let renamed = if installed_name != &info.skill {
+                    Some(installed_name.as_str())
+                } else {
+                    None
+                };
+                entries.push(format_equipped_entry(
+                    &info.source,
+                    &info.plugin,
+                    &info.skill,
+                    renamed,
+                ));
+            }
+        }
+        ac.equipped = entries;
+    }
+}
+
+/// Rebuild `registry.installed` from `config.agent[].equipped` + registry sources.
+/// Called on load so that downstream code can keep reading `registry.installed`.
+pub(crate) fn rebuild_installed_from_equipped(
+    config: &crate::config::Config,
+    registry: &mut crate::registry::Registry,
+    data_dir: &std::path::Path,
+) {
+    for ac in &config.agent {
+        if ac.equipped.is_empty() {
+            continue;
+        }
+        let agent_map = registry.installed.entry(ac.id.clone()).or_default();
+        for entry in &ac.equipped {
+            let Some((source, plugin, skill, installed_name)) = parse_equipped_entry(entry) else {
+                continue;
+            };
+            let name_on_agent = installed_name.as_deref().unwrap_or(&skill);
+            if agent_map.contains_key(name_on_agent) {
+                continue;
+            }
+            // Compute origin from registry sources
+            let origin = registry
+                .sources
+                .iter()
+                .find(|s| s.id == source)
+                .and_then(|s| {
+                    s.plugins.iter().find(|p| p.name == plugin).and_then(|p| {
+                        p.skills.iter().find(|sk| sk.name == skill).map(|sk| {
+                            sk.path
+                                .strip_prefix(data_dir)
+                                .map(|r| r.to_string_lossy().to_string())
+                                .unwrap_or_else(|_| sk.path.display().to_string())
+                        })
+                    })
+                })
+                .unwrap_or_default();
+            agent_map.insert(
+                name_on_agent.to_string(),
+                crate::registry::InstalledSkill {
+                    source: source.clone(),
+                    plugin: plugin.clone(),
+                    skill: skill.clone(),
+                    origin,
+                },
+            );
+        }
+    }
+}
+
 /// Resolve a skill identifier (exact, glob, or freeform) to a list of (source_name, fully_qualified_id).
 pub(crate) fn resolve_skills_for_bundle(
     skill_id: &str,
@@ -201,6 +314,7 @@ pub(crate) fn load_effective_registry(
     }
 
     merge_local_source(&mut registry, data_dir)?;
+    rebuild_installed_from_equipped(config, &mut registry, data_dir);
     Ok(registry)
 }
 
@@ -585,6 +699,7 @@ pub fn add_detected_agents(config: &mut crate::config::Config, quiet: bool) -> u
             path: path.clone(),
             scope: scope.to_string(),
             sync: sync.to_string(),
+            equipped: Vec::new(),
         });
         if !quiet {
             let display_path = if let Some(home_str) = home.to_str() {
@@ -1022,6 +1137,7 @@ mod tests {
             path: agent_dir.path().to_path_buf(),
             scope: "machine".to_string(),
             sync: "auto".to_string(),
+            equipped: Vec::new(),
         };
         let adapter = crate::agent::resolve_adapter(&agent, &BTreeMap::new()).unwrap();
 
@@ -1111,6 +1227,7 @@ mod tests {
                 path: agent_dir.path().to_path_buf(),
                 scope: "machine".to_string(),
                 sync: "auto".to_string(),
+                equipped: Vec::new(),
             }],
             ..Default::default()
         };
@@ -1165,6 +1282,7 @@ mod tests {
                 path: agent_dir.path().to_path_buf(),
                 scope: "machine".to_string(),
                 sync: "auto".to_string(),
+                equipped: Vec::new(),
             }],
             ..Default::default()
         };
@@ -1215,6 +1333,7 @@ mod tests {
                 path: agent_dir.path().to_path_buf(),
                 scope: "machine".to_string(),
                 sync: "auto".to_string(),
+                equipped: Vec::new(),
             }],
             ..Default::default()
         };

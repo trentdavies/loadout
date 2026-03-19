@@ -66,6 +66,7 @@ fn make_adapter() -> equip::agent::Adapter {
         path: PathBuf::from("/tmp"),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
+        equipped: Vec::new(),
     };
     equip::agent::resolve_adapter(&agent, &BTreeMap::new()).unwrap()
 }

@@ -81,6 +81,11 @@ pub struct AgentConfig {
 
     #[serde(default = "default_sync")]
     pub sync: String,
+
+    /// Fully-qualified skill identities installed on this agent.
+    /// Format: `source:plugin/skill` or `source:plugin/skill@installed-name`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub equipped: Vec<String>,
 }
 
 fn default_scope() -> String {

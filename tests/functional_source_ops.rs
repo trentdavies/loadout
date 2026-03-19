@@ -259,6 +259,7 @@ fn remove_source_with_installed_skills_detected() {
         path: target_dir.path().to_path_buf(),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
+        equipped: Vec::new(),
     });
     equip::config::save_to(&config, &config_path).unwrap();
 

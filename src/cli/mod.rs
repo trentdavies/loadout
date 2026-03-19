@@ -188,6 +188,10 @@ pub enum Command {
         /// Reconcile only one source name (use `local` for the local source)
         #[arg(long, value_name = "SOURCE")]
         source: Option<String>,
+
+        /// Rewrite equip.toml to the latest schema (e.g. migrates name → id)
+        #[arg(long)]
+        rewrite_config: bool,
     },
 
     /// Manage sources
@@ -535,7 +539,10 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             },
             &flags,
         ),
-        Command::Reconcile { source } => commands::source::run_reconcile(source, &flags),
+        Command::Reconcile {
+            source,
+            rewrite_config,
+        } => commands::source::run_reconcile(source, rewrite_config, &flags),
         Command::Source { command } => commands::source::run(command, &flags),
         Command::Kit { command } => commands::kit::run(command, &flags),
         Command::Agent { command } => commands::agent::run(command, &flags),

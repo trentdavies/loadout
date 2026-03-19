@@ -289,6 +289,7 @@ mod tests {
             path: PathBuf::from("/tmp/claude"),
             scope: "machine".to_string(),
             sync: "auto".to_string(),
+            equipped: Vec::new(),
         });
 
         save_to(&config, &path).unwrap();

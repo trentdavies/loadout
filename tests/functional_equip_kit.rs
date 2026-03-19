@@ -101,6 +101,7 @@ fn setup_env() -> TestEnv {
         path: agent_dir.path().to_path_buf(),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
+        equipped: Vec::new(),
     });
 
     let config_path = data_dir.join("equip.toml");

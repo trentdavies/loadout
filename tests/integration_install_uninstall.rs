@@ -43,6 +43,7 @@ fn make_adapter() -> equip::agent::Adapter {
         path: PathBuf::from("/tmp"),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
+        equipped: Vec::new(),
     };
     equip::agent::resolve_adapter(&agent, &BTreeMap::new()).unwrap()
 }
@@ -231,6 +232,7 @@ fn custom_adapter_installs_to_custom_path() {
         path: target_dir.path().to_path_buf(),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
+        equipped: Vec::new(),
     };
     let adapter = equip::agent::resolve_adapter(&target, &adapters).unwrap();
 

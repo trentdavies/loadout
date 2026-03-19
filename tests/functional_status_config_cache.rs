@@ -31,6 +31,7 @@ fn make_agent(name: &str, agent_type: &str, path: PathBuf) -> AgentConfig {
         path,
         scope: "machine".to_string(),
         sync: "auto".to_string(),
+        equipped: Vec::new(),
     }
 }
 

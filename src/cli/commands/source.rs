@@ -1207,6 +1207,11 @@ pub(crate) fn run_source_remove(
 
         // Remove from config
         config.source.retain(|s| s.id != name);
+        // Clean equipped entries referencing the removed source
+        let prefix = format!("{}:", name);
+        for ac in &mut config.agent {
+            ac.equipped.retain(|e| !e.starts_with(&prefix));
+        }
         crate::config::save(&config, config_path_str)?;
     }
 
@@ -1345,7 +1350,30 @@ pub(crate) fn run_update(
     Ok(())
 }
 
-pub(crate) fn run_reconcile(source_name: Option<String>, flags: &Flags) -> anyhow::Result<()> {
+pub(crate) fn run_reconcile(
+    source_name: Option<String>,
+    rewrite_config: bool,
+    flags: &Flags,
+) -> anyhow::Result<()> {
+    if rewrite_config {
+        let config_path = crate::config::config_path(flags.config_path());
+        if config_path.exists() {
+            let config = crate::config::load(flags.config_path())?;
+            if flags.dry_run {
+                if !flags.quiet {
+                    println!("Would rewrite {}", config_path.display());
+                }
+            } else {
+                crate::config::save_to(&config, &config_path)?;
+                if !flags.quiet {
+                    println!("Rewrote {}", config_path.display());
+                }
+            }
+        } else if !flags.quiet {
+            println!("No config file to rewrite");
+        }
+    }
+
     let config = crate::config::load(flags.config_path())?;
     let data_dir = crate::config::data_dir();
     let mut registry = crate::registry::load_registry(&data_dir)?;

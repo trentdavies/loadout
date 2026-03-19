@@ -598,8 +598,12 @@ fn top_level_collect_link_parses() {
 fn parse_reconcile() {
     let cli = Cli::try_parse_from(["equip", "reconcile", "--source", "local"]).unwrap();
     match cli.command {
-        equip::cli::Command::Reconcile { source } => {
+        equip::cli::Command::Reconcile {
+            source,
+            rewrite_config,
+        } => {
             assert_eq!(source, Some("local".to_string()));
+            assert!(!rewrite_config);
         }
         _ => panic!("expected Reconcile"),
     }

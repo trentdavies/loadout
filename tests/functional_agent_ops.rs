@@ -13,6 +13,7 @@ fn make_agent(name: &str, agent_type: &str, path: PathBuf) -> AgentConfig {
         path,
         scope: "machine".to_string(),
         sync: "auto".to_string(),
+        equipped: Vec::new(),
     }
 }
 
@@ -47,6 +48,7 @@ fn agent_defaults_scope_and_sync() {
         path: tmp.path().join("cursor-agent"),
         scope: "machine".to_string(),
         sync: "auto".to_string(),
+        equipped: Vec::new(),
     });
     save_to(&config, &config_path).unwrap();
 
