@@ -514,8 +514,29 @@ pub(crate) fn apply_skill_to_agent(
     force_all: &mut bool,
 ) -> anyhow::Result<ApplySkillOutcome> {
     let (src_name, plugin, skill) = resolved_skill;
+    let provenance_matches = reg
+        .installed
+        .get(&ac.name)
+        .and_then(|agent_map| agent_map.get(&skill.name))
+        .map(|installed| {
+            installed.source == src_name
+                && installed.plugin == plugin.name
+                && installed.skill == skill.name
+                && installed.origin
+                    == skill
+                        .path
+                        .strip_prefix(data_dir)
+                        .map(|p| p.to_string_lossy().to_string())
+                        .unwrap_or_else(|_| skill.path.display().to_string())
+        })
+        .unwrap_or(false);
 
     match adapter.compare_skill(skill, &ac.path)? {
+        crate::agent::SkillStatus::Unchanged if *force_all && !provenance_matches => {
+            adapter.install_skill(skill, &ac.path)?;
+            record_provenance(reg, data_dir, ac, src_name, &plugin.name, skill);
+            Ok(ApplySkillOutcome::Updated)
+        }
         crate::agent::SkillStatus::Unchanged => Ok(ApplySkillOutcome::Unchanged),
         crate::agent::SkillStatus::New => {
             adapter.install_skill(skill, &ac.path)?;
@@ -690,6 +711,7 @@ pub(crate) fn generate_marketplace(data_dir: &std::path::Path) -> anyhow::Result
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
     use std::fs;
     use tempfile::TempDir;
 
@@ -780,5 +802,100 @@ mod tests {
         assert_eq!(manifest.name, "Shared Skills");
         assert_eq!(manifest.plugins.len(), 1);
         assert_eq!(manifest.plugins[0].name, "tools");
+    }
+
+    #[test]
+    fn force_reapplies_when_identity_changes_but_contents_match() {
+        let data_dir = TempDir::new().unwrap();
+        let agent_dir = TempDir::new().unwrap();
+
+        let skill_a_dir = data_dir
+            .path()
+            .join("external/source-a/plugin-a/skills/shared");
+        fs::create_dir_all(&skill_a_dir).unwrap();
+        fs::write(
+            skill_a_dir.join("SKILL.md"),
+            "---\nname: shared\ndescription: same\n---\nbody\n",
+        )
+        .unwrap();
+
+        let skill_b_dir = data_dir
+            .path()
+            .join("external/source-b/plugin-b/skills/shared");
+        fs::create_dir_all(&skill_b_dir).unwrap();
+        fs::write(
+            skill_b_dir.join("SKILL.md"),
+            "---\nname: shared\ndescription: same\n---\nbody\n",
+        )
+        .unwrap();
+
+        let agent = crate::config::AgentConfig {
+            name: "claude".to_string(),
+            agent_type: "claude".to_string(),
+            path: agent_dir.path().to_path_buf(),
+            scope: "machine".to_string(),
+            sync: "auto".to_string(),
+        };
+        let adapter = crate::agent::resolve_adapter(&agent, &BTreeMap::new()).unwrap();
+
+        let skill_a = crate::registry::RegisteredSkill {
+            name: "shared".to_string(),
+            description: Some("same".to_string()),
+            author: None,
+            version: None,
+            path: skill_a_dir.clone(),
+        };
+        let skill_b = crate::registry::RegisteredSkill {
+            name: "shared".to_string(),
+            description: Some("same".to_string()),
+            author: None,
+            version: None,
+            path: skill_b_dir.clone(),
+        };
+        let plugin_a = crate::registry::RegisteredPlugin {
+            name: "plugin-a".to_string(),
+            version: None,
+            description: None,
+            skills: vec![skill_a.clone()],
+            path: data_dir.path().join("external/source-a/plugin-a"),
+        };
+        let plugin_b = crate::registry::RegisteredPlugin {
+            name: "plugin-b".to_string(),
+            version: None,
+            description: None,
+            skills: vec![skill_b.clone()],
+            path: data_dir.path().join("external/source-b/plugin-b"),
+        };
+
+        let mut registry = crate::registry::Registry::default();
+        adapter.install_skill(&skill_a, agent_dir.path()).unwrap();
+        record_provenance(
+            &mut registry,
+            data_dir.path(),
+            &agent,
+            "source-a",
+            &plugin_a.name,
+            &skill_a,
+        );
+
+        let mut force_all = true;
+        let outcome = apply_skill_to_agent(
+            &adapter,
+            &mut registry,
+            data_dir.path(),
+            &agent,
+            ("source-b", &plugin_b, &skill_b),
+            false,
+            &mut force_all,
+        )
+        .unwrap();
+
+        assert!(matches!(outcome, ApplySkillOutcome::Updated));
+
+        let installed = &registry.installed["claude"]["shared"];
+        assert_eq!(installed.source, "source-b");
+        assert_eq!(installed.plugin, "plugin-b");
+        assert_eq!(installed.skill, "shared");
+        assert_eq!(installed.origin, "external/source-b/plugin-b/skills/shared");
     }
 }
