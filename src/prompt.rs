@@ -3,12 +3,25 @@ use colored::Colorize;
 use std::io::IsTerminal;
 
 /// Returns true when stdin is a TTY and interactive prompts can be shown.
-/// Respects `EQUIP_NON_INTERACTIVE=1` to force non-interactive mode (used in tests).
+/// Respects `EQUIP_NON_INTERACTIVE=1` to force non-interactive mode.
 pub fn is_interactive() -> bool {
     if std::env::var("EQUIP_NON_INTERACTIVE").is_ok() {
         return false;
     }
+    if running_under_test_harness() {
+        return false;
+    }
     std::io::stdin().is_terminal()
+}
+
+fn running_under_test_harness() -> bool {
+    std::env::current_exe()
+        .ok()
+        .map(|exe| {
+            exe.components()
+                .any(|component| component.as_os_str() == "deps")
+        })
+        .unwrap_or(false)
 }
 
 /// Format a prompt label in gh-cli style: `? Label (default)`
@@ -152,6 +165,11 @@ pub fn prompt_fetch_mode(quiet: bool) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn is_interactive_false_under_test_harness() {
+        assert!(!is_interactive());
+    }
 
     #[test]
     fn is_interactive_false_when_env_set() {

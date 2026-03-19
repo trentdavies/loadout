@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard, OnceLock};
 
 use clap::Parser;
 use tempfile::TempDir;
@@ -50,7 +51,21 @@ fn write_marketplace_plugin(base: &Path, plugin_dir_name: &str, skill_name: &str
     .unwrap();
 }
 
-fn setup_env() -> (TempDir, PathBuf, PathBuf, PathBuf) {
+fn env_lock() -> MutexGuard<'static, ()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
+}
+
+struct TestEnv {
+    _env_guard: MutexGuard<'static, ()>,
+    _xdg_dir: TempDir,
+    config_path: PathBuf,
+    data_dir: PathBuf,
+    cache_path: PathBuf,
+}
+
+fn setup_env() -> TestEnv {
+    let env_guard = env_lock();
     let xdg_dir = TempDir::new().unwrap();
     std::env::set_var("XDG_DATA_HOME", xdg_dir.path());
 
@@ -95,27 +110,37 @@ fn setup_env() -> (TempDir, PathBuf, PathBuf, PathBuf) {
     });
     equip::config::save_to(&config, &config_path).unwrap();
 
-    (xdg_dir, config_path, data_dir, cache_path)
+    TestEnv {
+        _env_guard: env_guard,
+        _xdg_dir: xdg_dir,
+        config_path,
+        data_dir,
+        cache_path,
+    }
 }
 
 #[test]
 fn reconcile_updates_installed_origin_after_skill_path_move() {
-    let (_xdg_dir, config_path, data_dir, cache_path) = setup_env();
+    let env = setup_env();
 
-    fs::rename(cache_path.join("old-plugin"), cache_path.join("new-plugin")).unwrap();
+    fs::rename(
+        env.cache_path.join("old-plugin"),
+        env.cache_path.join("new-plugin"),
+    )
+    .unwrap();
     fs::write(
-        cache_path.join(".claude-plugin").join("marketplace.json"),
+        env.cache_path.join(".claude-plugin").join("marketplace.json"),
         r#"{"name":"test-marketplace","owner":{"name":"test"},"plugins":[{"name":"test-plugin","source":"./new-plugin"}]}"#,
     )
     .unwrap();
 
     run_cli(
         &["reconcile", "--source", "test-source"],
-        &config_path.to_string_lossy(),
+        &env.config_path.to_string_lossy(),
     )
     .unwrap();
 
-    let registry = equip::registry::load_registry(&data_dir).unwrap();
+    let registry = equip::registry::load_registry(&env.data_dir).unwrap();
     let source = registry
         .sources
         .iter()

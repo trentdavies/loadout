@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
+use std::sync::{Mutex, MutexGuard, OnceLock};
 
 use clap::Parser;
 use tempfile::TempDir;
@@ -32,10 +33,23 @@ fn create_skill(base: &std::path::Path, name: &str) -> RegisteredSkill {
     }
 }
 
+fn env_lock() -> MutexGuard<'static, ()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
+}
+
+struct TestEnv {
+    _env_guard: MutexGuard<'static, ()>,
+    _xdg_dir: TempDir,
+    config_path: PathBuf,
+    _source_dir: TempDir,
+    _agent_dir: TempDir,
+}
+
 /// Set up a temp environment with config, registry, and agent on disk.
-/// Returns (xdg_dir, config_path, source_dir, agent_dir).
 /// Sets XDG_DATA_HOME so that data_dir() resolves to xdg_dir/equip.
-fn setup_env() -> (TempDir, PathBuf, TempDir, TempDir) {
+fn setup_env() -> TestEnv {
+    let env_guard = env_lock();
     let xdg_dir = TempDir::new().unwrap();
     let source_dir = TempDir::new().unwrap();
     let agent_dir = TempDir::new().unwrap();
@@ -95,7 +109,13 @@ fn setup_env() -> (TempDir, PathBuf, TempDir, TempDir) {
     // Set XDG_DATA_HOME so data_dir() finds our temp registry
     std::env::set_var("XDG_DATA_HOME", xdg_dir.path());
 
-    (xdg_dir, config_path, source_dir, agent_dir)
+    TestEnv {
+        _env_guard: env_guard,
+        _xdg_dir: xdg_dir,
+        config_path,
+        _source_dir: source_dir,
+        _agent_dir: agent_dir,
+    }
 }
 
 fn run_cli(args: &[&str], config_path: &str) -> anyhow::Result<()> {
@@ -179,11 +199,11 @@ fn parse_unequip_with_plus_kit() {
 
 #[test]
 fn equip_missing_kit_no_save_errors() {
-    let (_xdg_dir, config_path, _source_dir, _agent_dir) = setup_env();
+    let env = setup_env();
 
     let result = run_cli(
         &["_equip", "+nonexistent", "test-plugin/*", "-f"],
-        config_path.to_str().unwrap(),
+        env.config_path.to_str().unwrap(),
     );
 
     assert!(result.is_err());
@@ -197,11 +217,11 @@ fn equip_missing_kit_no_save_errors() {
 
 #[test]
 fn equip_missing_kit_only_no_patterns_errors() {
-    let (_xdg_dir, config_path, _source_dir, _agent_dir) = setup_env();
+    let env = setup_env();
 
     let result = run_cli(
         &["_equip", "-k", "nonexistent", "-f"],
-        config_path.to_str().unwrap(),
+        env.config_path.to_str().unwrap(),
     );
 
     assert!(result.is_err());
@@ -215,19 +235,19 @@ fn equip_missing_kit_only_no_patterns_errors() {
 
 #[test]
 fn equip_existing_kit_works() {
-    let (_xdg_dir, config_path, _source_dir, _agent_dir) = setup_env();
+    let env = setup_env();
 
     // Add a kit to the config
-    let mut config = equip::config::load_from(&config_path).unwrap();
+    let mut config = equip::config::load_from(&env.config_path).unwrap();
     config.kit.insert(
         "dev".to_string(),
         KitConfig {
             skills: vec!["test-plugin/skill-a".to_string()],
         },
     );
-    equip::config::save_to(&config, &config_path).unwrap();
+    equip::config::save_to(&config, &env.config_path).unwrap();
 
-    let result = run_cli(&["_equip", "+dev", "-f"], config_path.to_str().unwrap());
+    let result = run_cli(&["_equip", "+dev", "-f"], env.config_path.to_str().unwrap());
 
     assert!(
         result.is_ok(),
@@ -238,20 +258,20 @@ fn equip_existing_kit_works() {
 
 #[test]
 fn equip_existing_kit_plus_patterns_works() {
-    let (_xdg_dir, config_path, _source_dir, _agent_dir) = setup_env();
+    let env = setup_env();
 
-    let mut config = equip::config::load_from(&config_path).unwrap();
+    let mut config = equip::config::load_from(&env.config_path).unwrap();
     config.kit.insert(
         "dev".to_string(),
         KitConfig {
             skills: vec!["test-plugin/skill-a".to_string()],
         },
     );
-    equip::config::save_to(&config, &config_path).unwrap();
+    equip::config::save_to(&config, &env.config_path).unwrap();
 
     let result = run_cli(
         &["_equip", "+dev", "test-plugin/skill-b", "-f"],
-        config_path.to_str().unwrap(),
+        env.config_path.to_str().unwrap(),
     );
 
     assert!(
@@ -263,12 +283,12 @@ fn equip_existing_kit_plus_patterns_works() {
 
 #[test]
 fn equip_missing_kit_with_save_creates_kit() {
-    let (_xdg_dir, config_path, _source_dir, _agent_dir) = setup_env();
+    let env = setup_env();
 
     // --save with missing kit and --force (non-interactive) should create the kit
     let result = run_cli(
         &["_equip", "+newkit", "-s", "test-plugin/*", "-f"],
-        config_path.to_str().unwrap(),
+        env.config_path.to_str().unwrap(),
     );
 
     assert!(
@@ -278,7 +298,7 @@ fn equip_missing_kit_with_save_creates_kit() {
     );
 
     // Verify the kit was created in config
-    let config = equip::config::load_from(&config_path).unwrap();
+    let config = equip::config::load_from(&env.config_path).unwrap();
     assert!(
         config.kit.contains_key("newkit"),
         "kit 'newkit' should exist after --save"
@@ -291,22 +311,22 @@ fn equip_missing_kit_with_save_creates_kit() {
 
 #[test]
 fn equip_existing_kit_with_save_updates_kit() {
-    let (_xdg_dir, config_path, _source_dir, _agent_dir) = setup_env();
+    let env = setup_env();
 
     // Create kit with one skill
-    let mut config = equip::config::load_from(&config_path).unwrap();
+    let mut config = equip::config::load_from(&env.config_path).unwrap();
     config.kit.insert(
         "dev".to_string(),
         KitConfig {
             skills: vec!["test-plugin/skill-a".to_string()],
         },
     );
-    equip::config::save_to(&config, &config_path).unwrap();
+    equip::config::save_to(&config, &env.config_path).unwrap();
 
     // Equip with broader pattern + --save --force
     let result = run_cli(
         &["_equip", "+dev", "-s", "test-plugin/*", "-f"],
-        config_path.to_str().unwrap(),
+        env.config_path.to_str().unwrap(),
     );
 
     assert!(
@@ -316,7 +336,7 @@ fn equip_existing_kit_with_save_updates_kit() {
     );
 
     // Verify the kit was updated
-    let config = equip::config::load_from(&config_path).unwrap();
+    let config = equip::config::load_from(&env.config_path).unwrap();
     assert!(
         config.kit["dev"].skills.len() > 1,
         "kit should have more skills after update"
@@ -325,11 +345,11 @@ fn equip_existing_kit_with_save_updates_kit() {
 
 #[test]
 fn unequip_missing_kit_errors() {
-    let (_xdg_dir, config_path, _source_dir, _agent_dir) = setup_env();
+    let env = setup_env();
 
     let result = run_cli(
         &["_equip", "--remove", "+nonexistent", "-f"],
-        config_path.to_str().unwrap(),
+        env.config_path.to_str().unwrap(),
     );
 
     assert!(result.is_err());
@@ -343,12 +363,12 @@ fn unequip_missing_kit_errors() {
 
 #[test]
 fn unequip_missing_kit_with_patterns_still_errors() {
-    let (_xdg_dir, config_path, _source_dir, _agent_dir) = setup_env();
+    let env = setup_env();
 
     // Even with patterns, unequip should error on missing kit
     let result = run_cli(
         &["_equip", "--remove", "+nonexistent", "test-plugin/*", "-f"],
-        config_path.to_str().unwrap(),
+        env.config_path.to_str().unwrap(),
     );
 
     assert!(result.is_err());

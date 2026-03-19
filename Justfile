@@ -2,7 +2,7 @@
 
 # Run all Rust tests (unit + integration)
 test:
-    EQUIP_NON_INTERACTIVE=1 cargo test
+    cargo test
 
 # Build debug binary
 build:
@@ -175,7 +175,7 @@ release version:
     fi
     sed -i '' "s/^version = \"$current\"/version = \"{{version}}\"/" Cargo.toml
     cargo check --quiet
-    EQUIP_NON_INTERACTIVE=1 cargo test --quiet
+    cargo test --quiet
     git add Cargo.toml Cargo.lock
     git commit -m "release v{{version}}"
     git tag -a "v{{version}}" -m "v{{version}}"
