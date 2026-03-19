@@ -159,6 +159,11 @@ fix:
     cargo fmt
     cargo clippy --fix --allow-dirty
 
+# Install repo-managed git hooks for this worktree
+install-hooks:
+    git config core.hooksPath .githooks
+    chmod +x .githooks/pre-commit
+
 # Release: bump version, tag, push — CI builds binaries and updates the Homebrew tap
 release version:
     #!/usr/bin/env bash
