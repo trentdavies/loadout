@@ -30,10 +30,10 @@ test_glob_list_by_plugin() {
 test_glob_list_by_source_qualified() {
   setup_source_and_agents
   local count
-  count=$("$LOADOUT" list --json "local:test-plugin/*" 2>/dev/null | jq 'length')
+  count=$("$LOADOUT" list --json "test-plugin:test-plugin/*" 2>/dev/null | jq 'length')
 
   if [ "$count" -eq 3 ]; then
-    _pass "list 'local:test-plugin/*' returns 3 skills"
+    _pass "list 'test-plugin:test-plugin/*' returns 3 skills"
   else
     _fail "source-qualified glob count wrong" "3" "$count"
   fi
