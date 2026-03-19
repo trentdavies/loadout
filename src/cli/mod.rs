@@ -486,6 +486,7 @@ pub enum ConfigCommand {
 
 pub fn run(cli: Cli) -> anyhow::Result<()> {
     let flags = flags::Flags::from_cli(&cli);
+    ensure_initialized(&cli.command, &flags)?;
     match cli.command {
         Command::Init { url } => commands::init::run(url, &flags),
         Command::Add {
@@ -574,4 +575,23 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             &flags,
         ),
     }
+}
+
+fn ensure_initialized(command: &Command, flags: &flags::Flags) -> anyhow::Result<()> {
+    if matches!(
+        command,
+        Command::Init { .. } | Command::Completions { .. } | Command::Complete { .. }
+    ) {
+        return Ok(());
+    }
+
+    let config_path = crate::config::config_path(flags.config_path());
+    if config_path.exists() {
+        return Ok(());
+    }
+
+    anyhow::bail!(
+        "equip is not initialized. Run `equip init` first (expected config at {}).",
+        config_path.display()
+    );
 }

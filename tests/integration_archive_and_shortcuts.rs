@@ -1,6 +1,14 @@
 use std::fs;
 use std::path::Path;
+use std::sync::{Mutex, MutexGuard, OnceLock};
+
+use clap::Parser;
 use tempfile::TempDir;
+
+fn env_lock() -> MutexGuard<'static, ()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
+}
 
 /// Create a skill directory with valid SKILL.md frontmatter.
 fn make_skill_fixture(parent: &Path, name: &str) {
@@ -26,6 +34,11 @@ fn create_test_zip(zip_path: &Path, files: &[(&str, &[u8])]) {
         std::io::Write::write_all(&mut zip, content).unwrap();
     }
     zip.finish().unwrap();
+}
+
+fn run_cli(args: &[&str]) -> anyhow::Result<()> {
+    let cli = equip::cli::Cli::try_parse_from(args).unwrap();
+    equip::cli::run(cli)
 }
 
 // ─── Test: source add with .zip file ────────────────────────────────────────
@@ -157,7 +170,6 @@ fn source_add_claude_plugin_end_to_end() {
 
 #[test]
 fn add_parses_correctly() {
-    use clap::Parser;
     let cli = equip::cli::Cli::try_parse_from(["equip", "add", "/tmp/my-src"]).unwrap();
     match cli.command {
         equip::cli::Command::Add { url, name, .. } => {
@@ -172,7 +184,6 @@ fn add_parses_correctly() {
 
 #[test]
 fn list_parses() {
-    use clap::Parser;
     let cli = equip::cli::Cli::try_parse_from(["equip", "list"]).unwrap();
     match cli.command {
         equip::cli::Command::List { patterns, .. } => {
@@ -186,7 +197,6 @@ fn list_parses() {
 
 #[test]
 fn init_with_url_parses() {
-    use clap::Parser;
     let cli =
         equip::cli::Cli::try_parse_from(["equip", "init", "https://github.com/org/repo"]).unwrap();
     match cli.command {
@@ -195,4 +205,24 @@ fn init_with_url_parses() {
         }
         _ => panic!("expected Init command"),
     }
+}
+
+#[test]
+fn commands_require_init_before_use() {
+    let _env_guard = env_lock();
+    let tmp = TempDir::new().unwrap();
+    std::env::set_var("XDG_DATA_HOME", tmp.path());
+
+    let before = run_cli(&["equip", "status", "--quiet"]);
+    assert!(before.is_err());
+    assert!(
+        before
+            .unwrap_err()
+            .to_string()
+            .contains("Run `equip init` first"),
+        "expected init guidance before status"
+    );
+
+    run_cli(&["equip", "init", "--quiet"]).unwrap();
+    run_cli(&["equip", "status", "--quiet"]).unwrap();
 }
