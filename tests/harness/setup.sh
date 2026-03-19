@@ -46,7 +46,7 @@ setup_source_and_agents() {
   "$LOADOUT" init >/dev/null 2>&1
 
   # Add the plugin-source fixture as a source
-  "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source test-plugin >/dev/null 2>&1
+  "$LOADOUT" add "$FIXTURES_DIR/plugin-source" --source test-plugin --copy >/dev/null 2>&1
 
   # Register mock agents
   "$LOADOUT" agent add claude "$TARGET_CLAUDE" --name test-claude --scope machine --sync auto >/dev/null 2>&1

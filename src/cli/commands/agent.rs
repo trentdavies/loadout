@@ -7,6 +7,81 @@ use crate::cli::AgentCommand;
 /// Known built-in agent types
 const KNOWN_AGENTS: &[&str] = &["claude", "codex", "cursor", "gemini", "vscode"];
 
+#[derive(Debug, Clone)]
+struct InstalledSkillView {
+    installed_name: String,
+    display: String,
+    identity: Option<String>,
+    tracked: bool,
+}
+
+fn installed_skill_views(
+    agent_cfg: &crate::config::AgentConfig,
+    config: &crate::config::Config,
+    registry: &crate::registry::Registry,
+    colorize: bool,
+) -> Vec<InstalledSkillView> {
+    let adapter = match crate::agent::resolve_adapter(agent_cfg, &config.adapter) {
+        Ok(adapter) => adapter,
+        Err(_) => return Vec::new(),
+    };
+
+    let installed_names = adapter
+        .installed_skills(&agent_cfg.path)
+        .unwrap_or_default();
+    let installed_index = registry.installed.get(&agent_cfg.name);
+
+    installed_names
+        .into_iter()
+        .map(|installed_name| {
+            if let Some(installed) = installed_index.and_then(|skills| skills.get(&installed_name))
+            {
+                let identity = crate::output::plain_identity(
+                    &installed.source,
+                    &installed.plugin,
+                    &installed.skill,
+                );
+                let mut display = if colorize {
+                    crate::output::format_identity(
+                        &installed.source,
+                        &installed.plugin,
+                        &installed.skill,
+                    )
+                } else {
+                    identity.clone()
+                };
+
+                if installed.skill != installed_name {
+                    display.push_str(&format!(
+                        " {}",
+                        format!("(installed as {})", installed_name).dimmed()
+                    ));
+                }
+
+                InstalledSkillView {
+                    installed_name,
+                    display,
+                    identity: Some(identity),
+                    tracked: true,
+                }
+            } else {
+                let display = if colorize {
+                    format!("{} {}", installed_name.bold(), "(untracked)".yellow())
+                } else {
+                    format!("{} (untracked)", installed_name)
+                };
+
+                InstalledSkillView {
+                    installed_name,
+                    display,
+                    identity: None,
+                    tracked: false,
+                }
+            }
+        })
+        .collect()
+}
+
 pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
     let config_path_str = flags.config_path();
     let mut config = crate::config::load(config_path_str)?;
@@ -157,6 +232,8 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
                 .iter()
                 .find(|t| t.name == name)
                 .ok_or_else(|| anyhow::anyhow!("agent '{}' not found", name))?;
+            let registry = crate::registry::load_registry(&crate::config::data_dir())?;
+            let installed = installed_skill_views(agent_cfg, &config, &registry, !flags.json);
 
             if flags.json {
                 let json = serde_json::json!({
@@ -165,6 +242,13 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
                     "path": agent_cfg.path,
                     "scope": agent_cfg.scope,
                     "sync": agent_cfg.sync,
+                    "installed": installed.iter().map(|skill| {
+                        serde_json::json!({
+                            "name": skill.installed_name,
+                            "tracked": skill.tracked,
+                            "identity": skill.identity,
+                        })
+                    }).collect::<Vec<_>>(),
                 });
                 println!("{}", serde_json::to_string_pretty(&json)?);
                 return Ok(());
@@ -177,27 +261,14 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
             out.status("Scope", &agent_cfg.scope);
             out.status("Sync", &agent_cfg.sync);
 
-            // List installed skills if the directory exists
-            let skills_dir = agent_cfg.path.join("skills");
-            if skills_dir.is_dir() {
-                let mut installed = Vec::new();
-                if let Ok(entries) = std::fs::read_dir(&skills_dir) {
-                    for entry in entries.flatten() {
-                        if entry.file_type().map(|t| t.is_dir()).unwrap_or(false)
-                            && entry.path().join("SKILL.md").exists()
-                        {
-                            installed.push(entry.file_name().to_string_lossy().to_string());
-                        }
-                    }
-                }
-                if !installed.is_empty() {
-                    installed.sort();
-                    out.status("Installed", &installed.len().to_string());
-                    out.info("");
-                    let tree: Vec<(usize, String)> =
-                        installed.into_iter().map(|s| (0, s)).collect();
-                    out.tree(&tree);
-                }
+            if !installed.is_empty() {
+                out.status("Installed", &installed.len().to_string());
+                out.info("");
+                let tree: Vec<(usize, String)> = installed
+                    .into_iter()
+                    .map(|skill| (0, skill.display))
+                    .collect();
+                out.tree(&tree);
             }
 
             Ok(())

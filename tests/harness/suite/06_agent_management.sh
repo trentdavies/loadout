@@ -90,6 +90,7 @@ test_agent_show_with_installed_skills() {
   "$LOADOUT" @test-claude test-plugin/explore -f >/dev/null 2>&1
   # Show should list installed skills
   assert_stdout_contains "explore" "$LOADOUT" agent show test-claude
+  assert_stdout_contains "test-plugin:test-plugin/explore" "$LOADOUT" agent show test-claude
 }
 
 test_agent_show_nonexistent() {
@@ -237,7 +238,7 @@ test_agent_collect_force_adopts_untracked() {
   mkdir -p "$skill_dir"
   printf '%s\n' '---' 'name: hand-placed' 'description: test' '---' 'Body' > "$skill_dir/SKILL.md"
   local output
-  output=$("$LOADOUT" agent collect --agent test-claude -f 2>&1)
+  output=$("$LOADOUT" agent collect --agent test-claude --adopt-local -f 2>&1)
   if echo "$output" | grep -qiF "adopted"; then
     _pass "force collect adopted untracked skill"
   else
