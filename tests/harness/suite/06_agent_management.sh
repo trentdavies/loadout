@@ -73,6 +73,35 @@ test_agent_list() {
   assert_stdout_contains "test-codex" "$LOADOUT" agent list
 }
 
+test_agent_list_show_skills() {
+  setup_source_and_agents
+  "$LOADOUT" @test-claude test-plugin/explore -f >/dev/null 2>&1
+  assert_stdout_contains "test-plugin:test-plugin/explore" "$LOADOUT" agent list --show-skills
+}
+
+test_agent_list_show_kits() {
+  setup_source_and_agents
+  "$LOADOUT" kit create solo >/dev/null 2>&1
+  "$LOADOUT" kit add solo test-plugin/explore >/dev/null 2>&1
+  "$LOADOUT" kit create pair >/dev/null 2>&1
+  "$LOADOUT" kit add pair test-plugin/explore test-plugin/apply >/dev/null 2>&1
+  "$LOADOUT" @test-claude test-plugin/explore -f >/dev/null 2>&1
+
+  local output
+  output=$("$LOADOUT" agent list --show-kits 2>/dev/null)
+  if echo "$output" | grep -qF "+solo"; then
+    _pass "agent list shows fully installed kits"
+  else
+    _fail "agent list missing installed kit" "+solo in output" "$output"
+  fi
+
+  if echo "$output" | grep -qF "+pair"; then
+    _fail "agent list included partially installed kit" "+pair absent" "$output"
+  else
+    _pass "agent list excludes partially installed kits"
+  fi
+}
+
 test_agent_list_empty() {
   "$LOADOUT" init >/dev/null 2>&1
   assert_exit_code 0 "$LOADOUT" agent list

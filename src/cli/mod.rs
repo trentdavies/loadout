@@ -420,7 +420,15 @@ pub enum AgentCommand {
         force: bool,
     },
     /// List all agents
-    List,
+    List {
+        /// Show installed skills for each agent
+        #[arg(long)]
+        show_skills: bool,
+
+        /// Show fully installed kits for each agent
+        #[arg(long)]
+        show_kits: bool,
+    },
     /// Show agent details
     Show {
         /// Agent name

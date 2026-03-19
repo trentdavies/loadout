@@ -1,7 +1,10 @@
 use colored::Colorize;
+use std::collections::BTreeSet;
 
 use crate::cli::flags::Flags;
-use crate::cli::helpers::{add_detected_agents, detect_agents};
+use crate::cli::helpers::{
+    add_detected_agents, detect_agents, load_effective_registry, resolve_skills_for_bundle,
+};
 use crate::cli::AgentCommand;
 
 /// Known built-in agent types
@@ -80,6 +83,49 @@ fn installed_skill_views(
             }
         })
         .collect()
+}
+
+fn installed_kit_names(
+    config: &crate::config::Config,
+    registry: &crate::registry::Registry,
+    installed: &[InstalledSkillView],
+) -> Vec<String> {
+    let installed_identities: BTreeSet<String> = installed
+        .iter()
+        .filter_map(|skill| skill.identity.clone())
+        .collect();
+
+    let mut kits = Vec::new();
+    for (kit_name, kit) in &config.kit {
+        if kit.skills.is_empty() {
+            continue;
+        }
+
+        let mut fully_installed = true;
+        for spec in &kit.skills {
+            let resolved = match resolve_skills_for_bundle(spec, registry) {
+                Ok(resolved) if !resolved.is_empty() => resolved,
+                _ => {
+                    fully_installed = false;
+                    break;
+                }
+            };
+
+            if !resolved
+                .iter()
+                .any(|(_, identity)| installed_identities.contains(identity))
+            {
+                fully_installed = false;
+                break;
+            }
+        }
+
+        if fully_installed {
+            kits.push(kit_name.clone());
+        }
+    }
+
+    kits
 }
 
 pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
@@ -172,26 +218,55 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
             }
             Ok(())
         }
-        AgentCommand::List => {
+        AgentCommand::List {
+            show_skills,
+            show_kits,
+        } => {
+            let data_dir = crate::config::data_dir();
+            let registry = load_effective_registry(&config, &data_dir, flags.quiet)?;
             if flags.json {
                 let entries: Vec<serde_json::Value> = config
                     .agent
                     .iter()
                     .map(|t| {
-                        let adapter = crate::agent::resolve_adapter(t, &config.adapter).ok();
-                        let installed_count = adapter
-                            .as_ref()
-                            .and_then(|a| a.installed_skills(&t.path).ok())
-                            .map(|v| v.len())
-                            .unwrap_or(0);
-                        serde_json::json!({
-                            "name": t.name,
-                            "agent": t.agent_type,
-                            "path": t.path,
-                            "scope": t.scope,
-                            "sync": t.sync,
-                            "installed": installed_count,
-                        })
+                        let installed = installed_skill_views(t, &config, &registry, false);
+                        let kits = if show_kits {
+                            installed_kit_names(&config, &registry, &installed)
+                        } else {
+                            Vec::new()
+                        };
+
+                        let mut entry = serde_json::Map::new();
+                        entry.insert("name".to_string(), serde_json::json!(t.name));
+                        entry.insert("agent".to_string(), serde_json::json!(t.agent_type));
+                        entry.insert("path".to_string(), serde_json::json!(t.path));
+                        entry.insert("scope".to_string(), serde_json::json!(t.scope));
+                        entry.insert("sync".to_string(), serde_json::json!(t.sync));
+                        entry.insert("installed".to_string(), serde_json::json!(installed.len()));
+
+                        if show_skills {
+                            entry.insert(
+                                "skills".to_string(),
+                                serde_json::Value::Array(
+                                    installed
+                                        .iter()
+                                        .map(|skill| {
+                                            serde_json::json!({
+                                                "name": skill.installed_name,
+                                                "tracked": skill.tracked,
+                                                "identity": skill.identity,
+                                            })
+                                        })
+                                        .collect(),
+                                ),
+                            );
+                        }
+
+                        if show_kits {
+                            entry.insert("kits".to_string(), serde_json::json!(kits));
+                        }
+
+                        serde_json::Value::Object(entry)
                     })
                     .collect();
                 println!("{}", serde_json::to_string_pretty(&entries)?);
@@ -205,11 +280,12 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
             }
 
             for ac in &config.agent {
-                let adapter = crate::agent::resolve_adapter(ac, &config.adapter).ok();
-                let installed = adapter
-                    .as_ref()
-                    .and_then(|a| a.installed_skills(&ac.path).ok())
-                    .unwrap_or_default();
+                let installed = installed_skill_views(ac, &config, &registry, true);
+                let kits = if show_kits {
+                    installed_kit_names(&config, &registry, &installed)
+                } else {
+                    Vec::new()
+                };
 
                 println!(
                     "{} {} {}",
@@ -223,6 +299,32 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
                     ac.scope,
                     format!("  sync: {}  installed: {}", ac.sync, installed.len()).dimmed(),
                 );
+
+                if show_skills {
+                    println!("  {}", "skills:".dimmed());
+                    if installed.is_empty() {
+                        println!("    {}", "none".dimmed());
+                    } else {
+                        let tree: Vec<(usize, String)> = installed
+                            .iter()
+                            .map(|skill| (1, skill.display.clone()))
+                            .collect();
+                        out.tree(&tree);
+                    }
+                }
+
+                if show_kits {
+                    println!("  {}", "kits:".dimmed());
+                    if kits.is_empty() {
+                        println!("    {}", "none".dimmed());
+                    } else {
+                        let tree: Vec<(usize, String)> = kits
+                            .into_iter()
+                            .map(|kit| (1, format!("{}", format!("+{}", kit).magenta())))
+                            .collect();
+                        out.tree(&tree);
+                    }
+                }
             }
             Ok(())
         }
@@ -232,7 +334,8 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
                 .iter()
                 .find(|t| t.name == name)
                 .ok_or_else(|| anyhow::anyhow!("agent '{}' not found", name))?;
-            let registry = crate::registry::load_registry(&crate::config::data_dir())?;
+            let data_dir = crate::config::data_dir();
+            let registry = load_effective_registry(&config, &data_dir, flags.quiet)?;
             let installed = installed_skill_views(agent_cfg, &config, &registry, !flags.json);
 
             if flags.json {

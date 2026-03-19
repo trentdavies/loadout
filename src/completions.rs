@@ -279,6 +279,9 @@ _equip() {
                     _arguments '1:agent:_equip_agents'
                     ;;
                 list)
+                    _arguments \
+                        '--show-skills[Show installed skills for each agent]' \
+                        '--show-kits[Show fully installed kits for each agent]'
                     ;;
                 detect)
                     _arguments '--force[Auto-add discovered agents]'
@@ -668,6 +671,9 @@ _equip() {
             show)
                 COMPREPLY=($(compgen -W "$(_equip_agents)" -- "$cur"))
                 ;;
+            list)
+                [[ "$cur" == -* ]] && COMPREPLY=($(compgen -W "--show-skills --show-kits" -- "$cur"))
+                ;;
             detect)
                 [[ "$cur" == -* ]] && COMPREPLY=($(compgen -W "--force" -- "$cur"))
                 ;;
@@ -843,6 +849,8 @@ complete -c equip -f -n '__equip_using_subcommand agent add' -a 'claude codex cu
 complete -c equip -f -n '__equip_using_subcommand agent remove' -l force -d 'Required for removal'
 complete -c equip -f -n '__equip_using_subcommand agent remove' -a '(__equip_agents)'
 complete -c equip -f -n '__equip_using_subcommand agent show' -a '(__equip_agents)'
+complete -c equip -f -n '__equip_using_subcommand agent list' -l show-skills -d 'Show installed skills for each agent'
+complete -c equip -f -n '__equip_using_subcommand agent list' -l show-kits -d 'Show fully installed kits for each agent'
 complete -c equip -f -n '__equip_using_subcommand agent detect' -l force -d 'Auto-add'
 complete -c equip -f -n '__equip_using_subcommand agent equip' -l agent -s a -r -a '(__equip_agents)' -d 'Agent'
 complete -c equip -f -n '__equip_using_subcommand agent equip' -l all -d 'All configured skills'

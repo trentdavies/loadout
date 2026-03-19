@@ -348,6 +348,12 @@ test_60_agent_subcommands() {
     _assert_compreply_not_contains "unequip" "agent does NOT list unequip subcommand"
 }
 
+test_61_agent_list_flags() {
+    _simulate_completion "equip" "agent" "list" "-"
+    _assert_compreply_contains "--show-skills" "agent list flags include --show-skills"
+    _assert_compreply_contains "--show-kits" "agent list flags include --show-kits"
+}
+
 # ---------------------------------------------------------------------------
 # Tests: add offers file completion (not just flags)
 # ---------------------------------------------------------------------------
@@ -374,7 +380,7 @@ test_71_collect_flags_include_interactive() {
     _assert_compreply_contains "-f" "collect flags include -f"
     _assert_compreply_contains "--interactive" "collect flags include --interactive"
     _assert_compreply_contains "-i" "collect flags include -i"
-    _assert_compreply_contains "--adopt" "collect flags include --adopt"
+    _assert_compreply_contains "--adopt-local" "collect flags include --adopt-local"
 }
 
 test_72_collect_flags_no_skill() {

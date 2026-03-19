@@ -88,6 +88,25 @@ fn parse_agent_add() {
 }
 
 #[test]
+fn parse_agent_list_with_show_flags() {
+    let cli =
+        Cli::try_parse_from(["equip", "agent", "list", "--show-skills", "--show-kits"]).unwrap();
+    match cli.command {
+        equip::cli::Command::Agent { command } => match command {
+            equip::cli::AgentCommand::List {
+                show_skills,
+                show_kits,
+            } => {
+                assert!(show_skills);
+                assert!(show_kits);
+            }
+            _ => panic!("expected List"),
+        },
+        _ => panic!("expected Agent"),
+    }
+}
+
+#[test]
 fn parse_add() {
     let cli = Cli::try_parse_from(["equip", "add", "/tmp/src", "--source", "my-src"]).unwrap();
     match cli.command {
