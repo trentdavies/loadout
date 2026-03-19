@@ -96,6 +96,13 @@ pub fn preprocess(raw: Vec<String>) -> Vec<String> {
                     result.push(arg.clone());
                 }
             }
+            Some(Sub::AgentPositional) => {
+                if let Some(name) = arg.strip_prefix('@') {
+                    result.push(strip_quotes(name));
+                } else {
+                    result.push(arg.clone());
+                }
+            }
             None => {
                 result.push(arg.clone());
             }
@@ -111,6 +118,7 @@ pub fn preprocess(raw: Vec<String>) -> Vec<String> {
 enum Sub {
     Equip,
     Collect,
+    AgentPositional,
 }
 
 /// Detect if the resolved args form a `_equip` or `agent collect` subcommand path.
@@ -153,6 +161,7 @@ fn detect_subcommand(prefix: &[String], rest: &[String]) -> Option<Sub> {
         } else {
             return match token {
                 "collect" => Some(Sub::Collect),
+                "show" | "remove" => Some(Sub::AgentPositional),
                 _ => None,
             };
         }
@@ -298,6 +307,27 @@ mod tests {
                 "--kit",
                 "developer"
             ]
+        );
+    }
+
+    #[test]
+    fn agent_show_strips_at_prefix() {
+        let result = pp(&["equip", "agent", "show", "@claude"]);
+        assert_eq!(result, ["equip", "agent", "show", "claude"]);
+    }
+
+    #[test]
+    fn agent_remove_strips_at_prefix() {
+        let result = pp(&["equip", "agent", "remove", "@claude"]);
+        assert_eq!(result, ["equip", "agent", "remove", "claude"]);
+    }
+
+    #[test]
+    fn agent_collect_expands_at_with_patterns() {
+        let result = pp(&["equip", "agent", "collect", "@claude", "dev*"]);
+        assert_eq!(
+            result,
+            ["equip", "agent", "collect", "dev*", "--agent", "claude"]
         );
     }
 

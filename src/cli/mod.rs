@@ -402,17 +402,20 @@ pub enum AgentCommand {
         #[arg(long, value_name = "AGENT")]
         agent: String,
 
-        /// Skill name to collect
-        #[arg(long, value_name = "SKILL")]
-        skill: Option<String>,
+        /// Skill patterns (glob supported, e.g. "dev*", "legal/*")
+        patterns: Vec<String>,
 
-        /// Adopt skill into the local source (make it yours)
+        /// Adopt untracked skills into the local source
         #[arg(long)]
         adopt: bool,
 
-        /// Auto-adopt all untracked skills without prompting
-        #[arg(long)]
+        /// Auto-adopt all without prompting
+        #[arg(short, long)]
         force: bool,
+
+        /// Interactive skill selection
+        #[arg(short, long)]
+        interactive: bool,
     },
 }
 
