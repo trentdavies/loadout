@@ -8,6 +8,28 @@ enum UntrackedAction<'a> {
     Link(&'a str),
 }
 
+fn installed_elsewhere(
+    registry: &crate::registry::Registry,
+    current_agent: &str,
+    source: &str,
+    plugin: &str,
+    skill: &str,
+) -> Vec<String> {
+    let mut agents = std::collections::BTreeSet::new();
+    for (agent_name, installed) in &registry.installed {
+        if agent_name == current_agent {
+            continue;
+        }
+        if installed
+            .values()
+            .any(|entry| entry.source == source && entry.plugin == plugin && entry.skill == skill)
+        {
+            agents.insert(agent_name.clone());
+        }
+    }
+    agents.into_iter().collect()
+}
+
 fn resolve_selection_patterns(
     config: &crate::config::Config,
     patterns: Vec<String>,
@@ -188,6 +210,7 @@ pub(crate) fn run(
 
     let untracked_action =
         resolve_untracked_action(&selected_untracked, adopt_local, link.as_deref())?;
+    let mut stale_agents = std::collections::BTreeSet::new();
 
     for skill_name in &collect_tracked {
         if let Some(info) = agent_installs.get(skill_name) {
@@ -197,6 +220,13 @@ pub(crate) fn run(
             copy_dir_all(&agent_skill_dir, &dest)?;
             let identity = crate::output::format_identity(&info.source, &info.plugin, &info.skill);
             out.success(&format!("Collected {} → {}", identity, info.origin));
+            stale_agents.extend(installed_elsewhere(
+                &registry,
+                &agent_cfg.name,
+                &info.source,
+                &info.plugin,
+                &info.skill,
+            ));
         }
     }
 
@@ -234,6 +264,13 @@ pub(crate) fn run(
                             origin: format!("local/skills/{}", name),
                         },
                     );
+                    stale_agents.extend(installed_elsewhere(
+                        &registry,
+                        &agent_cfg.name,
+                        "local",
+                        "local",
+                        name,
+                    ));
                 }
 
                 let plugin_json_dir = local_plugin.join(".claude-plugin");
@@ -270,7 +307,21 @@ pub(crate) fn run(
                 installed_name,
                 crate::output::format_identity(&source_name, &plugin_name, &skill.name)
             ));
+            stale_agents.extend(installed_elsewhere(
+                &registry,
+                &agent_cfg.name,
+                &source_name,
+                &plugin_name,
+                &skill.name,
+            ));
         }
+    }
+
+    if !stale_agents.is_empty() {
+        out.warn(&format!(
+            "Other agent installs may now be stale: {}. Re-equip to sync changes.",
+            stale_agents.into_iter().collect::<Vec<_>>().join(", ")
+        ));
     }
 
     crate::registry::save_registry(&registry, &data_dir)?;
@@ -279,7 +330,7 @@ pub(crate) fn run(
 
 #[cfg(test)]
 mod tests {
-    use super::{resolve_untracked_action, UntrackedAction};
+    use super::{installed_elsewhere, resolve_untracked_action, UntrackedAction};
 
     #[test]
     fn link_requires_exactly_one_untracked_skill() {
@@ -322,5 +373,49 @@ mod tests {
             resolve_untracked_action(&["a".to_string()], false, None).unwrap(),
             UntrackedAction::Skip
         );
+    }
+
+    #[test]
+    fn installed_elsewhere_finds_other_agents_by_canonical_identity() {
+        let mut registry = crate::registry::Registry::default();
+        registry.installed.insert(
+            "claude".to_string(),
+            std::collections::BTreeMap::from([(
+                "skill-a".to_string(),
+                crate::registry::InstalledSkill {
+                    source: "src".to_string(),
+                    plugin: "plug".to_string(),
+                    skill: "skill".to_string(),
+                    origin: "external/src/plug/skills/skill".to_string(),
+                },
+            )]),
+        );
+        registry.installed.insert(
+            "codex".to_string(),
+            std::collections::BTreeMap::from([(
+                "renamed".to_string(),
+                crate::registry::InstalledSkill {
+                    source: "src".to_string(),
+                    plugin: "plug".to_string(),
+                    skill: "skill".to_string(),
+                    origin: "external/src/plug/skills/skill".to_string(),
+                },
+            )]),
+        );
+        registry.installed.insert(
+            "cursor".to_string(),
+            std::collections::BTreeMap::from([(
+                "other".to_string(),
+                crate::registry::InstalledSkill {
+                    source: "src".to_string(),
+                    plugin: "plug".to_string(),
+                    skill: "other".to_string(),
+                    origin: "external/src/plug/skills/other".to_string(),
+                },
+            )]),
+        );
+
+        let result = installed_elsewhere(&registry, "claude", "src", "plug", "skill");
+        assert_eq!(result, vec!["codex".to_string()]);
     }
 }
