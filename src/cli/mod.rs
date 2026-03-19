@@ -153,6 +153,28 @@ pub enum Command {
     /// Show current status
     Status,
 
+    /// Collect skills from an agent back to the library
+    Collect {
+        /// Agent to collect from
+        #[arg(long, value_name = "AGENT")]
+        agent: String,
+
+        /// Skill patterns (glob supported, e.g. "dev*", "legal/*")
+        patterns: Vec<String>,
+
+        /// Adopt untracked skills into the local source
+        #[arg(long)]
+        adopt: bool,
+
+        /// Auto-adopt all without prompting
+        #[arg(short, long)]
+        force: bool,
+
+        /// Interactive skill selection
+        #[arg(short, long)]
+        interactive: bool,
+    },
+
     /// Manage sources
     #[command(subcommand_required = true, arg_required_else_help = true)]
     Source {
@@ -452,6 +474,13 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             commands::source::run_remove(patterns, force, &flags)
         }
         Command::Status => commands::status::run(&flags),
+        Command::Collect {
+            agent,
+            patterns,
+            adopt,
+            force,
+            interactive,
+        } => commands::collect::run(agent, patterns, adopt, force, interactive, &flags),
         Command::Source { command } => commands::source::run(command, &flags),
         Command::Kit { command } => commands::kit::run(command, &flags),
         Command::Agent { command } => commands::agent::run(command, &flags),

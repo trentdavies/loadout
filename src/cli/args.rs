@@ -1,7 +1,7 @@
 /// Preprocess raw CLI args to support shorthand syntax:
 /// - `@name` → `--agent name`
 /// - `+name` → `--kit name`
-/// - Top-level catch-all: `equip @claude ...` → `equip agent equip @claude ...`
+/// - Top-level catch-all: `equip @claude ...` → `equip _equip @claude ...`
 pub fn preprocess(raw: Vec<String>) -> Vec<String> {
     if raw.len() < 2 {
         return raw;
@@ -51,7 +51,7 @@ pub fn preprocess(raw: Vec<String>) -> Vec<String> {
         result.push("_equip".to_string());
     }
 
-    // Pass 2: expand shorthands if subcommand is agent {equip, unequip, collect}
+    // Pass 2: expand shorthands if subcommand is _equip, collect, or agent collect
     // To avoid clap's greedy num_args consuming positional patterns as flag values,
     // we collect expanded flags and emit them after all other args.
     let rest = &raw[i..];
@@ -121,7 +121,8 @@ enum Sub {
     AgentPositional,
 }
 
-/// Detect if the resolved args form a `_equip` or `agent collect` subcommand path.
+/// Detect if the resolved args form a `_equip`, `collect`, or `agent collect`
+/// subcommand path.
 fn detect_subcommand(prefix: &[String], rest: &[String]) -> Option<Sub> {
     let all: Vec<&str> = prefix
         .iter()
@@ -150,6 +151,9 @@ fn detect_subcommand(prefix: &[String], rest: &[String]) -> Option<Sub> {
         // Top-level _equip
         if token == "_equip" {
             return Some(Sub::Equip);
+        }
+        if token == "collect" {
+            return Some(Sub::Collect);
         }
         // agent collect path
         if !found_agent {
@@ -265,6 +269,12 @@ mod tests {
             result,
             ["equip", "agent", "collect", "+dev", "--agent", "claude"]
         );
+    }
+
+    #[test]
+    fn top_level_collect_expands_at() {
+        let result = pp(&["equip", "collect", "@claude", "dev*"]);
+        assert_eq!(result, ["equip", "collect", "dev*", "--agent", "claude"]);
     }
 
     #[test]

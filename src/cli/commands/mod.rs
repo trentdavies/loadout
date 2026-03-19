@@ -1,4 +1,5 @@
 pub(crate) mod agent;
+pub(crate) mod collect;
 pub(crate) mod completions;
 pub(crate) mod config;
 pub(crate) mod equip;

@@ -510,3 +510,18 @@ fn save_is_bool_flag() {
         _ => panic!("expected Equip"),
     }
 }
+
+#[test]
+fn top_level_collect_parses() {
+    let processed = pp(&["equip", "collect", "@claude", "dev*"]);
+    let cli = Cli::try_parse_from(&processed).unwrap();
+    match cli.command {
+        equip::cli::Command::Collect {
+            agent, patterns, ..
+        } => {
+            assert_eq!(agent, "claude".to_string());
+            assert_eq!(patterns, vec!["dev*".to_string()]);
+        }
+        _ => panic!("expected Collect"),
+    }
+}

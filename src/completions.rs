@@ -97,6 +97,7 @@ _equip() {
             'add:Add a skill source'
             'list:List skills'
             'remove:Remove local skills or a source'
+            'collect:Collect skills from an agent back to the library'
             'status:Show current install state'
             'source:Manage sources'
             'kit:Manage skill kits'
@@ -130,6 +131,14 @@ _equip() {
         remove)
             _arguments $global_flags \
                 '--force[Force removal even if installed]' \
+                '*:pattern:_equip_skills'
+            ;;
+        collect)
+            _arguments $global_flags \
+                '--agent[Agent to collect from]:agent:_equip_agents' \
+                '--adopt[Adopt into the local source]' \
+                '(-f --force)'{-f,--force}'[Auto-adopt all without prompting]' \
+                '(-i --interactive)'{-i,--interactive}'[Interactive skill selection]' \
                 '*:pattern:_equip_skills'
             ;;
         status)
@@ -423,7 +432,7 @@ _equip() {
     local cur prev words cword
     _init_completion -n : || return
 
-    local commands="init add list remove update status kit agent config completions"
+    local commands="init add list remove collect update status kit agent config completions"
     local global_flags="--dry-run -n --verbose -v --quiet -q --json --config --help -h --version"
     local equip_flags="--force -f --interactive -i --save -s --remove -r --all"
 
@@ -511,6 +520,18 @@ _equip() {
         else
             _equip_complete_identity "$cur"
         fi
+        ;;
+    collect)
+        case "$prev" in
+            --agent) COMPREPLY=($(compgen -W "$(_equip_agents)" -- "$cur")) ;;
+            *)
+                if [[ "$cur" == -* ]]; then
+                    COMPREPLY=($(compgen -W "$global_flags --agent --adopt --force -f --interactive -i" -- "$cur"))
+                else
+                    _equip_complete_identity "$cur"
+                fi
+                ;;
+        esac
         ;;
     status)
         [[ "$cur" == -* ]] && COMPREPLY=($(compgen -W "$global_flags" -- "$cur"))
@@ -717,6 +738,7 @@ complete -c equip -f -n __equip_needs_command -a init -d 'Initialize equip confi
 complete -c equip -f -n __equip_needs_command -a add -d 'Add a skill source'
 complete -c equip -f -n __equip_needs_command -a list -d 'List skills'
 complete -c equip -f -n __equip_needs_command -a remove -d 'Remove local skills or a source'
+complete -c equip -f -n __equip_needs_command -a collect -d 'Collect skills from an agent back to the library'
 complete -c equip -f -n __equip_needs_command -a status -d 'Show current install state'
 complete -c equip -f -n __equip_needs_command -a source -d 'Manage sources'
 complete -c equip -f -n __equip_needs_command -a kit -d 'Manage skill kits'
@@ -738,6 +760,13 @@ complete -c equip -f -n '__equip_using_command list' -l external -d 'List source
 # remove
 complete -c equip -f -n '__equip_using_command remove' -l force -d 'Force removal'
 complete -c equip -f -n '__equip_using_command remove' -a '(__equip_skills) (__equip_sources)'
+
+# collect
+complete -c equip -f -n '__equip_using_command collect' -l agent -r -a '(__equip_agents)' -d 'Agent'
+complete -c equip -f -n '__equip_using_command collect' -l adopt -d 'Adopt into the local source'
+complete -c equip -f -n '__equip_using_command collect' -l force -s f -d 'Auto-adopt all'
+complete -c equip -f -n '__equip_using_command collect' -l interactive -s i -d 'Interactive skill selection'
+complete -c equip -f -n '__equip_using_command collect' -a '(__equip_skills)'
 
 # source
 complete -c equip -f -n '__equip_using_command source' -a add -d 'Add a skill source'

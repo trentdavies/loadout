@@ -29,13 +29,13 @@ Before clap parses args, `src/cli/args.rs` rewrites the raw arg vector.
 
 ### `@name` — Agent shorthand
 - Expands to `--agent name`
-- Active in: top-level equip (`_equip`), `agent collect`
+- Active in: top-level equip (`_equip`), `collect`, `agent collect`
 - Elsewhere (e.g. `list`): passed through literally, no expansion
 
 ### `+name` — Kit shorthand
 - Expands to `--kit name`
 - Active in: top-level equip (`_equip`)
-- In `agent collect`: **not expanded** (passed through as a positional)
+- In `collect` and `agent collect`: **not expanded** (passed through as a positional)
 
 ### Top-level catch-all (equip)
 When the first positional arg (after global flags) starts with `@` or `+`, the preprocessor injects the hidden `_equip` subcommand:
@@ -215,6 +215,37 @@ equip remove [NAME] [flags]
 **Behavior:**
 - Without `name`: prompts for interactive selection.
 - Without `--force`: checks if skills from the source are installed and warns/blocks if so.
+
+---
+
+### `collect`
+
+Collect skills from an agent back to the library.
+
+```
+equip collect [PATTERNS...] [flags]
+```
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `patterns` | positional (variadic) | no | Skill name or identity patterns to collect |
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--agent` | `AGENT` | **required** | Agent to collect from |
+| `--adopt` | bool | `false` | Adopt untracked skills into `plugins/` |
+| `--force` | bool | `false` | Auto-adopt all untracked skills without prompting |
+| `--interactive` | bool | `false` | Interactive skill selection |
+
+**Behavior:**
+- Reads skills from the agent's installed directory and syncs tracked skills back to their registered origin.
+- `--adopt`: copies untracked skills into the local `plugins/` directory.
+- Without patterns: shows tracked vs untracked skills, then prompts in interactive mode.
+- `equip agent collect` remains as a compatibility alias for this workflow.
+
+**Shorthand:**
+- `@name` expands to `--agent name` in this command.
+- `+name` is not expanded in this command.
 
 ---
 
