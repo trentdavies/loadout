@@ -1292,3 +1292,227 @@ pub(crate) fn run_update(
 
     Ok(())
 }
+
+pub(crate) fn run_reconcile(source_name: Option<String>, flags: &Flags) -> anyhow::Result<()> {
+    let config = crate::config::load(flags.config_path())?;
+    let data_dir = crate::config::data_dir();
+    let mut registry = crate::registry::load_registry(&data_dir)?;
+    let renames = crate::registry::reconcile_with_config(&mut registry, &config.source, &data_dir)?;
+    if !renames.is_empty() {
+        crate::registry::save_registry(&registry, &data_dir)?;
+        if !flags.quiet {
+            for rename in &renames {
+                eprintln!("source reconciled: {}", rename);
+            }
+        }
+    }
+
+    let mut refreshed_sources = 0usize;
+    let mut updated_origins = 0usize;
+    let mut warnings = Vec::new();
+
+    let reconcile_local = source_name
+        .as_deref()
+        .map(|name| name == "local")
+        .unwrap_or(true);
+
+    if source_name.as_deref() != Some("local") {
+        let sources_to_reconcile: Vec<_> = if let Some(ref name) = source_name {
+            let source = config
+                .source
+                .iter()
+                .find(|source| source.name == *name)
+                .ok_or_else(|| anyhow::anyhow!("source '{}' not found", name))?;
+            vec![source.clone()]
+        } else {
+            config.source.clone()
+        };
+
+        for source in &sources_to_reconcile {
+            let old_source = registry
+                .sources
+                .iter()
+                .find(|registered| registered.name == source.name)
+                .cloned();
+            let cache_path = crate::source::source_storage_path_for_config(source);
+            if !cache_path.exists() {
+                warnings.push(format!(
+                    "source '{}' cache path is missing: {}",
+                    source.name,
+                    cache_path.display()
+                ));
+                continue;
+            }
+
+            match reconcile_registered_source(source, &cache_path) {
+                Ok(updated_source) => {
+                    updated_origins += reconcile_installed_origins(
+                        &mut registry,
+                        &data_dir,
+                        old_source.as_ref(),
+                        &updated_source,
+                    );
+                    registry
+                        .sources
+                        .retain(|registered| registered.name != updated_source.name);
+                    registry.sources.push(updated_source);
+                    refreshed_sources += 1;
+                }
+                Err(err) => warnings.push(format!("{}: {}", source.name, err)),
+            }
+        }
+    }
+
+    if reconcile_local {
+        if !flags.dry_run {
+            crate::cli::helpers::generate_marketplace(&data_dir)?;
+        }
+
+        let old_local = registry
+            .sources
+            .iter()
+            .find(|registered| registered.name == "local")
+            .cloned();
+
+        match reconcile_local_source(&data_dir) {
+            Ok(Some(local_source)) => {
+                updated_origins += reconcile_installed_origins(
+                    &mut registry,
+                    &data_dir,
+                    old_local.as_ref(),
+                    &local_source,
+                );
+                registry
+                    .sources
+                    .retain(|registered| registered.name != local_source.name);
+                registry.sources.push(local_source);
+                refreshed_sources += 1;
+            }
+            Ok(None) => {
+                registry
+                    .sources
+                    .retain(|registered| registered.name != "local");
+            }
+            Err(err) => warnings.push(format!("local: {}", err)),
+        }
+    }
+
+    if !flags.dry_run {
+        crate::registry::save_registry(&registry, &data_dir)?;
+    }
+
+    if !flags.quiet {
+        if flags.dry_run {
+            println!(
+                "Would reconcile {} source(s); {} installed origin record(s) would change",
+                refreshed_sources, updated_origins
+            );
+        } else {
+            println!(
+                "Reconciled {} source(s); updated {} installed origin record(s)",
+                refreshed_sources, updated_origins
+            );
+        }
+        for warning in &warnings {
+            eprintln!("warning: {}", warning);
+        }
+    }
+
+    Ok(())
+}
+
+fn reconcile_registered_source(
+    source: &crate::config::SourceConfig,
+    cache_path: &std::path::Path,
+) -> anyhow::Result<crate::registry::RegisteredSource> {
+    let source_url = crate::source::SourceUrl::parse(&source.url)?;
+    let prepared = crate::source::prepare_source(
+        &source.name,
+        &source_url,
+        cache_path,
+        source.r#ref.clone(),
+        source.mode.clone(),
+        source.residence,
+        &crate::source::normalize::Overrides::default(),
+    )?;
+    Ok(prepared.registered)
+}
+
+fn reconcile_local_source(
+    data_dir: &std::path::Path,
+) -> anyhow::Result<Option<crate::registry::RegisteredSource>> {
+    let parsed = match crate::source::ParsedSource::parse(data_dir) {
+        Ok(parsed) => parsed,
+        Err(_) => return Ok(None),
+    };
+    if parsed.kind != crate::source::SourceKind::Marketplace {
+        return Ok(None);
+    }
+
+    let mut local =
+        crate::source::normalize::normalize(&parsed.with_source_name("local").with_url(""))?;
+    local.name = "local".to_string();
+    local.url.clear();
+    local.residence = crate::config::SourceResidence::Local;
+    Ok(Some(local))
+}
+
+fn reconcile_installed_origins(
+    registry: &mut crate::registry::Registry,
+    data_dir: &std::path::Path,
+    old_source: Option<&crate::registry::RegisteredSource>,
+    new_source: &crate::registry::RegisteredSource,
+) -> usize {
+    let Some(old_source) = old_source else {
+        return 0;
+    };
+
+    let mut old_paths = std::collections::BTreeMap::new();
+    for plugin in &old_source.plugins {
+        for skill in &plugin.skills {
+            old_paths.insert(
+                (plugin.name.clone(), skill.name.clone()),
+                relative_storage_path(data_dir, &skill.path),
+            );
+        }
+    }
+
+    let mut new_paths = std::collections::BTreeMap::new();
+    for plugin in &new_source.plugins {
+        for skill in &plugin.skills {
+            new_paths.insert(
+                (plugin.name.clone(), skill.name.clone()),
+                relative_storage_path(data_dir, &skill.path),
+            );
+        }
+    }
+
+    let mut updated = 0usize;
+    for installed in registry.installed.values_mut() {
+        for entry in installed.values_mut() {
+            if entry.source != new_source.name {
+                continue;
+            }
+            let key = (entry.plugin.clone(), entry.skill.clone());
+            let Some(old_origin) = old_paths.get(&key) else {
+                continue;
+            };
+            let Some(new_origin) = new_paths.get(&key) else {
+                continue;
+            };
+            if old_origin != new_origin && entry.origin == *old_origin {
+                entry.origin = new_origin.clone();
+                updated += 1;
+            }
+        }
+    }
+
+    updated
+}
+
+fn relative_storage_path(data_dir: &std::path::Path, path: &std::path::Path) -> String {
+    match path.strip_prefix(data_dir) {
+        Ok(relative) => relative.to_string_lossy().replace('\\', "/"),
+        Err(_) => path.to_string_lossy().replace('\\', "/"),
+    }
+}

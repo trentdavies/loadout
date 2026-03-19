@@ -183,6 +183,13 @@ pub enum Command {
         interactive: bool,
     },
 
+    /// Reindex sources from disk and reconcile registry paths
+    Reconcile {
+        /// Reconcile only one source name (use `local` for the local source)
+        #[arg(long, value_name = "SOURCE")]
+        source: Option<String>,
+    },
+
     /// Manage sources
     #[command(subcommand_required = true, arg_required_else_help = true)]
     Source {
@@ -508,6 +515,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             interactive,
             &flags,
         ),
+        Command::Reconcile { source } => commands::source::run_reconcile(source, &flags),
         Command::Source { command } => commands::source::run(command, &flags),
         Command::Kit { command } => commands::kit::run(command, &flags),
         Command::Agent { command } => commands::agent::run(command, &flags),

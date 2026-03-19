@@ -98,6 +98,7 @@ _equip() {
             'list:List skills'
             'remove:Remove local skills or a source'
             'collect:Collect skills from an agent back to the library'
+            'reconcile:Reindex sources from disk and reconcile registry paths'
             'status:Show current install state'
             'source:Manage sources'
             'kit:Manage skill kits'
@@ -142,6 +143,10 @@ _equip() {
                 '(-f --force)'{-f,--force}'[Execute collection without prompting]' \
                 '(-i --interactive)'{-i,--interactive}'[Interactive skill selection]' \
                 '*:pattern:_equip_skills'
+            ;;
+        reconcile)
+            _arguments $global_flags \
+                '--source[Reconcile only one source]:source:(_equip_sources local)'
             ;;
         status)
             _arguments $global_flags
@@ -436,7 +441,7 @@ _equip() {
     local cur prev words cword
     _init_completion -n : || return
 
-    local commands="init add list remove collect update status kit agent config completions"
+    local commands="init add list remove collect reconcile update status kit agent config completions"
     local global_flags="--dry-run -n --verbose -v --quiet -q --json --config --help -h --version"
     local equip_flags="--force -f --interactive -i --save -s --remove -r --all"
 
@@ -536,6 +541,14 @@ _equip() {
                 else
                     _equip_complete_identity "$cur"
                 fi
+                ;;
+        esac
+        ;;
+    reconcile)
+        case "$prev" in
+            --source) COMPREPLY=($(compgen -W "$(_equip_sources) local" -- "$cur")) ;;
+            *)
+                [[ "$cur" == -* ]] && COMPREPLY=($(compgen -W "$global_flags --source" -- "$cur"))
                 ;;
         esac
         ;;
@@ -747,6 +760,7 @@ complete -c equip -f -n __equip_needs_command -a add -d 'Add a skill source'
 complete -c equip -f -n __equip_needs_command -a list -d 'List skills'
 complete -c equip -f -n __equip_needs_command -a remove -d 'Remove local skills or a source'
 complete -c equip -f -n __equip_needs_command -a collect -d 'Collect skills from an agent back to the library'
+complete -c equip -f -n __equip_needs_command -a reconcile -d 'Reindex sources from disk and reconcile registry paths'
 complete -c equip -f -n __equip_needs_command -a status -d 'Show current install state'
 complete -c equip -f -n __equip_needs_command -a source -d 'Manage sources'
 complete -c equip -f -n __equip_needs_command -a kit -d 'Manage skill kits'
@@ -777,6 +791,9 @@ complete -c equip -f -n '__equip_using_command collect' -l adopt-local -d 'Adopt
 complete -c equip -f -n '__equip_using_command collect' -l force -s f -d 'Execute collection without prompting'
 complete -c equip -f -n '__equip_using_command collect' -l interactive -s i -d 'Interactive skill selection'
 complete -c equip -f -n '__equip_using_command collect' -a '(__equip_skills)'
+
+# reconcile
+complete -c equip -f -n '__equip_using_command reconcile' -l source -r -a '(__equip_sources) local' -d 'Source to reconcile'
 
 # source
 complete -c equip -f -n '__equip_using_command source' -a add -d 'Add a skill source'

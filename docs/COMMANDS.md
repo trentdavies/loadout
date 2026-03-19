@@ -253,6 +253,27 @@ equip collect [PATTERNS...] [flags]
 
 ---
 
+### `reconcile`
+
+Reindex source contents from disk and update registry paths after manual
+filesystem changes.
+
+```
+equip reconcile [flags]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--source` | `SOURCE` | None | Reconcile only one source name. Use `local` for the local source. |
+
+**Behavior:**
+- Re-parses cached external sources from disk without fetching.
+- Rebuilds the local source view from the equip repo directory.
+- Updates installed `origin` paths when the canonical source/plugin/skill identity stayed the same but the path moved.
+- Intended for manual file operations inside the equip repo, especially before any dedicated move/rename workflow exists.
+
+---
+
 ### `update`
 
 Update source(s) from remote.

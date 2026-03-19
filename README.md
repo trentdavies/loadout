@@ -101,6 +101,14 @@ equip collect @claude +developer            # collect a maintained kit
 equip collect --agent claude --adopt-local  # adopt untracked skills
 equip collect @claude stray-skill --link my-src:plugin/skill
 equip agent collect --agent claude          # compatibility alias
+
+After manual plugin or skill reorgs inside the equip repo, refresh registry paths:
+
+```bash
+equip reconcile
+equip reconcile --source local
+equip reconcile --source my-src
+```
 ```
 
 ## Kits

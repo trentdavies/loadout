@@ -574,3 +574,14 @@ fn top_level_collect_link_parses() {
         _ => panic!("expected Collect"),
     }
 }
+
+#[test]
+fn parse_reconcile() {
+    let cli = Cli::try_parse_from(["equip", "reconcile", "--source", "local"]).unwrap();
+    match cli.command {
+        equip::cli::Command::Reconcile { source } => {
+            assert_eq!(source, Some("local".to_string()));
+        }
+        _ => panic!("expected Reconcile"),
+    }
+}
