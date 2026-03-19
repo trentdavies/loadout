@@ -25,7 +25,17 @@ pub(crate) fn run(command: crate::cli::SourceCommand, flags: &Flags) -> anyhow::
             symlink,
             copy,
         } => run_add(
-            url, source, plugin, skill, name, r#ref, symlink, copy, flags,
+            AddArgs {
+                url,
+                source,
+                plugin,
+                skill,
+                name,
+                r#ref,
+                symlink,
+                copy,
+            },
+            flags,
         ),
         crate::cli::SourceCommand::List => run_source_list(flags),
         crate::cli::SourceCommand::Remove { name, force } => run_source_remove(name, force, flags),
@@ -33,17 +43,29 @@ pub(crate) fn run(command: crate::cli::SourceCommand, flags: &Flags) -> anyhow::
     }
 }
 
-pub(crate) fn run_add(
-    url: String,
-    source: Option<String>,
-    plugin: Option<String>,
-    skill: Option<String>,
-    name: Option<String>,
-    r#ref: Option<String>,
-    symlink: bool,
-    copy: bool,
-    flags: &Flags,
-) -> anyhow::Result<()> {
+pub(crate) struct AddArgs {
+    pub url: String,
+    pub source: Option<String>,
+    pub plugin: Option<String>,
+    pub skill: Option<String>,
+    pub name: Option<String>,
+    pub r#ref: Option<String>,
+    pub symlink: bool,
+    pub copy: bool,
+}
+
+pub(crate) fn run_add(args: AddArgs, flags: &Flags) -> anyhow::Result<()> {
+    let AddArgs {
+        url,
+        source,
+        plugin,
+        skill,
+        name,
+        r#ref,
+        symlink,
+        copy,
+    } = args;
+
     // Backward-compat: error on deprecated --name
     if name.is_some() {
         anyhow::bail!("`--name` has been renamed to `--source`");
@@ -1256,7 +1278,7 @@ pub(crate) fn run_update(
                 crate::source::persist_prepared_source(
                     &mut config,
                     &mut updated_registry,
-                    prepared,
+                    *prepared,
                 );
                 updated_count += 1;
             }

@@ -7,40 +7,49 @@ use crate::cli::helpers::{
     ApplySkillOutcome, PersistKitMode, PersistKitResult, ResolvedSkill,
 };
 
-pub(crate) fn run(
-    patterns: Vec<String>,
-    agent: Option<Vec<String>>,
-    all: bool,
-    kit: Option<String>,
-    save: bool,
-    force: bool,
-    interactive: bool,
-    remove: bool,
-    flags: &Flags,
-) -> anyhow::Result<()> {
-    if remove {
-        if save {
+pub(crate) struct EquipArgs {
+    pub patterns: Vec<String>,
+    pub agent: Option<Vec<String>>,
+    pub all: bool,
+    pub kit: Option<String>,
+    pub save: bool,
+    pub force: bool,
+    pub interactive: bool,
+    pub remove: bool,
+}
+
+pub(crate) fn run(args: EquipArgs, flags: &Flags) -> anyhow::Result<()> {
+    if args.remove {
+        if args.save {
             anyhow::bail!("--remove cannot be combined with --save");
         }
-        if interactive {
+        if args.interactive {
             anyhow::bail!("--remove cannot be combined with --interactive");
         }
-        run_unequip(patterns, agent, all, kit, force, flags)
+        run_unequip(
+            args.patterns,
+            args.agent,
+            args.all,
+            args.kit,
+            args.force,
+            flags,
+        )
     } else {
-        run_equip(patterns, agent, all, kit, save, force, interactive, flags)
+        run_equip(args, flags)
     }
 }
 
-fn run_equip(
-    patterns: Vec<String>,
-    agent: Option<Vec<String>>,
-    all: bool,
-    kit: Option<String>,
-    save: bool,
-    force: bool,
-    interactive: bool,
-    flags: &Flags,
-) -> anyhow::Result<()> {
+fn run_equip(args: EquipArgs, flags: &Flags) -> anyhow::Result<()> {
+    let EquipArgs {
+        patterns,
+        agent,
+        all,
+        kit,
+        save,
+        force,
+        interactive,
+        ..
+    } = args;
     let ctx = load_context(flags)?;
     let config = ctx.config;
 

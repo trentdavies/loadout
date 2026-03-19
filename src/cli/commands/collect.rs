@@ -1,6 +1,16 @@
 use crate::cli::flags::Flags;
 use crate::cli::helpers::{copy_dir_all, generate_marketplace, load_context, record_provenance_as};
 
+pub(crate) struct CollectArgs {
+    pub agent: String,
+    pub patterns: Vec<String>,
+    pub kit: Option<String>,
+    pub link: Option<String>,
+    pub adopt_local: bool,
+    pub force: bool,
+    pub interactive: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum UntrackedAction<'a> {
     Skip,
@@ -75,16 +85,17 @@ fn resolve_untracked_action<'a>(
     Ok(UntrackedAction::Skip)
 }
 
-pub(crate) fn run(
-    agent: String,
-    patterns: Vec<String>,
-    kit: Option<String>,
-    link: Option<String>,
-    adopt_local: bool,
-    force: bool,
-    interactive: bool,
-    flags: &Flags,
-) -> anyhow::Result<()> {
+pub(crate) fn run(args: CollectArgs, flags: &Flags) -> anyhow::Result<()> {
+    let CollectArgs {
+        agent,
+        patterns,
+        kit,
+        link,
+        adopt_local,
+        force,
+        interactive,
+    } = args;
+
     let ctx = load_context(flags)?;
     let config = ctx.config;
     let data_dir = ctx.data_dir;

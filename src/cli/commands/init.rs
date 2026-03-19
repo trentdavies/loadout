@@ -56,14 +56,16 @@ pub(crate) fn run(url: Option<String>, flags: &Flags) -> anyhow::Result<()> {
     // If URL provided, fetch into cache and register as source
     if let Some(ref url_str) = url {
         crate::cli::commands::source::run_add(
-            url_str.clone(),
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
+            crate::cli::commands::source::AddArgs {
+                url: url_str.clone(),
+                source: None,
+                plugin: None,
+                skill: None,
+                name: None,
+                r#ref: None,
+                symlink: false,
+                copy: false,
+            },
             flags,
         )?;
     }

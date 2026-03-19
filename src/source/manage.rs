@@ -12,7 +12,7 @@ pub struct PreparedSource {
 }
 
 pub enum RefreshSource {
-    Updated(PreparedSource),
+    Updated(Box<PreparedSource>),
     SkippedPinned { pinned_ref: String },
 }
 
@@ -369,7 +369,7 @@ pub fn refresh_source(
         source.r#ref.clone()
     };
 
-    Ok(RefreshSource::Updated(prepare_source(
+    Ok(RefreshSource::Updated(Box::new(prepare_source(
         &source.name,
         &source_url,
         cache_path,
@@ -377,7 +377,7 @@ pub fn refresh_source(
         source.mode.clone(),
         source.residence,
         &normalize::Overrides::default(),
-    )?))
+    )?)))
 }
 
 #[cfg(test)]
