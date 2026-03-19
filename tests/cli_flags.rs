@@ -538,3 +538,27 @@ fn top_level_collect_plus_kit_parses() {
         _ => panic!("expected Collect"),
     }
 }
+
+#[test]
+fn top_level_collect_adopt_local_parses() {
+    let processed = pp(&["equip", "collect", "@claude", "--adopt-local"]);
+    let cli = Cli::try_parse_from(&processed).unwrap();
+    match cli.command {
+        equip::cli::Command::Collect { adopt_local, .. } => {
+            assert!(adopt_local);
+        }
+        _ => panic!("expected Collect"),
+    }
+}
+
+#[test]
+fn top_level_collect_legacy_adopt_alias_parses() {
+    let processed = pp(&["equip", "collect", "@claude", "--adopt"]);
+    let cli = Cli::try_parse_from(&processed).unwrap();
+    match cli.command {
+        equip::cli::Command::Collect { adopt_local, .. } => {
+            assert!(adopt_local);
+        }
+        _ => panic!("expected Collect"),
+    }
+}

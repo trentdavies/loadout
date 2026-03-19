@@ -167,8 +167,8 @@ pub enum Command {
         kit: Option<String>,
 
         /// Adopt untracked skills into the local source
-        #[arg(long)]
-        adopt: bool,
+        #[arg(long = "adopt-local", alias = "adopt")]
+        adopt_local: bool,
 
         /// Auto-adopt all without prompting
         #[arg(short, long)]
@@ -436,8 +436,8 @@ pub enum AgentCommand {
         kit: Option<String>,
 
         /// Adopt untracked skills into the local source
-        #[arg(long)]
-        adopt: bool,
+        #[arg(long = "adopt-local", alias = "adopt")]
+        adopt_local: bool,
 
         /// Auto-adopt all without prompting
         #[arg(short, long)]
@@ -486,10 +486,18 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             agent,
             patterns,
             kit,
-            adopt,
+            adopt_local,
             force,
             interactive,
-        } => commands::collect::run(agent, patterns, kit, adopt, force, interactive, &flags),
+        } => commands::collect::run(
+            agent,
+            patterns,
+            kit,
+            adopt_local,
+            force,
+            interactive,
+            &flags,
+        ),
         Command::Source { command } => commands::source::run(command, &flags),
         Command::Kit { command } => commands::kit::run(command, &flags),
         Command::Agent { command } => commands::agent::run(command, &flags),

@@ -137,7 +137,7 @@ _equip() {
             _arguments $global_flags \
                 '--agent[Agent to collect from]:agent:_equip_agents' \
                 '(-k --kit)'{-k,--kit}'[Kit to collect]:kit:_equip_kits' \
-                '--adopt[Adopt into the local source]' \
+                '--adopt-local[Adopt into the local source]' \
                 '(-f --force)'{-f,--force}'[Auto-adopt all without prompting]' \
                 '(-i --interactive)'{-i,--interactive}'[Interactive skill selection]' \
                 '*:pattern:_equip_skills'
@@ -299,7 +299,7 @@ _equip() {
                     _arguments \
                         '--agent[Agent to collect from]:agent:_equip_agents' \
                         '(-k --kit)'{-k,--kit}'[Kit to collect]:kit:_equip_kits' \
-                        '--adopt[Adopt into the local source]' \
+                        '--adopt-local[Adopt into the local source]' \
                         '(-f --force)'{-f,--force}'[Auto-adopt all without prompting]' \
                         '(-i --interactive)'{-i,--interactive}'[Interactive skill selection]' \
                         '*:pattern:_equip_skills'
@@ -529,7 +529,7 @@ _equip() {
             --kit) COMPREPLY=($(compgen -W "$(_equip_kits)" -- "$cur")) ;;
             *)
                 if [[ "$cur" == -* ]]; then
-                    COMPREPLY=($(compgen -W "$global_flags --agent --kit -k --adopt --force -f --interactive -i" -- "$cur"))
+                    COMPREPLY=($(compgen -W "$global_flags --agent --kit -k --adopt-local --force -f --interactive -i" -- "$cur"))
                 else
                     _equip_complete_identity "$cur"
                 fi
@@ -661,7 +661,7 @@ _equip() {
                     --kit) COMPREPLY=($(compgen -W "$(_equip_kits)" -- "$cur")) ;;
                     *)
                         if [[ "$cur" == -* ]]; then
-                            COMPREPLY=($(compgen -W "--agent --kit -k --adopt --force -f --interactive -i" -- "$cur"))
+                            COMPREPLY=($(compgen -W "--agent --kit -k --adopt-local --force -f --interactive -i" -- "$cur"))
                         else
                             _equip_complete_identity "$cur"
                         fi
@@ -768,7 +768,7 @@ complete -c equip -f -n '__equip_using_command remove' -a '(__equip_skills) (__e
 # collect
 complete -c equip -f -n '__equip_using_command collect' -l agent -r -a '(__equip_agents)' -d 'Agent'
 complete -c equip -f -n '__equip_using_command collect' -l kit -s k -r -a '(__equip_kits)' -d 'Kit to collect'
-complete -c equip -f -n '__equip_using_command collect' -l adopt -d 'Adopt into the local source'
+complete -c equip -f -n '__equip_using_command collect' -l adopt-local -d 'Adopt into the local source'
 complete -c equip -f -n '__equip_using_command collect' -l force -s f -d 'Auto-adopt all'
 complete -c equip -f -n '__equip_using_command collect' -l interactive -s i -d 'Interactive skill selection'
 complete -c equip -f -n '__equip_using_command collect' -a '(__equip_skills)'
@@ -836,7 +836,7 @@ complete -c equip -f -n '__equip_using_subcommand agent unequip' -l force -s f -
 complete -c equip -f -n '__equip_using_subcommand agent unequip' -a '(__equip_skills)'
 complete -c equip -f -n '__equip_using_subcommand agent collect' -l agent -r -a '(__equip_agents)' -d 'Agent'
 complete -c equip -f -n '__equip_using_subcommand agent collect' -l kit -s k -r -a '(__equip_kits)' -d 'Kit to collect'
-complete -c equip -f -n '__equip_using_subcommand agent collect' -l adopt -d 'Adopt into the local source'
+complete -c equip -f -n '__equip_using_subcommand agent collect' -l adopt-local -d 'Adopt into the local source'
 complete -c equip -f -n '__equip_using_subcommand agent collect' -l force -s f -d 'Auto-adopt all'
 complete -c equip -f -n '__equip_using_subcommand agent collect' -l interactive -s i -d 'Interactive skill selection'
 complete -c equip -f -n '__equip_using_subcommand agent collect' -a '(__equip_skills)'

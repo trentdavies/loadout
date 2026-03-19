@@ -233,14 +233,14 @@ equip collect [PATTERNS...] [flags]
 |------|------|---------|-------------|
 | `--agent` | `AGENT` | **required** | Agent to collect from |
 | `--kit` | `KIT` | None | Collect only skills resolved by the named kit |
-| `--adopt` | bool | `false` | Adopt untracked skills into `plugins/` |
+| `--adopt-local` | bool | `false` | Adopt untracked skills into `plugins/` |
 | `--force` | bool | `false` | Auto-adopt all untracked skills without prompting |
 | `--interactive` | bool | `false` | Interactive skill selection |
 
 **Behavior:**
 - Reads skills from the agent's installed directory and syncs tracked skills back to their registered origin.
 - `--kit`: resolves kit skills to tracked identities, then collects only those installed on the selected agent.
-- `--adopt`: copies untracked skills into the local `plugins/` directory.
+- `--adopt-local`: copies untracked skills into the local `plugins/` directory.
 - Without patterns: shows tracked vs untracked skills, then prompts in interactive mode.
 - `equip agent collect` remains as a compatibility alias for this workflow.
 
@@ -532,16 +532,20 @@ equip agent collect [flags]
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--agent` | `AGENT` | **required** | Agent to collect from |
-| `--skill` | `SKILL` | None | Skill name to collect (omit for all) |
-| `--adopt` | bool | `false` | Adopt skill into `plugins/` (make it yours) |
+| `patterns` | positional (variadic) | no | Skill name or identity patterns to collect |
+| `--kit` | `KIT` | None | Collect only skills resolved by the named kit |
+| `--adopt-local` | bool | `false` | Adopt skill into `plugins/` (make it yours) |
 | `--force` | bool | `false` | Auto-adopt all untracked skills without prompting |
+| `--interactive` | bool | `false` | Interactive skill selection |
 
 **Behavior:**
 - Reads skills from the agent's installed directory and syncs them back to the source cache.
-- `--adopt`: copies the skill into the local `plugins/` directory, making it a local (non-external) skill.
+- `--kit`: resolves kit skills to tracked identities, then collects only those installed on the selected agent.
+- `--adopt-local`: copies the skill into the local `plugins/` directory, making it a local (non-external) skill.
 - `--force`: skips the adoption prompt for untracked skills.
-- Without `--skill`: processes all skills found in the agent.
+- Without patterns: processes all skills found in the agent.
 
 **Shorthand:**
 - `@name` expands to `--agent name` in this subcommand.
+- `+name` expands to `--kit name` in this subcommand.
 - `+name` is **not** expanded in `collect` (only `@` is).

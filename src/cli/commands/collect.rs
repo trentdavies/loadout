@@ -5,7 +5,7 @@ pub(crate) fn run(
     agent: String,
     patterns: Vec<String>,
     kit: Option<String>,
-    adopt: bool,
+    adopt_local: bool,
     force: bool,
     interactive: bool,
     flags: &Flags,
@@ -156,7 +156,7 @@ pub(crate) fn run(
         (selected_tracked, selected_untracked)
     } else if !selection_patterns.is_empty() {
         let selected_untracked = if !untracked.is_empty()
-            && (adopt
+            && (adopt_local
                 || crate::prompt::confirm_action(
                     &format!("Adopt {} untracked skill(s) into local/?", untracked.len()),
                     flags.quiet,
