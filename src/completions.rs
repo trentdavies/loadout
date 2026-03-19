@@ -120,7 +120,7 @@ _equip() {
                 '--ref[Pin to git ref]:ref:' \
                 '(--copy)--symlink[Symlink local source]' \
                 '(--symlink)--copy[Copy local source]' \
-                '1:url:_urls'
+                '1:url:_files'
             ;;
         list)
             _arguments $global_flags \
@@ -160,7 +160,7 @@ _equip() {
                         '--ref[Pin to git ref]:ref:' \
                         '(--copy)--symlink[Symlink local source]' \
                         '(--symlink)--copy[Copy local source]' \
-                        '1:url:_urls'
+                        '1:url:_files'
                     ;;
                 list)
                     ;;
@@ -288,9 +288,10 @@ _equip() {
                 collect)
                     _arguments \
                         '--agent[Agent to collect from]:agent:_equip_agents' \
-                        '--skill[Specific skill]:skill:_equip_skills' \
                         '--adopt[Adopt into the local source]' \
-                        '--force[Auto-adopt all without prompting]'
+                        '(-f --force)'{-f,--force}'[Auto-adopt all without prompting]' \
+                        '(-i --interactive)'{-i,--interactive}'[Interactive skill selection]' \
+                        '*:pattern:_equip_skills'
                     ;;
                 esac
                 ;;
@@ -493,6 +494,8 @@ _equip() {
     add)
         if [[ "$cur" == -* ]]; then
             COMPREPLY=($(compgen -W "$global_flags --source --plugin --skill --ref --symlink --copy" -- "$cur"))
+        else
+            _filedir
         fi
         ;;
     list)
@@ -524,6 +527,8 @@ _equip() {
             add)
                 if [[ "$cur" == -* ]]; then
                     COMPREPLY=($(compgen -W "--source --plugin --skill --ref --symlink --copy" -- "$cur"))
+                else
+                    _filedir
                 fi
                 ;;
             list)
@@ -629,11 +634,12 @@ _equip() {
             collect)
                 case "$prev" in
                     --agent) COMPREPLY=($(compgen -W "$(_equip_agents)" -- "$cur")) ;;
-                    --skill)
-                        _equip_complete_identity "$cur"
-                        ;;
                     *)
-                        [[ "$cur" == -* ]] && COMPREPLY=($(compgen -W "--agent --skill --adopt --force" -- "$cur"))
+                        if [[ "$cur" == -* ]]; then
+                            COMPREPLY=($(compgen -W "--agent --adopt --force -f --interactive -i" -- "$cur"))
+                        else
+                            _equip_complete_identity "$cur"
+                        fi
                         ;;
                 esac
                 ;;
@@ -718,13 +724,13 @@ complete -c equip -f -n __equip_needs_command -a agent -d 'Manage agents'
 complete -c equip -f -n __equip_needs_command -a config -d 'View or edit configuration'
 complete -c equip -f -n __equip_needs_command -a completions -d 'Generate shell completions'
 
-# add
-complete -c equip -f -n '__equip_using_command add' -l source -r -d 'Override source name'
-complete -c equip -f -n '__equip_using_command add' -l plugin -r -d 'Override plugin name'
-complete -c equip -f -n '__equip_using_command add' -l skill -r -d 'Override skill name'
-complete -c equip -f -n '__equip_using_command add' -l ref -r -d 'Pin to git ref'
-complete -c equip -f -n '__equip_using_command add' -l symlink -d 'Symlink local source'
-complete -c equip -f -n '__equip_using_command add' -l copy -d 'Copy local source'
+# add (no -f: allow filesystem completion for local paths)
+complete -c equip -n '__equip_using_command add' -l source -r -d 'Override source name'
+complete -c equip -n '__equip_using_command add' -l plugin -r -d 'Override plugin name'
+complete -c equip -n '__equip_using_command add' -l skill -r -d 'Override skill name'
+complete -c equip -n '__equip_using_command add' -l ref -r -d 'Pin to git ref'
+complete -c equip -n '__equip_using_command add' -l symlink -d 'Symlink local source'
+complete -c equip -n '__equip_using_command add' -l copy -d 'Copy local source'
 
 # list
 complete -c equip -f -n '__equip_using_command list' -l external -d 'List sources instead'
@@ -739,12 +745,12 @@ complete -c equip -f -n '__equip_using_command source' -a list -d 'List configur
 complete -c equip -f -n '__equip_using_command source' -a remove -d 'Remove a source'
 complete -c equip -f -n '__equip_using_command source' -a update -d 'Update sources from remote'
 
-complete -c equip -f -n '__equip_using_subcommand source add' -l source -r -d 'Override source name'
-complete -c equip -f -n '__equip_using_subcommand source add' -l plugin -r -d 'Override plugin name'
-complete -c equip -f -n '__equip_using_subcommand source add' -l skill -r -d 'Override skill name'
-complete -c equip -f -n '__equip_using_subcommand source add' -l ref -r -d 'Pin to git ref'
-complete -c equip -f -n '__equip_using_subcommand source add' -l symlink -d 'Symlink local source'
-complete -c equip -f -n '__equip_using_subcommand source add' -l copy -d 'Copy local source'
+complete -c equip -n '__equip_using_subcommand source add' -l source -r -d 'Override source name'
+complete -c equip -n '__equip_using_subcommand source add' -l plugin -r -d 'Override plugin name'
+complete -c equip -n '__equip_using_subcommand source add' -l skill -r -d 'Override skill name'
+complete -c equip -n '__equip_using_subcommand source add' -l ref -r -d 'Pin to git ref'
+complete -c equip -n '__equip_using_subcommand source add' -l symlink -d 'Symlink local source'
+complete -c equip -n '__equip_using_subcommand source add' -l copy -d 'Copy local source'
 complete -c equip -f -n '__equip_using_subcommand source remove' -l force -d 'Force removal'
 complete -c equip -f -n '__equip_using_subcommand source remove' -a '(__equip_sources)'
 complete -c equip -f -n '__equip_using_subcommand source update' -l ref -r -d 'Switch to ref'
@@ -795,9 +801,10 @@ complete -c equip -f -n '__equip_using_subcommand agent unequip' -l kit -s k -r 
 complete -c equip -f -n '__equip_using_subcommand agent unequip' -l force -s f -d 'Force unequip'
 complete -c equip -f -n '__equip_using_subcommand agent unequip' -a '(__equip_skills)'
 complete -c equip -f -n '__equip_using_subcommand agent collect' -l agent -r -a '(__equip_agents)' -d 'Agent'
-complete -c equip -f -n '__equip_using_subcommand agent collect' -l skill -r -a '(__equip_skills)' -d 'Specific skill'
 complete -c equip -f -n '__equip_using_subcommand agent collect' -l adopt -d 'Adopt into the local source'
-complete -c equip -f -n '__equip_using_subcommand agent collect' -l force -d 'Auto-adopt all'
+complete -c equip -f -n '__equip_using_subcommand agent collect' -l force -s f -d 'Auto-adopt all'
+complete -c equip -f -n '__equip_using_subcommand agent collect' -l interactive -s i -d 'Interactive skill selection'
+complete -c equip -f -n '__equip_using_subcommand agent collect' -a '(__equip_skills)'
 
 # config subcommands
 complete -c equip -f -n '__equip_using_command config' -a show -d 'Display configuration'

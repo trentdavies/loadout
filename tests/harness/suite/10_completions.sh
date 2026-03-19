@@ -347,3 +347,42 @@ test_60_agent_subcommands() {
     _assert_compreply_not_contains "equip" "agent does NOT list equip subcommand"
     _assert_compreply_not_contains "unequip" "agent does NOT list unequip subcommand"
 }
+
+# ---------------------------------------------------------------------------
+# Tests: add offers file completion (not just flags)
+# ---------------------------------------------------------------------------
+
+test_70_add_no_flag_does_not_error() {
+    # With the _filedir fallback, completing a non-flag positional for 'add'
+    # should not produce flag-only results. We can't test actual filesystem
+    # results in the stub, but we verify it doesn't error and doesn't return
+    # flag completions for a non-flag word.
+    _simulate_completion "equip" "add" "some"
+    # Should NOT contain flag entries since cur doesn't start with -
+    _assert_compreply_not_contains "--source" "add positional does not suggest --source"
+    _assert_compreply_not_contains "--plugin" "add positional does not suggest --plugin"
+}
+
+# ---------------------------------------------------------------------------
+# Tests: agent collect completion — new flags and positional patterns
+# ---------------------------------------------------------------------------
+
+test_71_collect_flags_include_interactive() {
+    _simulate_completion "equip" "agent" "collect" "-"
+    _assert_compreply_contains "--agent" "collect flags include --agent"
+    _assert_compreply_contains "--force" "collect flags include --force"
+    _assert_compreply_contains "-f" "collect flags include -f"
+    _assert_compreply_contains "--interactive" "collect flags include --interactive"
+    _assert_compreply_contains "-i" "collect flags include -i"
+    _assert_compreply_contains "--adopt" "collect flags include --adopt"
+}
+
+test_72_collect_flags_no_skill() {
+    _simulate_completion "equip" "agent" "collect" "-"
+    _assert_compreply_not_contains "--skill" "collect flags do NOT include --skill (removed)"
+}
+
+test_73_collect_positional_completes_skills() {
+    _simulate_completion "equip" "agent" "collect" "--agent" "claude" "anth"
+    _assert_compreply_contains "anthropic-skills:" "collect positional completes skill identities"
+}
