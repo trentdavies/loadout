@@ -233,14 +233,17 @@ equip collect [PATTERNS...] [flags]
 |------|------|---------|-------------|
 | `--agent` | `AGENT` | **required** | Agent to collect from |
 | `--kit` | `KIT` | None | Collect only skills resolved by the named kit |
+| `--link` | `IDENTITY` | None | Link one untracked installed copy to an existing skill identity |
 | `--adopt-local` | bool | `false` | Adopt untracked skills into `plugins/` |
-| `--force` | bool | `false` | Auto-adopt all untracked skills without prompting |
+| `--force` | bool | `false` | Execute collection without stopping for confirmation |
 | `--interactive` | bool | `false` | Interactive skill selection |
 
 **Behavior:**
 - Reads skills from the agent's installed directory and syncs tracked skills back to their registered origin.
 - `--kit`: resolves kit skills to tracked identities, then collects only those installed on the selected agent.
+- `--link`: copies one untracked installed copy into an existing canonical skill identity and records provenance for that agent install.
 - `--adopt-local`: copies untracked skills into the local `plugins/` directory.
+- Untracked skills are skipped unless you explicitly claim them with `--adopt-local` or `--link`.
 - Without patterns: shows tracked vs untracked skills, then prompts in interactive mode.
 - `equip agent collect` remains as a compatibility alias for this workflow.
 
@@ -534,15 +537,18 @@ equip agent collect [flags]
 | `--agent` | `AGENT` | **required** | Agent to collect from |
 | `patterns` | positional (variadic) | no | Skill name or identity patterns to collect |
 | `--kit` | `KIT` | None | Collect only skills resolved by the named kit |
+| `--link` | `IDENTITY` | None | Link one untracked installed copy to an existing skill identity |
 | `--adopt-local` | bool | `false` | Adopt skill into `plugins/` (make it yours) |
-| `--force` | bool | `false` | Auto-adopt all untracked skills without prompting |
+| `--force` | bool | `false` | Execute collection without stopping for confirmation |
 | `--interactive` | bool | `false` | Interactive skill selection |
 
 **Behavior:**
 - Reads skills from the agent's installed directory and syncs them back to the source cache.
 - `--kit`: resolves kit skills to tracked identities, then collects only those installed on the selected agent.
+- `--link`: copies one untracked installed copy into an existing canonical skill identity and records provenance for that agent install.
 - `--adopt-local`: copies the skill into the local `plugins/` directory, making it a local (non-external) skill.
-- `--force`: skips the adoption prompt for untracked skills.
+- Untracked skills are skipped unless you explicitly claim them with `--adopt-local` or `--link`.
+- `--force`: executes collection immediately for the selected set.
 - Without patterns: processes all skills found in the agent.
 
 **Shorthand:**

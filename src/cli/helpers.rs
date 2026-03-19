@@ -466,6 +466,19 @@ pub(crate) fn record_provenance(
     plug_name: &str,
     s: &crate::registry::RegisteredSkill,
 ) {
+    record_provenance_as(reg, data_dir, ac, &s.name, src_name, plug_name, s);
+}
+
+/// Record provenance for an installed skill name that maps to a canonical skill.
+pub(crate) fn record_provenance_as(
+    reg: &mut crate::registry::Registry,
+    data_dir: &std::path::Path,
+    ac: &crate::config::AgentConfig,
+    installed_name: &str,
+    src_name: &str,
+    plug_name: &str,
+    s: &crate::registry::RegisteredSkill,
+) {
     let origin = s
         .path
         .strip_prefix(data_dir)
@@ -473,7 +486,7 @@ pub(crate) fn record_provenance(
         .unwrap_or_else(|_| s.path.display().to_string());
     let agent_map = reg.installed.entry(ac.name.clone()).or_default();
     agent_map.insert(
-        s.name.clone(),
+        installed_name.to_string(),
         crate::registry::InstalledSkill {
             source: src_name.to_string(),
             plugin: plug_name.to_string(),

@@ -166,6 +166,10 @@ pub enum Command {
         #[arg(short, long)]
         kit: Option<String>,
 
+        /// Link one untracked installed copy to an existing canonical skill identity
+        #[arg(long, value_name = "IDENTITY")]
+        link: Option<String>,
+
         /// Adopt untracked skills into the local source
         #[arg(long = "adopt-local", alias = "adopt")]
         adopt_local: bool,
@@ -435,6 +439,10 @@ pub enum AgentCommand {
         #[arg(short, long)]
         kit: Option<String>,
 
+        /// Link one untracked installed copy to an existing canonical skill identity
+        #[arg(long, value_name = "IDENTITY")]
+        link: Option<String>,
+
         /// Adopt untracked skills into the local source
         #[arg(long = "adopt-local", alias = "adopt")]
         adopt_local: bool,
@@ -486,6 +494,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             agent,
             patterns,
             kit,
+            link,
             adopt_local,
             force,
             interactive,
@@ -493,6 +502,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             agent,
             patterns,
             kit,
+            link,
             adopt_local,
             force,
             interactive,

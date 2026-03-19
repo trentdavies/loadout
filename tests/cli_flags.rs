@@ -562,3 +562,15 @@ fn top_level_collect_legacy_adopt_alias_parses() {
         _ => panic!("expected Collect"),
     }
 }
+
+#[test]
+fn top_level_collect_link_parses() {
+    let processed = pp(&["equip", "collect", "@claude", "--link", "src:plug/skill"]);
+    let cli = Cli::try_parse_from(&processed).unwrap();
+    match cli.command {
+        equip::cli::Command::Collect { link, .. } => {
+            assert_eq!(link, Some("src:plug/skill".to_string()));
+        }
+        _ => panic!("expected Collect"),
+    }
+}

@@ -1,29 +1,72 @@
 use crate::cli::flags::Flags;
-use crate::cli::helpers::{copy_dir_all, generate_marketplace};
+use crate::cli::helpers::{copy_dir_all, generate_marketplace, load_context, record_provenance_as};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UntrackedAction<'a> {
+    Skip,
+    AdoptLocal,
+    Link(&'a str),
+}
+
+fn resolve_selection_patterns(
+    config: &crate::config::Config,
+    patterns: Vec<String>,
+    kit: Option<&str>,
+) -> anyhow::Result<Vec<String>> {
+    let mut selection_patterns = patterns;
+    if let Some(kit_name) = kit {
+        let kit_cfg = config
+            .kit
+            .get(kit_name)
+            .ok_or_else(|| anyhow::anyhow!("kit '{}' not found", kit_name))?;
+        selection_patterns.extend(kit_cfg.skills.iter().cloned());
+    }
+    Ok(selection_patterns)
+}
+
+fn resolve_untracked_action<'a>(
+    selected_untracked: &[String],
+    adopt_local: bool,
+    link: Option<&'a str>,
+) -> anyhow::Result<UntrackedAction<'a>> {
+    if adopt_local && link.is_some() {
+        anyhow::bail!("--adopt-local cannot be combined with --link");
+    }
+
+    if let Some(identity) = link {
+        if selected_untracked.is_empty() {
+            anyhow::bail!("--link requires exactly one untracked installed skill");
+        }
+        if selected_untracked.len() > 1 {
+            anyhow::bail!(
+                "--link requires exactly one untracked installed skill; matched {}",
+                selected_untracked.len()
+            );
+        }
+        return Ok(UntrackedAction::Link(identity));
+    }
+
+    if adopt_local {
+        return Ok(UntrackedAction::AdoptLocal);
+    }
+
+    Ok(UntrackedAction::Skip)
+}
 
 pub(crate) fn run(
     agent: String,
     patterns: Vec<String>,
     kit: Option<String>,
+    link: Option<String>,
     adopt_local: bool,
     force: bool,
     interactive: bool,
     flags: &Flags,
 ) -> anyhow::Result<()> {
-    let config_path_str = flags.config_path();
-    let config = crate::config::load(config_path_str)?;
-
-    let data_dir = crate::config::data_dir();
-    let mut registry = crate::registry::load_registry(&data_dir)?;
-    let renames = crate::registry::reconcile_with_config(&mut registry, &config.source, &data_dir)?;
-    if !renames.is_empty() {
-        crate::registry::save_registry(&registry, &data_dir)?;
-        if !flags.quiet {
-            for rename in &renames {
-                eprintln!("source reconciled: {}", rename);
-            }
-        }
-    }
+    let ctx = load_context(flags)?;
+    let config = ctx.config;
+    let data_dir = ctx.data_dir;
+    let mut registry = ctx.registry;
     let out = crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
 
     let agent_cfg = config
@@ -35,14 +78,7 @@ pub(crate) fn run(
     let installed_on_agent = adapter.installed_skills(&agent_cfg.path)?;
     let agent_installs = registry.installed.get(&agent).cloned().unwrap_or_default();
 
-    let mut selection_patterns = patterns;
-    if let Some(ref kit_name) = kit {
-        let kit_cfg = config
-            .kit
-            .get(kit_name)
-            .ok_or_else(|| anyhow::anyhow!("kit '{}' not found", kit_name))?;
-        selection_patterns.extend(kit_cfg.skills.iter().cloned());
-    }
+    let selection_patterns = resolve_selection_patterns(&config, patterns, kit.as_deref())?;
 
     let matched: Vec<String> = if selection_patterns.is_empty() {
         installed_on_agent.clone()
@@ -101,18 +137,14 @@ pub(crate) fn run(
         }
     }
 
-    let use_interactive =
-        interactive || (selection_patterns.is_empty() && crate::prompt::is_interactive());
+    let auto_interactive = selection_patterns.is_empty()
+        && !force
+        && !adopt_local
+        && link.is_none()
+        && crate::prompt::is_interactive();
+    let use_interactive = interactive || auto_interactive;
 
-    let (collect_tracked, adopt_untracked) = if force {
-        (
-            tracked
-                .iter()
-                .map(|(name, _)| name.clone())
-                .collect::<Vec<_>>(),
-            untracked.clone(),
-        )
-    } else if use_interactive {
+    let (collect_tracked, selected_untracked) = if use_interactive {
         let all_labels: Vec<String> = tracked
             .iter()
             .map(|(name, info)| {
@@ -140,40 +172,22 @@ pub(crate) fn run(
             }
         }
 
-        if !selected_untracked.is_empty()
-            && !crate::prompt::confirm_action(
-                &format!(
-                    "Adopt {} untracked skill(s) into local/?",
-                    selected_untracked.len()
-                ),
-                flags.quiet,
-                true,
-            )
-        {
-            selected_untracked.clear();
-        }
-
         (selected_tracked, selected_untracked)
-    } else if !selection_patterns.is_empty() {
-        let selected_untracked = if !untracked.is_empty()
-            && (adopt_local
-                || crate::prompt::confirm_action(
-                    &format!("Adopt {} untracked skill(s) into local/?", untracked.len()),
-                    flags.quiet,
-                    false,
-                )) {
-            untracked.clone()
-        } else {
-            Vec::new()
-        };
+    } else if force || !selection_patterns.is_empty() || adopt_local || link.is_some() {
         (
-            tracked.iter().map(|(name, _)| name.clone()).collect(),
-            selected_untracked,
+            tracked
+                .iter()
+                .map(|(name, _)| name.clone())
+                .collect::<Vec<_>>(),
+            untracked.clone(),
         )
     } else {
         crate::registry::save_registry(&registry, &data_dir)?;
         return Ok(());
     };
+
+    let untracked_action =
+        resolve_untracked_action(&selected_untracked, adopt_local, link.as_deref())?;
 
     for skill_name in &collect_tracked {
         if let Some(info) = agent_installs.get(skill_name) {
@@ -186,28 +200,127 @@ pub(crate) fn run(
         }
     }
 
-    if !adopt_untracked.is_empty() {
-        let local_plugin = crate::config::plugins_dir().join("local");
-        for name in &adopt_untracked {
-            let agent_skill_dir = agent_cfg.path.join("skills").join(name);
-            let dest = local_plugin.join("skills").join(name);
-            std::fs::create_dir_all(&dest)?;
-            copy_dir_all(&agent_skill_dir, &dest)?;
-            let identity = crate::output::format_identity("local", "local", name);
-            out.success(&format!("Adopted {}", identity));
+    match untracked_action {
+        UntrackedAction::Skip if !selected_untracked.is_empty() => {
+            out.warn(&format!(
+                "Skipped {} untracked skill(s); use --adopt-local or --link <identity> to claim them.",
+                selected_untracked.len()
+            ));
         }
+        UntrackedAction::Skip => {}
+        UntrackedAction::AdoptLocal => {
+            if selected_untracked.is_empty() {
+                out.warn("No untracked skills selected for --adopt-local.");
+            } else {
+                let local_plugin = crate::config::plugins_dir().join("local");
+                for name in &selected_untracked {
+                    let agent_skill_dir = agent_cfg.path.join("skills").join(name);
+                    let dest = local_plugin.join("skills").join(name);
+                    std::fs::create_dir_all(&dest)?;
+                    copy_dir_all(&agent_skill_dir, &dest)?;
+                    let identity = crate::output::format_identity("local", "local", name);
+                    out.success(&format!("Adopted {}", identity));
 
-        let plugin_json_dir = local_plugin.join(".claude-plugin");
-        let plugin_json = plugin_json_dir.join("plugin.json");
-        if !plugin_json.exists() {
-            std::fs::create_dir_all(&plugin_json_dir)?;
-            let json = serde_json::json!({"name": "local"});
-            std::fs::write(&plugin_json, serde_json::to_string_pretty(&json)?)?;
+                    let agent_map = registry
+                        .installed
+                        .entry(agent_cfg.name.clone())
+                        .or_default();
+                    agent_map.insert(
+                        name.clone(),
+                        crate::registry::InstalledSkill {
+                            source: "local".to_string(),
+                            plugin: "local".to_string(),
+                            skill: name.clone(),
+                            origin: format!("local/skills/{}", name),
+                        },
+                    );
+                }
+
+                let plugin_json_dir = local_plugin.join(".claude-plugin");
+                let plugin_json = plugin_json_dir.join("plugin.json");
+                if !plugin_json.exists() {
+                    std::fs::create_dir_all(&plugin_json_dir)?;
+                    let json = serde_json::json!({"name": "local"});
+                    std::fs::write(&plugin_json, serde_json::to_string_pretty(&json)?)?;
+                }
+
+                generate_marketplace(&data_dir)?;
+            }
         }
-
-        generate_marketplace(&data_dir)?;
+        UntrackedAction::Link(identity) => {
+            let installed_name = &selected_untracked[0];
+            let (source_name, plugin_name, skill) = {
+                let (source_name, plugin, skill) = registry.find_skill_entry(identity)?;
+                (source_name.to_string(), plugin.name.clone(), skill.clone())
+            };
+            let agent_skill_dir = agent_cfg.path.join("skills").join(installed_name);
+            std::fs::create_dir_all(&skill.path)?;
+            copy_dir_all(&agent_skill_dir, &skill.path)?;
+            record_provenance_as(
+                &mut registry,
+                &data_dir,
+                agent_cfg,
+                installed_name,
+                &source_name,
+                &plugin_name,
+                &skill,
+            );
+            out.success(&format!(
+                "Linked {} → {}",
+                installed_name,
+                crate::output::format_identity(&source_name, &plugin_name, &skill.name)
+            ));
+        }
     }
 
     crate::registry::save_registry(&registry, &data_dir)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{resolve_untracked_action, UntrackedAction};
+
+    #[test]
+    fn link_requires_exactly_one_untracked_skill() {
+        let err = resolve_untracked_action(&[], false, Some("src:plug/skill")).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("--link requires exactly one untracked installed skill"));
+
+        let err = resolve_untracked_action(
+            &["a".to_string(), "b".to_string()],
+            false,
+            Some("src:plug/skill"),
+        )
+        .unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("--link requires exactly one untracked installed skill"));
+    }
+
+    #[test]
+    fn adopt_local_and_link_conflict() {
+        let err =
+            resolve_untracked_action(&["a".to_string()], true, Some("src:plug/skill")).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("--adopt-local cannot be combined with --link"));
+    }
+
+    #[test]
+    fn explicit_untracked_actions_resolve() {
+        assert_eq!(
+            resolve_untracked_action(&["a".to_string()], true, None).unwrap(),
+            UntrackedAction::AdoptLocal
+        );
+        assert_eq!(
+            resolve_untracked_action(&["a".to_string()], false, Some("src:plug/skill")).unwrap(),
+            UntrackedAction::Link("src:plug/skill")
+        );
+        assert_eq!(
+            resolve_untracked_action(&["a".to_string()], false, None).unwrap(),
+            UntrackedAction::Skip
+        );
+    }
 }

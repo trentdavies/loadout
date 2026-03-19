@@ -99,6 +99,7 @@ equip collect --agent claude                # show tracked vs untracked
 equip collect @claude code-review           # collect one skill
 equip collect @claude +developer            # collect a maintained kit
 equip collect --agent claude --adopt-local  # adopt untracked skills
+equip collect @claude stray-skill --link my-src:plugin/skill
 equip agent collect --agent claude          # compatibility alias
 ```
 
