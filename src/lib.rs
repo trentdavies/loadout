@@ -2,6 +2,7 @@ pub mod agent;
 pub mod cli;
 pub mod completions;
 pub mod config;
+pub mod fzf;
 pub mod kit;
 pub mod marketplace;
 pub mod output;

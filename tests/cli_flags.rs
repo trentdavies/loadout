@@ -409,7 +409,7 @@ fn parse_kit_add_skills() {
     let cli = Cli::try_parse_from(["equip", "kit", "add", "dev", "plugin/skill-a"]).unwrap();
     match cli.command {
         equip::cli::Command::Kit { command } => match command {
-            equip::cli::KitCommand::Add { name, skills } => {
+            equip::cli::KitCommand::Add { name, skills, .. } => {
                 assert_eq!(name, "dev");
                 assert_eq!(skills, vec!["plugin/skill-a".to_string()]);
             }

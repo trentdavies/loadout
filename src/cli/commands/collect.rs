@@ -9,6 +9,7 @@ pub(crate) struct CollectArgs {
     pub adopt_local: bool,
     pub force: bool,
     pub interactive: bool,
+    pub fzf: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,6 +95,7 @@ pub(crate) fn run(args: CollectArgs, flags: &Flags) -> anyhow::Result<()> {
         adopt_local,
         force,
         interactive,
+        fzf,
     } = args;
 
     let ctx = load_context(flags)?;
@@ -177,7 +179,48 @@ pub(crate) fn run(args: CollectArgs, flags: &Flags) -> anyhow::Result<()> {
         && crate::prompt::is_interactive();
     let use_interactive = interactive || auto_interactive;
 
-    let (collect_tracked, selected_untracked) = if use_interactive {
+    let (collect_tracked, selected_untracked) = if fzf {
+        // Use fzf for skill selection
+        let all_labels: Vec<String> = tracked
+            .iter()
+            .map(|(name, info)| {
+                format!("{} ({}:{}/{})", name, info.source, info.plugin, info.skill)
+            })
+            .chain(untracked.iter().map(|name| format!("{} (untracked)", name)))
+            .collect();
+
+        let items: Vec<crate::fzf::FzfItem> = all_labels
+            .iter()
+            .map(|label| crate::fzf::FzfItem {
+                display: label.clone(),
+                data: None,
+            })
+            .collect();
+
+        let opts = crate::fzf::FzfOptions {
+            multi: true,
+            header: Some("Select skills to collect (TAB to toggle, ENTER to confirm)".to_string()),
+            prompt: Some("collect> ".to_string()),
+            ..crate::fzf::FzfOptions::default()
+        };
+
+        let selected = crate::fzf::run_fzf(&items, &opts)?;
+
+        let mut selected_tracked = Vec::new();
+        let mut selected_untracked_names = Vec::new();
+        for sel in &selected {
+            // Find matching index in all_labels
+            if let Some(idx) = all_labels.iter().position(|l| *l == sel.display) {
+                if idx < tracked.len() {
+                    selected_tracked.push(tracked[idx].0.clone());
+                } else {
+                    selected_untracked_names.push(untracked[idx - tracked.len()].clone());
+                }
+            }
+        }
+
+        (selected_tracked, selected_untracked_names)
+    } else if use_interactive {
         let all_labels: Vec<String> = tracked
             .iter()
             .map(|(name, info)| {

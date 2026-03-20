@@ -475,6 +475,7 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
             adopt_local,
             force,
             interactive,
+            fzf,
         } => crate::cli::commands::collect::run(
             crate::cli::commands::collect::CollectArgs {
                 agent,
@@ -484,6 +485,7 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
                 adopt_local,
                 force,
                 interactive,
+                fzf,
             },
             flags,
         ),

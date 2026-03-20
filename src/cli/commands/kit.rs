@@ -172,7 +172,11 @@ pub(crate) fn run(command: KitCommand, flags: &Flags) -> anyhow::Result<()> {
 
             Ok(())
         }
-        KitCommand::Add { name, skills } => {
+        KitCommand::Add {
+            name,
+            mut skills,
+            fzf,
+        } => {
             let out = crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
             if !config.kit.contains_key(&name) {
                 anyhow::bail!("kit '{}' not found", name);
@@ -180,6 +184,27 @@ pub(crate) fn run(command: KitCommand, flags: &Flags) -> anyhow::Result<()> {
 
             let registry =
                 crate::cli::helpers::load_effective_registry(&config, &data_dir, flags.quiet)?;
+
+            // fzf browsing to select skills
+            if fzf {
+                let all_skills = registry.all_skills();
+                if all_skills.is_empty() {
+                    out.info("No skills available.");
+                    return Ok(());
+                }
+                let items = crate::fzf::skills_to_fzf_items(&all_skills);
+                let opts = crate::fzf::skill_browse_options(true);
+                let selected = crate::fzf::run_fzf(&items, &opts)?;
+                if selected.is_empty() {
+                    return Ok(());
+                }
+                skills.extend(selected.iter().map(|s| s.display.clone()));
+            }
+
+            if skills.is_empty() {
+                anyhow::bail!("kit add requires skills or --fzf");
+            }
+
             let ext_sources = external_source_set(&config);
 
             let kit = config.kit.get_mut(&name).unwrap();

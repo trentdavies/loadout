@@ -47,6 +47,11 @@ equip — agent skill manager
   equip @claude +frontend-dev              equip a kit
   equip @claude +frontend-dev -s \"dev*\"    equip skills and save as kit
   equip @claude -r \"legal/*\"               unequip legal skills
+
+  equip fzf                                browse all skills with fzf
+  equip fzf --action equip -a claude       browse and equip to claude
+  equip list --fzf --multi                 fuzzy-find with multi-select
+  equip list \"dev*\" | equip fzf            pipe filtered list into fzf
 ";
 
 #[derive(Parser)]
@@ -138,6 +143,10 @@ pub enum Command {
         /// Interactive fuzzy finder with skill preview (requires fzf)
         #[arg(long)]
         fzf: bool,
+
+        /// Enable multi-select in fzf mode
+        #[arg(long)]
+        multi: bool,
     },
 
     /// Remove local skill(s), or remove a source by exact name
@@ -181,6 +190,10 @@ pub enum Command {
         /// Interactive skill selection
         #[arg(short, long)]
         interactive: bool,
+
+        /// Browse installed skills with fzf for selection
+        #[arg(long)]
+        fzf: bool,
     },
 
     /// Reindex sources from disk and reconcile registry paths
@@ -229,6 +242,24 @@ pub enum Command {
         install: bool,
     },
 
+    /// Interactive skill browser (requires fzf)
+    Fzf {
+        /// Filter patterns (glob supported)
+        patterns: Vec<String>,
+
+        /// Agent name(s) to target (used with --action equip)
+        #[arg(short, long, num_args = 1..)]
+        agent: Option<Vec<String>>,
+
+        /// Action to perform on selected skills: print (default), equip, remove
+        #[arg(long, default_value = "print")]
+        action: String,
+
+        /// Enable multi-select (default: true)
+        #[arg(long, default_value = "true")]
+        multi: bool,
+    },
+
     /// Output completion values (used internally by shell scripts)
     #[command(name = "_complete", hide = true)]
     Complete {
@@ -269,6 +300,10 @@ pub enum Command {
         /// Remove instead of equip
         #[arg(short, long)]
         remove: bool,
+
+        /// Browse skills with fzf before equipping
+        #[arg(long)]
+        fzf: bool,
     },
 }
 
@@ -314,8 +349,11 @@ pub enum KitCommand {
         name: String,
 
         /// Skills to add (plugin/skill)
-        #[arg(required = true)]
         skills: Vec<String>,
+
+        /// Browse skills with fzf for selection
+        #[arg(long)]
+        fzf: bool,
     },
     /// Remove skills from a kit
     Drop {
@@ -469,6 +507,10 @@ pub enum AgentCommand {
         /// Interactive skill selection
         #[arg(short, long)]
         interactive: bool,
+
+        /// Browse installed skills with fzf for selection
+        #[arg(long)]
+        fzf: bool,
     },
 }
 
@@ -510,7 +552,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             patterns,
             external,
             fzf,
-        } => commands::source::run_list(patterns, external, fzf, &flags),
+            multi,
+        } => commands::source::run_list(patterns, external, fzf, multi, &flags),
         Command::Remove { patterns, force } => {
             commands::source::run_remove(patterns, force, &flags)
         }
@@ -523,6 +566,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             adopt_local,
             force,
             interactive,
+            fzf,
         } => commands::collect::run(
             commands::collect::CollectArgs {
                 agent,
@@ -532,6 +576,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 adopt_local,
                 force,
                 interactive,
+                fzf,
             },
             &flags,
         ),
@@ -543,6 +588,20 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Completions { shell, install } => {
             commands::completions::run(shell, install, &flags)
         }
+        Command::Fzf {
+            patterns,
+            agent,
+            action,
+            multi,
+        } => commands::fzf::run(
+            commands::fzf::FzfArgs {
+                patterns,
+                agent,
+                action,
+                multi,
+            },
+            &flags,
+        ),
         Command::Complete { kind } => commands::completions::run_complete(kind, &flags),
         Command::Equip {
             patterns,
@@ -553,6 +612,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             force,
             interactive,
             remove,
+            fzf,
         } => commands::equip::run(
             commands::equip::EquipArgs {
                 patterns,
@@ -563,6 +623,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
                 force,
                 interactive,
                 remove,
+                fzf,
             },
             &flags,
         ),

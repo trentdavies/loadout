@@ -16,6 +16,7 @@ pub(crate) struct EquipArgs {
     pub force: bool,
     pub interactive: bool,
     pub remove: bool,
+    pub fzf: bool,
 }
 
 pub(crate) fn run(args: EquipArgs, flags: &Flags) -> anyhow::Result<()> {
@@ -41,15 +42,42 @@ pub(crate) fn run(args: EquipArgs, flags: &Flags) -> anyhow::Result<()> {
 
 fn run_equip(args: EquipArgs, flags: &Flags) -> anyhow::Result<()> {
     let EquipArgs {
-        patterns,
+        mut patterns,
         agent,
         all,
         kit,
         save,
         force,
         interactive,
+        fzf,
         ..
     } = args;
+
+    // If --fzf, let user browse and select skills interactively
+    if fzf {
+        let ctx = load_context(flags)?;
+        let all_skills = if patterns.is_empty() {
+            ctx.registry.all_skills()
+        } else {
+            resolve_skill_patterns(&patterns, &ctx.registry, true)?
+        };
+
+        if all_skills.is_empty() {
+            eprintln!("No skills found.");
+            return Ok(());
+        }
+
+        let items = crate::fzf::skills_to_fzf_items(&all_skills);
+        let opts = crate::fzf::skill_browse_options(true);
+        let selected = crate::fzf::run_fzf(&items, &opts)?;
+
+        if selected.is_empty() {
+            return Ok(());
+        }
+
+        patterns = selected.iter().map(|s| s.display.clone()).collect();
+    }
+
     let ctx = load_context(flags)?;
     let config = ctx.config;
 
