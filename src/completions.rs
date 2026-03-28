@@ -59,7 +59,14 @@ _equip() {
     _equip_skills() {
         local -a skills
         skills=(${(f)"$(equip _complete skills 2>/dev/null)"})
-        [[ ${#skills} -gt 0 ]] && compadd -a skills
+        if [[ ${#skills} -gt 0 ]]; then
+            local -a matching
+            local cur="${PREFIX}${SUFFIX}"
+            for s in "${skills[@]}"; do
+                [[ -z "$cur" || "$s" == "$cur"* ]] && matching+=("$s")
+            done
+            [[ ${#matching} -gt 0 ]] && compadd -U -S ' ' -- "${matching[@]}"
+        fi
     }
 
     _equip_plugins() {
@@ -73,6 +80,36 @@ _equip() {
         kits=(${(f)"$(equip _complete kits 2>/dev/null)"})
         [[ ${#kits} -gt 0 ]] && _describe 'kit' kits
     }
+
+    # Complete skill patterns with @agent and +kit shorthand support.
+    # Handles: @<agent>, +<kit>, source:plugin/skill, and bare skill patterns.
+    _equip_patterns() {
+        # Reconstruct the full current word (zsh splits on : by default)
+        local cur="${PREFIX}${SUFFIX}"
+        if [[ "$cur" == @* ]]; then
+            local partial="${cur#@}"
+            local -a agents
+            agents=(${(f)"$(equip _complete agents 2>/dev/null)"})
+            local -a matching
+            for a in "${agents[@]}"; do
+                [[ -z "$partial" || "$a" == "$partial"* ]] && matching+=("@$a")
+            done
+            [[ ${#matching} -gt 0 ]] && compadd -U -S ' ' -- "${matching[@]}"
+            return
+        fi
+        if [[ "$cur" == +* ]]; then
+            local partial="${cur#+}"
+            local -a kits
+            kits=(${(f)"$(equip _complete kits 2>/dev/null)"})
+            local -a matching
+            for k in "${kits[@]}"; do
+                [[ -z "$partial" || "$k" == "$partial"* ]] && matching+=("+$k")
+            done
+            [[ ${#matching} -gt 0 ]] && compadd -U -S ' ' -- "${matching[@]}"
+            return
+        fi
+        _equip_skills
+    }
     local -a global_flags
     global_flags=(
         '(-n --dry-run)'{-n,--dry-run}'[Preview changes without writing]'
@@ -83,6 +120,26 @@ _equip() {
         '(-h --help)'{-h,--help}'[Show help]'
         '--version[Show version]'
     )
+
+    # Detect implicit install mode before _arguments runs.
+    # If any non-flag arg so far starts with @ or +, or the current word does,
+    # we're in shorthand equip mode — not a subcommand.
+    local _equip_implicit=false
+    local _cur_word="${words[CURRENT]}"
+    for (( _i=2; _i <= CURRENT; _i++ )); do
+        case "${words[_i]}" in
+            @*|+*) _equip_implicit=true; break ;;
+            -*) ;; # skip flags
+            *) ;;
+        esac
+    done
+    [[ "$_cur_word" == @* || "$_cur_word" == +* ]] && _equip_implicit=true
+
+    if $_equip_implicit; then
+        # Implicit install mode: complete @agents, +kits, and skill patterns
+        _equip_patterns
+        return
+    fi
 
     _arguments -C \
         $global_flags \
@@ -107,8 +164,20 @@ _equip() {
             'completions:Generate shell completions'
         )
         _describe 'command' commands
+        _equip_skills
         ;;
     args)
+        # Check if first word is a known subcommand; if not, we're in
+        # implicit install mode — complete patterns for all remaining args
+        case $words[1] in
+        init|add|list|remove|collect|reconcile|status|source|kit|agent|config|completions)
+            ;;
+        *)
+            # Implicit install mode: all args are patterns
+            _equip_patterns
+            return
+            ;;
+        esac
         case $words[1] in
         init)
             _arguments $global_flags \
@@ -127,12 +196,12 @@ _equip() {
         list)
             _arguments $global_flags \
                 '--external[List sources instead of skills]' \
-                '*:pattern:'
+                '*:pattern:_equip_patterns'
             ;;
         remove)
             _arguments $global_flags \
                 '--force[Force removal even if installed]' \
-                '*:pattern:_equip_skills'
+                '*:pattern:_equip_patterns'
             ;;
         collect)
             _arguments $global_flags \
@@ -142,7 +211,7 @@ _equip() {
                 '--adopt-local[Adopt into the local source]' \
                 '(-f --force)'{-f,--force}'[Execute collection without prompting]' \
                 '(-i --interactive)'{-i,--interactive}'[Interactive skill selection]' \
-                '*:pattern:_equip_skills'
+                '*:pattern:_equip_patterns'
             ;;
         reconcile)
             _arguments $global_flags \
@@ -294,7 +363,7 @@ _equip() {
                         '(-s --save-kit)'{-s,--save-kit}'[Save selection as kit]:name:' \
                         '(-f --force)'{-f,--force}'[Overwrite without prompting]' \
                         '(-i --interactive)'{-i,--interactive}'[Interactive conflict resolution]' \
-                        '*:pattern:_equip_skills'
+                        '*:pattern:_equip_patterns'
                     ;;
                 unequip)
                     _arguments \
@@ -302,7 +371,7 @@ _equip() {
                         '--all[All equipped skills]' \
                         '(-k --kit)'{-k,--kit}'[Kit to unequip]:kit:_equip_kits' \
                         '(-f --force)'{-f,--force}'[Force unequip]' \
-                        '*:pattern:_equip_skills'
+                        '*:pattern:_equip_patterns'
                     ;;
                 collect)
                     _arguments \
@@ -312,7 +381,7 @@ _equip() {
                         '--adopt-local[Adopt into the local source]' \
                         '(-f --force)'{-f,--force}'[Execute collection without prompting]' \
                         '(-i --interactive)'{-i,--interactive}'[Interactive skill selection]' \
-                        '*:pattern:_equip_skills'
+                        '*:pattern:_equip_patterns'
                     ;;
                 esac
                 ;;
