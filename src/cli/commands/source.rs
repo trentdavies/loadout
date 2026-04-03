@@ -124,7 +124,15 @@ pub(crate) fn run_add(args: AddArgs, flags: &Flags) -> anyhow::Result<()> {
     )?;
 
     if !flags.quiet {
-        println!("{}", detected_summary(&staged.parsed, &preview.plugins));
+        println!(
+            "{}",
+            detected_summary(
+                &staged.parsed,
+                &preview.plugins,
+                &preview_source_name,
+                &source_url.url_string(),
+            )
+        );
     }
 
     crate::prompt::confirm_proceed(flags.quiet)?;
@@ -391,6 +399,10 @@ fn prompt_add_overrides(
     (plugin_override, skill_override)
 }
 
+fn plural(n: usize) -> &'static str {
+    if n == 1 { "" } else { "s" }
+}
+
 fn print_add_summary(
     heading: &str,
     plugins: &[crate::registry::RegisteredPlugin],
@@ -407,9 +419,9 @@ fn print_add_summary(
         format!(
             "({} plugin{}, {} skill{})",
             plugin_count,
-            if plugin_count == 1 { "" } else { "s" },
+            plural(plugin_count),
             skill_count,
-            if skill_count == 1 { "" } else { "s" },
+            plural(skill_count),
         )
         .dimmed(),
         git_ref
@@ -514,45 +526,86 @@ fn source_alias(name: &str) -> String {
 fn detected_summary(
     parsed: &crate::source::ParsedSource,
     plugins: &[crate::registry::RegisteredPlugin],
+    source_name: &str,
+    source_url: &str,
 ) -> String {
     let plugin_count = plugins.len();
     let skill_count: usize = plugins.iter().map(|plugin| plugin.skills.len()).sum();
 
-    match parsed.kind {
+    let mut lines = Vec::new();
+
+    // Header line with kind and counts
+    let header = match parsed.kind {
         crate::source::SourceKind::Marketplace => {
             let name = parsed
                 .display_name
                 .as_deref()
                 .unwrap_or(&parsed.source_name);
             format!(
-                "Detected a marketplace named '{}', with {} plugin{} and {} total skill{}.",
-                name,
+                "Detected marketplace {} — {} plugin{}, {} skill{}",
+                name.cyan().bold(),
                 plugin_count,
-                if plugin_count == 1 { "" } else { "s" },
+                plural(plugin_count),
                 skill_count,
-                if skill_count == 1 { "" } else { "s" },
+                plural(skill_count),
             )
         }
         crate::source::SourceKind::SinglePlugin => format!(
-            "Detected {} plugin{} with {} skill{}.",
+            "Detected {} plugin{} with {} skill{}",
             plugin_count,
-            if plugin_count == 1 { "" } else { "s" },
+            plural(plugin_count),
             skill_count,
-            if skill_count == 1 { "" } else { "s" },
+            plural(skill_count),
         ),
-        crate::source::SourceKind::FlatSkills => format!(
-            "Detected {} skill{}.",
+        crate::source::SourceKind::FlatSkills
+        | crate::source::SourceKind::SingleSkillDir
+        | crate::source::SourceKind::SingleFile => format!(
+            "Detected {} skill{}",
             skill_count,
-            if skill_count == 1 { "" } else { "s" },
+            plural(skill_count),
         ),
-        crate::source::SourceKind::SingleSkillDir | crate::source::SourceKind::SingleFile => {
-            format!(
-                "Detected {} skill{}.",
-                skill_count,
-                if skill_count == 1 { "" } else { "s" },
-            )
+    };
+    lines.push(header);
+
+    // Source and URL
+    lines.push(format!(
+        "  {} {}  {} {}",
+        "source:".dimmed(),
+        source_name.cyan(),
+        "url:".dimmed(),
+        source_url.dimmed(),
+    ));
+
+    // Skill listing
+    lines.push(String::new());
+    for plugin in plugins {
+        let show_plugin = plugins.len() > 1 || plugin.name != source_name;
+        if show_plugin {
+            lines.push(format!("  {} {}", "plugin:".dimmed(), plugin.name.green()));
+        }
+
+        let indent = if show_plugin { "    " } else { "  " };
+
+        for (i, skill) in plugin.skills.iter().enumerate() {
+            let is_last = i == plugin.skills.len() - 1;
+            let connector = if is_last { "└──" } else { "├──" };
+            let desc = skill
+                .description
+                .as_deref()
+                .filter(|d| !d.is_empty())
+                .map(|d| format!(" {} {}", "—".dimmed(), d.dimmed()))
+                .unwrap_or_default();
+            lines.push(format!(
+                "{}{} {}{}",
+                indent,
+                connector.dimmed(),
+                skill.name.bold(),
+                desc,
+            ));
         }
     }
+
+    lines.join("\n")
 }
 
 #[cfg(test)]
@@ -594,49 +647,68 @@ mod tests {
     }
 
     #[test]
-    fn marketplace_summary_uses_display_name_and_counts() {
+    fn marketplace_summary_includes_skills_and_source() {
         let mut parsed = parsed(SourceKind::Marketplace);
         parsed.display_name = Some("Team Skills".to_string());
 
         let summary = detected_summary(
             &parsed,
             &[plugin("alpha", &["one", "two"]), plugin("beta", &["three"])],
+            "team-skills",
+            "https://github.com/org/team-skills.git",
         );
 
-        assert_eq!(
-            summary,
-            "Detected a marketplace named 'Team Skills', with 2 plugins and 3 total skills."
-        );
+        assert!(summary.contains("2 plugins, 3 skills"));
+        assert!(summary.contains("team-skills"));
+        assert!(summary.contains("https://github.com/org/team-skills.git"));
+        assert!(summary.contains("one"));
+        assert!(summary.contains("two"));
+        assert!(summary.contains("three"));
+        assert!(summary.contains("alpha"));
+        assert!(summary.contains("beta"));
     }
 
     #[test]
-    fn plugin_summary_uses_plugin_and_skill_counts() {
+    fn plugin_summary_lists_skills() {
         let summary = detected_summary(
             &parsed(SourceKind::SinglePlugin),
             &[plugin("alpha", &["one", "two"])],
+            "alpha",
+            "https://github.com/org/alpha.git",
         );
 
-        assert_eq!(summary, "Detected 1 plugin with 2 skills.");
+        assert!(summary.contains("1 plugin with 2 skills"));
+        assert!(summary.contains("one"));
+        assert!(summary.contains("two"));
+        assert!(summary.contains("alpha"));
     }
 
     #[test]
-    fn flat_skill_summary_uses_skill_count() {
+    fn flat_skill_summary_lists_skills() {
         let summary = detected_summary(
             &parsed(SourceKind::FlatSkills),
             &[plugin("alpha", &["one", "two", "three"])],
+            "alpha",
+            "/tmp/alpha",
         );
 
-        assert_eq!(summary, "Detected 3 skills.");
+        assert!(summary.contains("3 skills"));
+        assert!(summary.contains("one"));
+        assert!(summary.contains("two"));
+        assert!(summary.contains("three"));
     }
 
     #[test]
-    fn single_skill_summary_is_singular() {
+    fn single_skill_summary_lists_skill() {
         let summary = detected_summary(
             &parsed(SourceKind::SingleSkillDir),
             &[plugin("alpha", &["one"])],
+            "alpha",
+            "/tmp/alpha",
         );
 
-        assert_eq!(summary, "Detected 1 skill.");
+        assert!(summary.contains("1 skill"));
+        assert!(summary.contains("one"));
     }
 
     #[test]
