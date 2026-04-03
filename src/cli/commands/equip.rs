@@ -162,6 +162,7 @@ fn run_equip(args: EquipArgs, flags: &Flags) -> anyhow::Result<()> {
     let mut updated_count: usize = 0;
     let mut unchanged_count: usize = 0;
     let mut conflict_skipped: usize = 0;
+    let mut collision_skipped: usize = 0;
     let mut force_remaining = force;
     let mut reg = registry.clone();
 
@@ -232,6 +233,9 @@ fn run_equip(args: EquipArgs, flags: &Flags) -> anyhow::Result<()> {
                 ApplySkillOutcome::ConflictSkipped => {
                     conflict_skipped += 1;
                 }
+                ApplySkillOutcome::CollisionSkipped => {
+                    collision_skipped += 1;
+                }
                 ApplySkillOutcome::Quit => {
                     crate::registry::save_registry(&reg, &data_dir)?;
                     print_apply_summary(
@@ -239,6 +243,7 @@ fn run_equip(args: EquipArgs, flags: &Flags) -> anyhow::Result<()> {
                         updated_count,
                         unchanged_count,
                         conflict_skipped,
+                        collision_skipped,
                         flags.quiet,
                     );
                     return Ok(());
@@ -279,6 +284,7 @@ fn run_equip(args: EquipArgs, flags: &Flags) -> anyhow::Result<()> {
             updated_count,
             unchanged_count,
             conflict_skipped,
+            collision_skipped,
             flags.quiet,
         );
     }

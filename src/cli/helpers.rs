@@ -803,6 +803,7 @@ pub(crate) enum ApplySkillOutcome {
     Updated,
     Unchanged,
     ConflictSkipped,
+    CollisionSkipped,
     Quit,
 }
 
@@ -816,6 +817,23 @@ pub(crate) fn apply_skill_to_agent(
     force_all: &mut bool,
 ) -> anyhow::Result<ApplySkillOutcome> {
     let (src_name, plugin, skill) = resolved_skill;
+
+    // Check for collision with agent-native plugins before installing.
+    if !*force_all {
+        if let Some(detector) = crate::agent::native::native_detector(&ac.agent_type) {
+            if let Ok(Some(native)) = detector.check_collision(&skill.name, &ac.path) {
+                eprintln!(
+                    "  {} skill '{}' collides with native plugin '{}' at agent '{}' — skipping",
+                    "⚠".yellow(),
+                    skill.name,
+                    native.full_id,
+                    ac.id
+                );
+                return Ok(ApplySkillOutcome::CollisionSkipped);
+            }
+        }
+    }
+
     let provenance_matches = reg
         .installed
         .get(&ac.id)
@@ -975,6 +993,7 @@ pub(crate) fn print_apply_summary(
     updated_count: usize,
     unchanged_count: usize,
     conflict_skipped: usize,
+    collision_skipped: usize,
     quiet: bool,
 ) {
     if quiet {
@@ -987,6 +1006,9 @@ pub(crate) fn print_apply_summary(
     );
     if conflict_skipped > 0 {
         msg.push_str(&format!(" {} conflict skipped.", conflict_skipped));
+    }
+    if collision_skipped > 0 {
+        msg.push_str(&format!(" {} native collision skipped.", collision_skipped));
     }
     println!("{}", msg);
 }

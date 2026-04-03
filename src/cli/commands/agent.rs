@@ -10,12 +10,22 @@ use crate::cli::AgentCommand;
 /// Known built-in agent types
 const KNOWN_AGENTS: &[&str] = &["claude", "codex", "cursor", "gemini", "vscode"];
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum SkillSourceKind {
+    /// Installed and tracked by Equip.
+    Tracked,
+    /// Present in the agent's skills dir but not tracked by Equip.
+    Untracked,
+    /// Installed by the agent's native plugin system.
+    Native { marketplace: Option<String> },
+}
+
 #[derive(Debug, Clone)]
 struct InstalledSkillView {
     installed_name: String,
     display: String,
     identity: Option<String>,
-    tracked: bool,
+    source_kind: SkillSourceKind,
 }
 
 fn installed_skill_views(
@@ -34,7 +44,7 @@ fn installed_skill_views(
         .unwrap_or_default();
     let installed_index = registry.installed.get(&agent_cfg.id);
 
-    installed_names
+    let mut views: Vec<InstalledSkillView> = installed_names
         .into_iter()
         .map(|installed_name| {
             if let Some(installed) = installed_index.and_then(|skills| skills.get(&installed_name))
@@ -65,7 +75,7 @@ fn installed_skill_views(
                     installed_name,
                     display,
                     identity: Some(identity),
-                    tracked: true,
+                    source_kind: SkillSourceKind::Tracked,
                 }
             } else {
                 let display = if colorize {
@@ -78,11 +88,62 @@ fn installed_skill_views(
                     installed_name,
                     display,
                     identity: None,
-                    tracked: false,
+                    source_kind: SkillSourceKind::Untracked,
                 }
             }
         })
-        .collect()
+        .collect();
+
+    // Append native plugins (from the agent's own plugin system).
+    if let Some(detector) = crate::agent::native::native_detector(&agent_cfg.agent_type) {
+        if let Ok(native_plugins) = detector.native_plugins(&agent_cfg.path) {
+            let existing_names: BTreeSet<String> =
+                views.iter().map(|v| v.installed_name.clone()).collect();
+            for np in native_plugins {
+                // Skip if already listed from skills/ dir (avoid double-listing).
+                if existing_names.contains(&np.name) {
+                    continue;
+                }
+                // Skip local-skills-dir entries — those are already handled by the adapter scan above.
+                if np.discovery_source == crate::agent::native::NativeDiscoverySource::LocalSkillsDir
+                {
+                    continue;
+                }
+                let marketplace = np.marketplace.clone();
+                let display = if colorize {
+                    let tag = match &marketplace {
+                        Some(mp) => format!("(native: {})", mp).cyan().to_string(),
+                        None => "(native)".cyan().to_string(),
+                    };
+                    format!("{} {}", np.name.bold(), tag)
+                } else {
+                    match &marketplace {
+                        Some(mp) => format!("{} (native: {})", np.name, mp),
+                        None => format!("{} (native)", np.name),
+                    }
+                };
+                views.push(InstalledSkillView {
+                    installed_name: np.name,
+                    display,
+                    identity: None,
+                    source_kind: SkillSourceKind::Native { marketplace },
+                });
+            }
+        }
+    }
+
+    views
+}
+
+fn source_kind_json(kind: &SkillSourceKind) -> serde_json::Value {
+    match kind {
+        SkillSourceKind::Tracked => serde_json::json!("tracked"),
+        SkillSourceKind::Untracked => serde_json::json!("untracked"),
+        SkillSourceKind::Native { marketplace } => serde_json::json!({
+            "type": "native",
+            "marketplace": marketplace,
+        }),
+    }
 }
 
 fn installed_kit_names(
@@ -126,6 +187,99 @@ fn installed_kit_names(
     }
 
     kits
+}
+
+/// After agent detection, check each Claude-type agent for known marketplaces
+/// and offer to register them as Equip sources.
+fn discover_native_marketplaces(
+    config: &crate::config::Config,
+    force: bool,
+    flags: &Flags,
+) -> anyhow::Result<()> {
+    if flags.json {
+        return Ok(());
+    }
+
+    let mut discovered: Vec<(String, crate::agent::native::NativeMarketplace)> = Vec::new();
+
+    for ac in &config.agent {
+        let detector = match crate::agent::native::native_detector(&ac.agent_type) {
+            Some(d) => d,
+            None => continue,
+        };
+        if let Ok(marketplaces) = detector.known_marketplaces(&ac.path) {
+            for mp in marketplaces {
+                // Check if already registered as an Equip source (match by repo in URL)
+                let already = config.source.iter().any(|s| s.url.contains(&mp.repo));
+                if already {
+                    continue;
+                }
+                // Avoid duplicates across agents
+                if discovered.iter().any(|(_, d)| d.repo == mp.repo) {
+                    continue;
+                }
+                discovered.push((ac.id.clone(), mp));
+            }
+        }
+    }
+
+    if discovered.is_empty() {
+        return Ok(());
+    }
+
+    if !flags.quiet {
+        println!();
+    }
+
+    for (agent_name, mp) in &discovered {
+        let github_url = format!("https://github.com/{}", mp.repo);
+        if force {
+            if !flags.quiet {
+                println!(
+                    "  {} marketplace '{}' from agent '{}' — run: equip add {}",
+                    "→".cyan(),
+                    mp.name.bold(),
+                    agent_name,
+                    github_url,
+                );
+            }
+        } else {
+            eprint!(
+                "Found marketplace '{}' ({}) from agent '{}'. Add as Equip source? [y/N] ",
+                mp.name.bold(),
+                mp.repo,
+                agent_name,
+            );
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input).unwrap_or(0);
+            if input.trim().eq_ignore_ascii_case("y") {
+                // Shell out to equip add — this reuses all the source parsing, staging,
+                // and registration logic without duplicating it.
+                let add_args = crate::cli::commands::source::AddArgs {
+                    url: github_url.clone(),
+                    source: None,
+                    plugin: None,
+                    skill: None,
+                    name: None,
+                    r#ref: None,
+                    symlink: false,
+                    copy: false,
+                };
+                match crate::cli::commands::source::run_add(add_args, flags) {
+                    Ok(()) => {}
+                    Err(e) => {
+                        eprintln!(
+                            "  {} failed to add marketplace '{}': {}",
+                            "⚠".yellow(),
+                            mp.name,
+                            e
+                        );
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
@@ -256,7 +410,7 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
                                         .map(|skill| {
                                             serde_json::json!({
                                                 "name": skill.installed_name,
-                                                "tracked": skill.tracked,
+                                                "source_kind": source_kind_json(&skill.source_kind),
                                                 "identity": skill.identity,
                                             })
                                         })
@@ -351,7 +505,7 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
                     "installed": installed.iter().map(|skill| {
                         serde_json::json!({
                             "name": skill.installed_name,
-                            "tracked": skill.tracked,
+                            "source_kind": source_kind_json(&skill.source_kind),
                             "identity": skill.identity,
                         })
                     }).collect::<Vec<_>>(),
@@ -468,6 +622,9 @@ pub(crate) fn run(command: AgentCommand, flags: &Flags) -> anyhow::Result<()> {
                     crate::config::save(&config, config_path_str)?;
                 }
             }
+
+            // Discover agent-native marketplaces and offer to register as sources
+            discover_native_marketplaces(&config, force, flags)?;
 
             Ok(())
         }

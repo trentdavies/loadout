@@ -138,6 +138,14 @@ pub enum Command {
         /// Interactive fuzzy finder with skill preview (requires fzf)
         #[arg(long)]
         fzf: bool,
+
+        /// Show agent-native plugins not managed by Equip
+        #[arg(long)]
+        unmanaged: bool,
+
+        /// Show both Equip-managed skills and unmanaged agent-native plugins
+        #[arg(long)]
+        all: bool,
     },
 
     /// Remove local skill(s), or remove a source by exact name
@@ -515,7 +523,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             patterns,
             external,
             fzf,
-        } => commands::source::run_list(patterns, external, fzf, &flags),
+            unmanaged,
+            all,
+        } => commands::source::run_list(patterns, external, fzf, unmanaged, all, &flags),
         Command::Remove { patterns, force } => {
             commands::source::run_remove(patterns, force, &flags)
         }

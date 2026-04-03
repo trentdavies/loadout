@@ -757,10 +757,16 @@ pub(crate) fn run_list(
     patterns: Vec<String>,
     external: bool,
     fzf: bool,
+    unmanaged: bool,
+    all: bool,
     flags: &Flags,
 ) -> anyhow::Result<()> {
     if external {
         return run_source_list(flags);
+    }
+
+    if unmanaged || all {
+        return run_list_unmanaged(patterns, all, flags);
     }
 
     let ctx = load_context(flags)?;
@@ -916,6 +922,133 @@ pub(crate) fn run_list(
             }
         }
     }
+    Ok(())
+}
+
+/// List agent-native plugins not managed by Equip. When `include_managed` is true,
+/// also shows the normal Equip-managed skills alongside.
+fn run_list_unmanaged(
+    _patterns: Vec<String>,
+    include_managed: bool,
+    flags: &Flags,
+) -> anyhow::Result<()> {
+    use colored::Colorize;
+
+    let ctx = load_context(flags)?;
+    let config = ctx.config;
+    let registry = ctx.registry;
+    let output = crate::output::Output::from_flags(flags.json, flags.quiet, flags.verbose);
+
+    if config.agent.is_empty() {
+        output.info("No agents configured. Use `equip agent detect` to find agents.");
+        return Ok(());
+    }
+
+    let mut json_entries: Vec<serde_json::Value> = Vec::new();
+    let mut any_found = false;
+
+    // If --all, show managed skills first
+    if include_managed && !flags.json {
+        let all_skills = registry.all_skills();
+        if !all_skills.is_empty() {
+            println!("{}", "Managed skills:".bold());
+            for (source_name, plugin, skill) in &all_skills {
+                println!(
+                    "  {}",
+                    crate::output::format_identity(source_name, &plugin.name, &skill.name)
+                );
+            }
+            println!();
+        }
+    }
+
+    for ac in &config.agent {
+        let detector = match crate::agent::native::native_detector(&ac.agent_type) {
+            Some(d) => d,
+            None => continue,
+        };
+
+        let native_plugins = detector.native_plugins(&ac.path).unwrap_or_default();
+        let equip_managed: std::collections::BTreeSet<String> = registry
+            .installed
+            .get(&ac.id)
+            .map(|m| m.keys().cloned().collect())
+            .unwrap_or_default();
+
+        let unmanaged: Vec<_> = native_plugins
+            .into_iter()
+            .filter(|np| {
+                // Skip local skills that Equip manages
+                if equip_managed.contains(&np.name) {
+                    return false;
+                }
+                // Skip LocalSkillsDir entries that are tracked by Equip
+                if np.discovery_source
+                    == crate::agent::native::NativeDiscoverySource::LocalSkillsDir
+                    && equip_managed.contains(&np.name)
+                {
+                    return false;
+                }
+                true
+            })
+            .collect();
+
+        if unmanaged.is_empty() {
+            continue;
+        }
+        any_found = true;
+
+        if flags.json {
+            for np in &unmanaged {
+                json_entries.push(serde_json::json!({
+                    "agent": ac.id,
+                    "name": np.name,
+                    "full_id": np.full_id,
+                    "marketplace": np.marketplace,
+                    "discovery_source": format!("{:?}", np.discovery_source),
+                    "enabled": np.enabled,
+                    "managed": false,
+                }));
+            }
+        } else {
+            println!("{} {}:", ac.id.bold(), format!("({})", ac.agent_type).cyan());
+            for np in &unmanaged {
+                let tag = match (&np.marketplace, &np.discovery_source) {
+                    (Some(mp), _) => format!("(native: {})", mp).cyan().to_string(),
+                    (
+                        None,
+                        crate::agent::native::NativeDiscoverySource::LocalSkillsDir,
+                    ) => "(local skill)".yellow().to_string(),
+                    (None, _) => "(native)".cyan().to_string(),
+                };
+                let enabled_indicator = match np.enabled {
+                    Some(false) => format!(" {}", "disabled".dimmed()),
+                    _ => String::new(),
+                };
+                println!("  {} {}{}", np.name.bold(), tag, enabled_indicator);
+            }
+            println!();
+        }
+    }
+
+    if flags.json {
+        // For --all, include managed skills in JSON too
+        if include_managed {
+            for (source_name, plugin, skill) in registry.all_skills() {
+                json_entries.push(serde_json::json!({
+                    "identity": crate::output::plain_identity(source_name, &plugin.name, &skill.name),
+                    "name": skill.name,
+                    "plugin": plugin.name,
+                    "source": source_name,
+                    "managed": true,
+                }));
+            }
+        }
+        println!("{}", serde_json::to_string_pretty(&json_entries)?);
+    } else if !any_found {
+        output.info("No unmanaged plugins found across configured agents.");
+    }
+
     Ok(())
 }
 
