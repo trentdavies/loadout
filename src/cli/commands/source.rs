@@ -488,6 +488,9 @@ fn default_source_name(
                 Some(display_alias) if display_alias.ends_with(&format!("-{url_alias}")) => {
                     display_alias
                 }
+                Some(display_alias) if display_alias.starts_with(&format!("{url_alias}-")) => {
+                    display_alias
+                }
                 Some(display_alias) => format!("{display_alias}-{url_alias}"),
                 None => url_alias,
             }
@@ -719,7 +722,7 @@ mod tests {
 
         assert_eq!(
             default_source_name(&url, &parsed),
-            "hashicorp-skills-agent-skills"
+            "hashicorp-skills"
         );
     }
 
@@ -728,7 +731,7 @@ mod tests {
         let parsed = parsed(SourceKind::Marketplace);
         let url = SourceUrl::parse("https://github.com/hashicorp/agent-skills").unwrap();
 
-        assert_eq!(default_source_name(&url, &parsed), "agent-skills");
+        assert_eq!(default_source_name(&url, &parsed), "hashicorp");
     }
 
     #[test]

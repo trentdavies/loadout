@@ -93,9 +93,10 @@ impl SourceUrl {
     /// Derive a default source name from the URL.
     ///
     /// Rules:
-    /// - No subpath → repo name (e.g. `skills` from `org/skills`)
-    /// - `/tree/ref` with no subpath → repo name
+    /// - GitHub/GitLab URLs without subpath → org name (e.g. `anthropics` from `github.com/anthropics/skills`)
+    /// - `/tree/ref` with no subpath → org name
     /// - `/tree/ref/path/to/dir` → leaf dir name, with leading dot stripped
+    /// - Non-GitHub git URLs without org → repo name
     pub fn default_name(&self) -> String {
         match self {
             SourceUrl::Local(path) => path
@@ -109,15 +110,18 @@ impl SourceUrl {
                     let leaf = subpath.rsplit('/').next().unwrap_or(subpath);
                     leaf.strip_prefix('.').unwrap_or(leaf).to_string()
                 } else {
-                    // Use repo name
                     let cleaned = url.trim_end_matches(".git");
-                    // Strip /tree/<ref> if present (shouldn't be after parse, but defensive)
                     let base = if let Some(pos) = cleaned.find("/tree/") {
                         &cleaned[..pos]
                     } else {
                         cleaned
                     };
-                    base.rsplit('/').next().unwrap_or("unnamed").to_string()
+                    // For GitHub/GitLab URLs, use org name; otherwise repo name
+                    if let Some(org) = extract_git_org(base) {
+                        org
+                    } else {
+                        base.rsplit('/').next().unwrap_or("unnamed").to_string()
+                    }
                 }
             }
             SourceUrl::Archive(path) => path
@@ -169,6 +173,37 @@ impl SourceUrl {
             _ => None,
         }
     }
+}
+
+/// Extract the org/owner segment from a GitHub/GitLab URL or git@... shorthand.
+///
+/// Returns `Some(org)` for URLs like:
+/// - `https://github.com/org/repo` → `org`
+/// - `git@github.com:org/repo` → `org`
+///
+/// Returns `None` for unrecognized patterns.
+fn extract_git_org(url: &str) -> Option<String> {
+    // HTTPS: https://github.com/org/repo → split path, org is first segment
+    for host in &["github.com/", "gitlab.com/"] {
+        if let Some(after) = url.split_once(host).map(|(_, rest)| rest) {
+            let segments: Vec<&str> = after.splitn(3, '/').collect();
+            if segments.len() >= 2 && !segments[0].is_empty() {
+                return Some(segments[0].to_string());
+            }
+        }
+    }
+
+    // git@ shorthand: git@github.com:org/repo
+    if url.starts_with("git@") {
+        if let Some(after_colon) = url.split_once(':').map(|(_, rest)| rest) {
+            let segments: Vec<&str> = after_colon.splitn(2, '/').collect();
+            if !segments[0].is_empty() {
+                return Some(segments[0].to_string());
+            }
+        }
+    }
+
+    None
 }
 
 /// Parse a GitHub/GitLab URL, extracting `/tree/<ref>/<path>` components.
@@ -317,7 +352,7 @@ mod tests {
             "https://github.com/org/cool-skills.git".to_string(),
             GitTreeInfo::default(),
         );
-        assert_eq!(url.default_name(), "cool-skills");
+        assert_eq!(url.default_name(), "org");
     }
 
     #[test]
@@ -500,13 +535,13 @@ mod tests {
     #[test]
     fn default_name_repo_only() {
         let url = SourceUrl::parse("https://github.com/anthropics/skills").unwrap();
-        assert_eq!(url.default_name(), "skills");
+        assert_eq!(url.default_name(), "anthropics");
     }
 
     #[test]
     fn default_name_tree_ref_only() {
         let url = SourceUrl::parse("https://github.com/anthropics/skills/tree/main").unwrap();
-        assert_eq!(url.default_name(), "skills");
+        assert_eq!(url.default_name(), "anthropics");
     }
 
     #[test]
@@ -531,5 +566,24 @@ mod tests {
         )
         .unwrap();
         assert_eq!(url.default_name(), "productivity");
+    }
+
+    #[test]
+    fn default_name_non_github_git() {
+        let url = SourceUrl::Git(
+            "git://example.com/repo.git".to_string(),
+            GitTreeInfo::default(),
+        );
+        // Non-GitHub URL — falls back to repo name
+        assert_eq!(url.default_name(), "repo");
+    }
+
+    #[test]
+    fn default_name_git_at_shorthand() {
+        let url = SourceUrl::Git(
+            "git@github.com:anthropics/skills.git".to_string(),
+            GitTreeInfo::default(),
+        );
+        assert_eq!(url.default_name(), "anthropics");
     }
 }
