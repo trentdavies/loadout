@@ -135,6 +135,29 @@ pub(crate) fn run_add(args: AddArgs, flags: &Flags) -> anyhow::Result<()> {
         );
     }
 
+    let total_skills: usize = preview.plugins.iter().map(|p| p.skills.len()).sum();
+    if total_skills == 0 {
+        let plugin_count = preview.plugins.len();
+        let hint = if plugin_count > 0 {
+            format!(
+                "Found {} plugin{} but no skills. Each skill must be a subdirectory \
+                 containing SKILL.md with valid frontmatter (name, description).\n\
+                 Skills must be located directly inside the plugin root or under a skills/ subdirectory.",
+                plugin_count,
+                if plugin_count == 1 { "" } else { "s" },
+            )
+        } else {
+            "No plugins or skills detected. Expected a directory with skill subdirectories \
+             containing SKILL.md files with valid frontmatter (name, description)."
+                .to_string()
+        };
+        anyhow::bail!(
+            "source has no skills\n\n{}\n\n\
+             Run with --verbose to see detection warnings.",
+            hint,
+        );
+    }
+
     crate::prompt::confirm_proceed(flags.quiet)?;
 
     let source_name = match residence {
