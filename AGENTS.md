@@ -90,6 +90,23 @@ Shared by all test tiers:
 - `full-source/` — multi-plugin marketplace
 - `invalid/` — malformed inputs for error-path testing
 
+## Testing Requirements
+
+Every bug fix and feature **must** include tests. Run all relevant tiers before considering work complete.
+
+### What to test and where
+
+1. **Unit tests** (`src/**/mod.rs`, inline `#[cfg(test)]` modules) — test internal functions, pattern matching, data transformations. Run with `just test`. Use these for anything that can be tested by calling a function directly.
+2. **Integration tests** (`tests/*.rs`) — test cross-module workflows through the public API. Run with `just test`. Use these for end-to-end Rust-level scenarios (config → source → agent → install).
+3. **Bash harness** (`tests/harness/suite/`) — black-box CLI tests that invoke the built binary as a subprocess in Docker with no network. Run with `just harness`. Use these for CLI behavior: flags, output format, error messages, exit codes.
+4. **Sandbox tests** (`tests/sandbox/suite/`) — network-enabled functional tests in Docker that clone real repos. Run with `just sandbox-test`. Use these only when the scenario requires network access (git clone, real source detection).
+
+### Which tiers to run
+
+- **Bug fix**: add a regression test at the lowest tier that reproduces the bug (usually unit or integration). Run `just test` and `just harness`. Run `just sandbox-test` if the fix touches source fetching, detection, or install logic.
+- **New feature**: add tests at every tier the feature touches. Run `just test-all` (unit + integration + harness) at minimum. Run `just sandbox-test` if the feature involves network or real repo interactions.
+- **Refactor**: no new tests required, but all existing tests must pass. Run `just test-all` and `just sandbox-test`.
+
 ## Conventions
 
 - **Naming**: names describe what code does, not implementation details or history. No `ZodValidator`, `MCPWrapper`, `NewAPI` patterns.

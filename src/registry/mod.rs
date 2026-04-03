@@ -279,15 +279,22 @@ pub fn is_glob(input: &str) -> bool {
 /// Expands a short-form pattern for matching against full identity strings
 /// (`source:plugin/skill`).
 ///
-/// - Has `:` → already fully qualified, use as-is
+/// - Has `:` with `/` in rest → already fully qualified, use as-is
+/// - Has `:` with glob but no `/` → promote `*` to `**` so globs span
+///   across the plugin/skill separator
+/// - Has `:` with plain rest → plugin name, append `/*` for any skill
 /// - Has `/` → plugin/skill form, prepend `*:` for any source
 /// - Otherwise → freeform search, wrap as `*<pattern>*` to match anywhere
 ///   in the full identity
 pub fn expand_pattern(input: &str) -> String {
     if input.contains(':') {
-        if let Some((_source, rest)) = input.split_once(':') {
+        if let Some((source, rest)) = input.split_once(':') {
             if rest.contains('/') {
                 input.to_string()
+            } else if is_glob(rest) {
+                // Promote `*` to `**` so the glob can match across the `/`
+                // separator between plugin and skill names.
+                format!("{}:{}", source, rest.replace('*', "**"))
             } else {
                 format!("{}/*", input)
             }
@@ -560,10 +567,16 @@ mod tests {
     }
 
     #[test]
-    fn expand_pattern_appends_slash_star_when_no_slash_after_colon() {
-        assert_eq!(expand_pattern("source:*"), "source:*/*");
-        assert_eq!(expand_pattern("source:plugin*"), "source:plugin*/*");
+    fn expand_pattern_colon_forms() {
+        // Plain plugin name → append /* for any skill
+        assert_eq!(expand_pattern("source:plugin"), "source:plugin/*");
+        // Glob without / → promote * to ** to span plugin/skill
+        assert_eq!(expand_pattern("source:*"), "source:**");
+        assert_eq!(expand_pattern("source:plugin*"), "source:plugin**");
+        assert_eq!(expand_pattern("source:adobe*branding"), "source:adobe**branding");
+        // Already has / → use as-is
         assert_eq!(expand_pattern("source:p/s"), "source:p/s");
+        assert_eq!(expand_pattern("source:*/s"), "source:*/s");
     }
 
     #[test]
